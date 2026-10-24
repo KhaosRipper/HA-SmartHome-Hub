@@ -61,18 +61,6 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 
 ---
 
-## 📂 Benötigte Bild-Platzhalter (für das Repository)
-Falls du eigene Raumbilder mitlieferst, lege sie im Ordner `custom_components/smarthome_hub/panel/` ab:
-- `Haus.jpg`
-- `wohnzimmer.jpg`
-- `kueche.jpg`
-- `bad.jpg`
-- `lilly.jpg`
-- `mila.jpg`
-- `ella.jpg`
-- `lia.jpg`
-- `garten.jpg`
-
 ## 🙏 Danksagung & Inspiration
 
 * **UI/UX Design:** Dieses Dashboard ist visuell inspiriert und abgewandelt von dem wunderbaren Konzept ["Smart Home Dashboard UI/UX IoT Control Panel" auf Dribbble](https://dribbble.com/shots/27413660-Smart-Home-Dashboard-UI-UX-IoT-Control-Panel).
