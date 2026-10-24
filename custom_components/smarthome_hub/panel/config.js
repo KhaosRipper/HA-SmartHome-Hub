@@ -65,7 +65,16 @@ const EMPTY_CONFIG = {
     { id: "covers",  name: "Rolläden" }
   ],
   rooms: [
-    { name: "Home", image: "", color: "#2a2370", webrtc: "", camera: "", chips: [] }
+    {
+      name: "Home",
+      image: "",
+      color: "#2a2370",
+      webrtc: "",
+      camera: "",
+      showLiveBadge: true,
+      camButtons: [],
+      chips: []
+    }
   ],
   devices: [],
   climate: { title: "Raumklima", label: "Hauptbereich", entity: "", min: 16, max: 30, step: 0.5 },
@@ -218,25 +227,29 @@ const TIMO_PRESET_CONFIG = {
 
   rooms: [
     { name: "Home", image: "Haus.jpg", color: "#2a2370", webrtc: "Eingang-sub", camera: "camera.eingang_standardauflosung",
+      showLiveBadge: true,
+      camButtons: [
+        { name: "Vergrößern", icon: "expand", stream: "", entity: "" }
+      ],
       chips: [
         { icon: "thermo",  entity: "sensor.appenweier_temperatur",            unit: "°C" },
         { icon: "bolt",    entity: "sensor.senec_house_power",                unit: "W", decimals: 0, cls: "blue" },
         { icon: "sun",     entity: "sensor.senec_solar_generated_power",      unit: "W", decimals: 0, cls: "amber" },
         { icon: "battery", entity: "sensor.senec_battery_charge_percent",     unit: "%", decimals: 0, cls: "battery" },
         { icon: "drop",    entity: "sensor.appenweier_luftfeuchtigkeit",      unit: "%", decimals: 0 } ] },
-    { name: "Wohnzimmer", image: "wohnzimmer.jpg", color: "#2a2350", climate: "climate.heizung_wohnzimmer", chips: [
+    { name: "Wohnzimmer", image: "wohnzimmer.jpg", color: "#2a2350", climate: "climate.heizung_wohnzimmer", showLiveBadge: true, camButtons: [], chips: [
         { icon: "thermo", entity: "sensor.heizung_wohnzimmer_temperatur", unit: "°C" },
         { icon: "drop",   entity: "sensor.heizung_wohnzimmer_luftfeuchtigkeit", unit: "%", decimals: 0 } ] },
-    { name: "Küche/Esszimmer", image: "kueche.jpg", color: "#3a2a22", climate: "climate.heizung_esszimmer", chips: [
+    { name: "Küche/Esszimmer", image: "kueche.jpg", color: "#3a2a22", climate: "climate.heizung_esszimmer", showLiveBadge: true, camButtons: [], chips: [
         { icon: "thermo", entity: "climate.heizung_esszimmer", attr: "current_temperature", unit: "°C" } ] },
-    { name: "Bad", image: "bad.jpg", color: "#3a2a22", climate: "climate.bad_thermostat", chips: [
+    { name: "Bad", image: "bad.jpg", color: "#3a2a22", climate: "climate.bad_thermostat", showLiveBadge: true, camButtons: [], chips: [
         { icon: "thermo", entity: "sensor.bad_temperatur", unit: "°C" } ] },
-    { name: "Lilly", image: "lilly.jpg", color: "#1f6a5a", chips: [] },
-    { name: "Mila", image: "mila.jpg", color: "#1f7a4a", chips: [] },
-    { name: "Ella", image: "ella.jpg", color: "#1f8a5a", climate: "climate.ella_thermostat_heizung", chips: [
+    { name: "Lilly", image: "lilly.jpg", color: "#1f6a5a", showLiveBadge: true, camButtons: [], chips: [] },
+    { name: "Mila", image: "mila.jpg", color: "#1f7a4a", showLiveBadge: true, camButtons: [], chips: [] },
+    { name: "Ella", image: "ella.jpg", color: "#1f8a5a", climate: "climate.ella_thermostat_heizung", showLiveBadge: true, camButtons: [], chips: [
         { icon: "thermo", entity: "sensor.ella_thermostat_heizung_local_temperature", unit: "°C" } ] },
-    { name: "Lia", image: "lia.jpg", color: "#1f5a4a", chips: [] },
-    { name: "Garten", image: "garten.jpg", color: "#1f3a2c", chips: [] }
+    { name: "Lia", image: "lia.jpg", color: "#1f5a4a", showLiveBadge: true, camButtons: [], chips: [] },
+    { name: "Garten", image: "garten.jpg", color: "#1f3a2c", showLiveBadge: true, camButtons: [], chips: [] }
   ],
 
   devices: [

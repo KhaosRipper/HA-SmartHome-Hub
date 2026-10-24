@@ -73,11 +73,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .hero-bottom{display:flex;flex-direction:column;gap:12px;margin-top:48px}
 .hero-bottom h2{font-size:38px;font-weight:700;letter-spacing:-.5px;line-height:1.05;text-shadow:0 4px 18px rgba(0,0,0,.6)}
 .hero-bar{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
-.camtools{display:flex;gap:8px;align-items:center;margin-left:auto}
+.camtools{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-left:auto}
 .live{font-size:11px;font-weight:600;padding:5px 9px;border-radius:8px;background:rgba(220,38,38,.85)}
 .standby{font-size:11px;font-weight:600;padding:5px 9px;border-radius:8px;background:rgba(139,143,168,.25);color:var(--mut)}
 .expand{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 10px;border-radius:8px;background:rgba(10,11,22,.6);border:1px solid var(--line);backdrop-filter:blur(8px)}
-.expand:hover{background:var(--acc)}
+.expand:hover,.expand.on{background:var(--acc)}
+.expand .emo{font-size:14px;line-height:1}
 .lb{position:fixed;inset:0;z-index:20;background:rgba(4,5,12,.95);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
 .lb.show{display:flex}
 .lb img,.lb iframe{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;border:0}
@@ -323,3 +324,24 @@ select option, .cfg-in option, .sheet select option{background-color:#12132a;col
 .wfc-row-r{color:var(--cool);font-size:12px;font-variant-numeric:tabular-nums}
 .wfc-row-t{font-variant-numeric:tabular-nums;text-align:right}
 .wfc-row-t small{color:var(--mut);margin-left:6px;font-size:12px}
+.expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(10,11,22,.6);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+.expand:hover, .expand.on {
+  background: var(--acc);
+}
+
+/* Automatisch anpassen, wenn kein Text vorhanden ist */
+.expand:empty, 
+.expand:not(:has(text)):not(:has(:not(svg))) {
+  padding: 7px;
+  gap: 0;
+}

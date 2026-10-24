@@ -98,7 +98,15 @@ function ensureConfigDefaults(cfg) {
   }
   if (!Array.isArray(cfg.metrics)) cfg.metrics = [];
   if (!Array.isArray(cfg.rooms)) cfg.rooms = [{ name: 'Home', image: '', color: '#2a2370', chips: [] }];
-  cfg.rooms.forEach(r => { if (!Array.isArray(r.chips)) r.chips = []; });
+  cfg.rooms.forEach(r => {
+    if (!Array.isArray(r.chips)) r.chips = [];
+    if (r.showLiveBadge === undefined) r.showLiveBadge = true;
+    if (!Array.isArray(r.camButtons)) {
+      r.camButtons = (r.webrtc || r.camera)
+        ? [{ name: 'Vergrößern', icon: 'expand', stream: '', entity: '' }]
+        : [];
+    }
+  });
 
   if (!cfg.weather) cfg.weather = {};
   if (cfg.weather.showCard === undefined) cfg.weather.showCard = true;
@@ -289,11 +297,11 @@ async function autoDiscoverFromHA() {
     const devArea = {};
     devices.forEach(d => { if (d.area_id) devArea[d.id] = d.area_id; });
 
-    const newRooms = [{ name: 'Home', image: '', color: '#2a2370', chips: [] }];
+    const newRooms = [{ name: 'Home', image: '', color: '#2a2370', showLiveBadge: true, camButtons: [], chips: [] }];
     const areaMap = {};
     areas.forEach(a => {
       areaMap[a.area_id] = a.name;
-      newRooms.push({ name: a.name, image: '', color: '#2a2350', chips: [] });
+      newRooms.push({ name: a.name, image: '', color: '#2a2350', showLiveBadge: true, camButtons: [], chips: [] });
     });
 
     const newDevs = [];
@@ -902,7 +910,16 @@ function heroOverlayContent() {
 
   const hasWebRtc = !!r.webrtc && !!CONFIG.go2rtcHost && !DEMO;
   const hasCam = !hasWebRtc && !!r.camera && !DEMO && !!S(r.camera);
-  const hasAnyCam = hasWebRtc || hasCam;
+  const isBgLiveStream = hasWebRtc || hasCam;
+  const showLive = isBgLiveStream && r.showLiveBadge !== false;
+
+  const camBtns = (r.camButtons || []).map(b => {
+    const btnIcon = b.icon || 'expand';
+    const btnName = b.name != null ? String(b.name).trim() : '';
+    const stream = b.stream || '';
+    const entity = b.entity || '';
+    return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}">${ic(btnIcon, 14)}${btnName ? esc(btnName) : ''}</button>`;
+  }).join('');
 
   return `<div class="hero-top">
       <div class="hi">${greet},</div>
@@ -916,7 +933,7 @@ function heroOverlayContent() {
       <h2>${esc(r.name)}</h2>
       <div class="hero-bar">
         <div class="chips">${chips}</div>
-        ${hasAnyCam ? `<div class="camtools"><span class="live">● LIVE</span><button class="expand" data-act="camBig" data-webrtc="${hasWebRtc ? esc(r.webrtc) : ''}">${ic('expand', 14)}Vergrößern</button></div>` : ''}
+        ${(showLive || camBtns) ? `<div class="camtools">${showLive ? '<span class="live">● LIVE</span>' : ''}${camBtns}</div>` : ''}
       </div>
     </div>`;
 }
@@ -1740,6 +1757,10 @@ let cfgTab = 'allgemein';
 let cfgDevSubTab = 'geraete';
 
 const CHIP_ICON_OPTIONS = [
+  ['expand', '⛶ Vergrößern (expand)'],
+  ['camera', '📷 Kamera (camera)'],
+  ['shield', '🛡️ Sicherheit (shield)'],
+  ['home', '🏠 Haus (home)'],
   ['thermo', '🌡️ Temperatur (thermo)'],
   ['drop', '💧 Luftfeuchte / Wasser (drop)'],
   ['bolt', '⚡ Leistung / Strom (bolt)'],
@@ -1895,6 +1916,26 @@ function renderCfgModal(preserveScroll = true) {
           </div>
         </div>`).join('');
 
+      const camBtns = r.camButtons || [];
+      const camBtnsHtml = camBtns.map((cb, bi) => `
+        <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line)">
+          <div class="cfg-field"><label>Button-Name</label><input class="cfg-in" placeholder="z. B. Vergrößern / Hof" data-cb-ri="${i}" data-cb-bi="${bi}" data-cb-k="name" value="${esc(cb.name || '')}"></div>
+          <div class="cfg-field"><label>Icon</label>
+            <select class="cfg-in" data-cb-ri="${i}" data-cb-bi="${bi}" data-cb-k="icon">
+              ${CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(cb.icon || 'expand') === val ? 'selected' : ''}>${lab}</option>`).join('')}
+            </select>
+          </div>
+          <div class="cfg-field"><label>go2rtc Stream (leer = Raum-Kamera)</label><input class="cfg-in" placeholder="z. B. Eingang / Hof-sub" data-cb-ri="${i}" data-cb-bi="${bi}" data-cb-k="stream" value="${esc(cb.stream || '')}"></div>
+          <div class="cfg-field"><label>HA Kamera-Entität (leer = Raum-Kamera)</label><input class="cfg-in" list="ha-entities-list" placeholder="camera.*" data-cb-ri="${i}" data-cb-bi="${bi}" data-cb-k="entity" value="${esc(cb.entity || '')}"></div>
+          <div class="order-btns" style="justify-self:end;align-self:end">
+            <button class="btn-move" data-act="cfgMoveCamBtn" data-ri="${i}" data-bi="${bi}" data-dir="-1" ${bi === 0 ? 'disabled' : ''} title="Links/Hoch">▲</button>
+            <button class="btn-move" data-act="cfgMoveCamBtn" data-ri="${i}" data-bi="${bi}" data-dir="1" ${bi === camBtns.length - 1 ? 'disabled' : ''} title="Rechts/Runter">▼</button>
+            <button class="btn-danger" data-act="cfgDelCamBtn" data-ri="${i}" data-bi="${bi}">✕</button>
+          </div>
+        </div>`).join('');
+
+      const hasBgStream = !!(r.webrtc || r.camera);
+
       return `<div class="cfg-box">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <b>Raum #${i + 1}: ${esc(r.name)}</b>
@@ -1907,13 +1948,21 @@ function renderCfgModal(preserveScroll = true) {
         <div class="cfg-row">
           <div class="cfg-field"><label>Raumname</label><input class="cfg-in" data-r-i="${i}" data-r-k="name" value="${esc(r.name)}"></div>
           <div class="cfg-field"><label>Klima-Entität</label><input class="cfg-in" list="ha-entities-list" data-r-i="${i}" data-r-k="climate" value="${esc(r.climate || '')}"></div>
-          <div class="cfg-field"><label>Kamera-Entität (HA)</label><input class="cfg-in" list="ha-entities-list" data-r-i="${i}" data-r-k="camera" value="${esc(r.camera || '')}"></div>
-          <div class="cfg-field"><label>go2rtc Stream-Name (optional)</label><input class="cfg-in" data-r-i="${i}" data-r-k="webrtc" value="${esc(r.webrtc || '')}"></div>
+          <div class="cfg-field"><label>Hintergrund Kamera-Entität (HA)</label><input class="cfg-in" list="ha-entities-list" data-r-i="${i}" data-r-k="camera" value="${esc(r.camera || '')}"></div>
+          <div class="cfg-field"><label>Hintergrund go2rtc Stream (optional)</label><input class="cfg-in" data-r-i="${i}" data-r-k="webrtc" value="${esc(r.webrtc || '')}"></div>
           <div class="cfg-field"><label>Hintergrundbild URL</label><input class="cfg-in" data-r-i="${i}" data-r-k="image" value="${esc(r.image || '')}"></div>
           <div class="cfg-field"><label>Eigenes Bild hochladen</label><input type="file" accept="image/*" class="cfg-in" data-act="uploadRoomImg" data-i="${i}"></div>
         </div>
-        <div style="margin-top:6px;display:flex;flex-direction:column;gap:8px">
-          <span class="mut sm" style="font-weight:600">Kleine Raum-Badges unten im Banner (°C, W, % usw.):</span>
+        <div style="margin-top:4px">
+          <label class="${hasBgStream ? '' : 'mut'}"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="showLiveBadge" ${r.showLiveBadge !== false ? 'checked' : ''} ${hasBgStream ? '' : 'disabled'}> Rotes „● LIVE“-Badge im Banner anzeigen (nur aktiv, wenn im Hintergrund ein Livestream läuft)</label>
+        </div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+          <span class="mut sm" style="font-weight:600">Kamera- / Vergrößerungs-Buttons unten rechts im Banner (auch ohne Livestream-Hintergrund nutzbar):</span>
+          ${camBtnsHtml || '<span class="mut sm">Keine Kamera-Buttons für diesen Raum angelegt.</span>'}
+          <div><button class="iconbtn" data-act="cfgAddCamBtn" data-ri="${i}">+ Kamera-Button zu „${esc(r.name)}“ hinzufügen</button></div>
+        </div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+          <span class="mut sm" style="font-weight:600">Kleine Raum-Badges unten links im Banner (°C, W, % usw.):</span>
           ${chipsHtml || '<span class="mut sm">Keine Badges für diesen Raum angelegt.</span>'}
           <div><button class="iconbtn" data-act="cfgAddChip" data-ri="${i}">+ Badge (°C / W / %) zu „${esc(r.name)}“ hinzufügen</button></div>
         </div>
@@ -2231,6 +2280,13 @@ document.addEventListener('input', e => {
     item[k] = k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value;
   }
   if (t.dataset.rI != null) cfgDraft.rooms[+t.dataset.rI][t.dataset.rK] = t.value;
+  if (t.dataset.rBoolI != null) {
+    cfgDraft.rooms[+t.dataset.rBoolI][t.dataset.rBoolK] = t.checked;
+  }
+  if (t.dataset.cbRi != null) {
+    const cb = cfgDraft.rooms[+t.dataset.cbRi].camButtons[+t.dataset.cbBi];
+    cb[t.dataset.cbK] = t.value;
+  }
   if (t.dataset.chipRi != null) {
     const chip = cfgDraft.rooms[+t.dataset.chipRi].chips[+t.dataset.chipCi];
     const k = t.dataset.chipK;
@@ -2419,7 +2475,11 @@ function rebuildEntitiesList() {
   ids.push(hb.batteryDischargePower, hb.batteryChargePower, hb.batteryEmptyTime, hb.batteryFullTime);
   (hb.appliances || []).forEach(a => ids.push(a.progressEntity, a.endEntity));
   (CONFIG.powerFlow || []).forEach(p => ids.push(p.entity));
-  (CONFIG.rooms || []).forEach(r => { ids.push(r.camera, r.climate); (r.chips || []).forEach(c => ids.push(c.entity)); });
+  (CONFIG.rooms || []).forEach(r => {
+    ids.push(r.camera, r.climate);
+    (r.chips || []).forEach(c => ids.push(c.entity));
+    (r.camButtons || []).forEach(b => ids.push(b.entity));
+  });
   (CONFIG.devices || []).forEach(d => ids.push(d.entity, d.power, d.energy));
   (CONFIG.covers || []).forEach(c => ids.push(c.entity));
   if (CONFIG.climate) ids.push(CONFIG.climate.entity);
@@ -2553,8 +2613,8 @@ document.addEventListener('click', ev => {
   if (act === 'cfgDelWItem') { cfgDraft.weather.items.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveWItem') { moveItem(cfgDraft.weather.items, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
 
-  /* Räume & Raum-Chips (Badges) */
-  if (act === 'cfgAddRoom') { cfgDraft.rooms.push({ name: 'Neuer Raum', image: '', color: '#2a2350', chips: [] }); renderCfgModal(true); return; }
+  /* Räume, Kamera-Buttons & Raum-Chips (Badges) */
+  if (act === 'cfgAddRoom') { cfgDraft.rooms.push({ name: 'Neuer Raum', image: '', color: '#2a2350', showLiveBadge: true, camButtons: [], chips: [] }); renderCfgModal(true); return; }
   if (act === 'cfgDelRoom') { cfgDraft.rooms.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveRoom') { moveItem(cfgDraft.rooms, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
   if (act === 'cfgAddChip') {
@@ -2566,6 +2626,15 @@ document.addEventListener('click', ev => {
   }
   if (act === 'cfgDelChip') { cfgDraft.rooms[+el.dataset.ri].chips.splice(+el.dataset.ci, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveChip') { moveItem(cfgDraft.rooms[+el.dataset.ri].chips, +el.dataset.ci, +el.dataset.dir); renderCfgModal(true); return; }
+  if (act === 'cfgAddCamBtn') {
+    const ri = +el.dataset.ri;
+    if (!Array.isArray(cfgDraft.rooms[ri].camButtons)) cfgDraft.rooms[ri].camButtons = [];
+    cfgDraft.rooms[ri].camButtons.push({ name: 'Vergrößern', icon: 'expand', stream: '', entity: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelCamBtn') { cfgDraft.rooms[+el.dataset.ri].camButtons.splice(+el.dataset.bi, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveCamBtn') { moveItem(cfgDraft.rooms[+el.dataset.ri].camButtons, +el.dataset.bi, +el.dataset.dir); renderCfgModal(true); return; }
 
   /* Geräte & Rolläden + Sortierung */
   if (act === 'cfgAddDev') { cfgDraft.devices.push({ name: 'Neues Element', room: 'Home', entity: '', tab: el.dataset.tab || 'geraete' }); renderCfgModal(true); return; }
@@ -2672,9 +2741,24 @@ document.addEventListener('click', ev => {
   if (act === 'camBig') {
     const hr = el.closest('.hero-banner');
     if (hr) {
-      const webrtc = el.dataset.webrtc || hr.dataset.webrtc;
-      if (webrtc && CONFIG.go2rtcHost) openLBWebRtc(webrtc, hr.dataset.name);
-      else openLB(hr.dataset.cam, hr.dataset.mode, hr.dataset.name);
+      const btnStream = el.dataset.webrtc;
+      const btnCam = el.dataset.cam;
+      const title = (el.dataset.title && el.dataset.title !== 'Vergrößern')
+        ? `${hr.dataset.name} · ${el.dataset.title}`
+        : hr.dataset.name;
+
+      // Priorität: 1. Eigener Button-Stream -> 2. Eigene Button-Kamera -> 3. Raum-Hintergrund-Stream -> 4. Raum-Hintergrund-Kamera
+      if (btnStream && CONFIG.go2rtcHost) {
+        openLBWebRtc(btnStream, title);
+      } else if (btnCam) {
+        openLB(btnCam, hr.dataset.mode || 'stream', title);
+      } else if (hr.dataset.webrtc && CONFIG.go2rtcHost) {
+        openLBWebRtc(hr.dataset.webrtc, title);
+      } else if (hr.dataset.cam) {
+        openLB(hr.dataset.cam, hr.dataset.mode || 'stream', title);
+      } else {
+        toast('Keine Kamera oder Stream für diesen Button hinterlegt');
+      }
     }
     return;
   }
