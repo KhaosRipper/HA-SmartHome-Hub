@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Home Hub</title>
+<link rel="stylesheet" href="style.css?v=3.0.0">
+</head>
+<body>
+<div id="app" class="app"></div>
+<div id="toast" class="toast"></div>
+<div id="lb" class="lb" data-act="lbClose"><div class="cap" id="lbcap"></div><button class="x" data-act="lbClose">✕</button><div id="lbbody"></div></div>
+<div id="sm" class="modal" data-act="smClose"><div class="sheet" id="smsheet" data-act="noop"></div></div>
+<div id="pinmodal" class="modal" data-act="pinClose"><div class="sheet pin-sheet" id="pinsheet" data-act="noop"></div></div>
+<div id="cfgmodal" class="modal" data-act="cfgClose"><div class="sheet cfg-sheet" id="cfgsheet" data-act="noop"></div></div>
+<datalist id="ha-entities-list"></datalist>
+
+<script src="config.js?v=3.0.0"></script>
+<script src="app.js?v=3.0.0"></script>
+</body>
+</html>
