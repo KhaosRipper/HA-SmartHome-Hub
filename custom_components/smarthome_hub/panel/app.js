@@ -718,16 +718,21 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   const realNow = new Date();
   const now = new Date(realNow.getTime() - (offsetDays * 86400000));
   const start = new Date(now);
-  if (hours) { start.setTime(now.getTime() - hours * 3600e3); start.setMinutes(0, 0, 0); }
-  else { start.setHours(0, 0, 0, 0); }
-  const n = hours ? hours + 1 : realNow.getHours() + 1;
+  
+  // Wenn keine Stunden übergeben wurden, standardmäßig die letzten 24h laden (perfekt für nachts/morgens)
+  const useHours = hours || (offsetDays > 0 ? 24 : Math.max(24, realNow.getHours() + 1));
+  start.setTime(now.getTime() - useHours * 3600e3);
+  start.setMinutes(0, 0, 0);
+
+  const n = useHours + 1;
 
   if (DEMO) {
     let v = 5;
-    return Array.from({ length: n }, (_, i) => hours ? 21 + Math.sin((i + offsetDays * 10) / 3) * 1.5 : mode === 'last' ? (v += 8) : 300 + Math.sin(i / 2) * 180);
+    return Array.from({ length: n }, (_, i) => useHours <= 24 ? 21 + Math.sin((i + offsetDays * 10) / 3) * 1.5 : mode === 'last' ? (v += 8) : 300 + Math.sin(i / 2) * 180);
   }
+  
   const h = getHass(); if (!h) return null;
-  const url = `history/period/${start.toISOString()}?filter_entity_id=${id}&end_time=${encodeURIComponent(now.toISOString())}${attr ? '' : '&minimal_response&no_attributes'}`;
+  const url = `history/period/${start.toISOString()}?filter_entity_id=${id}&end_time=${encodeURIComponent(now.toISOString() )}${attr ? '' : '&minimal_response&no_attributes'}`;
   const res = await h.callApi('GET', url);
   const arr = (res && res[0]) || [];
   const pts = arr.map(p => ({
@@ -735,6 +740,7 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
     v: parseFloat(attr ? (p.attributes && p.attributes[attr]) : p.state)
   })).filter(p => !isNaN(p.v));
   if (!pts.length) return null;
+  
   const out = []; let prev = null;
   for (let i = 0; i < n; i++) {
     const a = start.getTime() + i * 3600e3, b = a + 3600e3;
@@ -777,7 +783,10 @@ async function refreshSeries() {
       for (const btn of m.subButtons) {
         for (const ent of btn.entities || []) {
           if (ent.chart && ent.entity) {
-            try { series['sub:' + ent.entity] = await loadSeries(ent.entity, 'avg'); } catch (e) {}
+            try { 
+              series['sub:' + ent.entity] = await loadSeries(ent.entity, 'avg'); 
+              series['sub:' + ent.entity + '_yest'] = await loadSeries(ent.entity, 'avg', 0, null, 1); 
+            } catch (e) {}
           }
         }
       }
@@ -1533,9 +1542,11 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
     const v = s && s.state && !['unknown','unavailable'].includes(s.state) ? parseFloat(s.state) : NaN;
     const valStr = !isNaN(v) ? `${fmt(v, 1)} ${ent.unit || ''}` : (s ? s.state : '—');
     
-    // Ermittlung von Maximum und Minimum aus der Serie für die Info-Anzeige
+    // Verlaufsdaten für heute (ser) und gestern (serYest) laden
     const ser = series['sub:' + ent.entity] || [];
     const serYest = series['sub:' + ent.entity + '_yest'] || [];
+
+    // Ermittlung von Maximum und Minimum aus der Serie für die Info-Anzeige
     let maxInfo = '—', minInfo = '—';
     if (ser.filter(x => x != null).length > 0) {
       const valid = ser.map((val, idx) => ({ val, idx })).filter(x => x.val != null);
@@ -1549,6 +1560,7 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
       }
     }
 
+    // Chart mit heutiger Linie (durchgehend) und gestriger Linie (gestrichelt)
     const chartHtml = ent.chart ? `<div class="chart" style="width:100%;margin-top:12px">${spark(ser, 'sub' + ent.entity, { fit: true, W: 650, H: 150, color: `var(--${btn.color || 'acc'})` }, serYest)}</div>` : '';
     
     return `<div class="sr col" style="background:rgba(255,255,255,.03);padding:16px;border-radius:14px;border:1px solid var(--line);margin-bottom:14px;align-items:stretch;gap:8px;">
