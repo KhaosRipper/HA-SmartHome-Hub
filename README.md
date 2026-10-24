@@ -35,7 +35,7 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 1. Gehe nach dem Neustart auf **Einstellungen** → **Geräte & Dienste** → **Integration hinzufügen**.
 2. Suche nach **Smart Home Hub** und füge die Integration hinzu.
 3. In deiner linken Seitenleiste taucht nun der neue Menüpunkt auf.
-4. Klicke im Dashboard unten links auf das **Zahnrad (⚙️)**, um den Konfigurator zu öffnen.
+4. Klicke im Dashboard unten links auf die **Einstellungen**, um den Konfigurator zu öffnen.
 5. Nutze im Tab *Import / Backup* entweder den **Auto-Discovery-Button**, um deine HA-Räume automatisch einzulesen, oder lade das mitgelieferte **Timo-Preset** als Startvorlage.
 
 ---
