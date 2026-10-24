@@ -1120,12 +1120,14 @@ function climateCard() {
 function spark(ser, id, opt = {}, ser2 = null) {
   const ok1 = ser && ser.filter(v => v != null).length >= 2;
   const ok2 = ser2 && ser2.filter(v => v != null).length >= 2;
-  if (!ok1 && !ok2) return '<div class="mut sm" style="padding:30px 0;text-align:right">Keine Daten</div>';
+  if (!ok1 && !ok2) return '<div class="mut sm" style="padding:20px 0;text-align:center">Keine Verlaufsdaten</div>';
+
   const getVals = s => {
     if (!s) return [];
-    let last = s.find(v => v != null);
+    let last = s.find(v => v != null) || 0;
     return s.map(v => { if (v != null) last = v; return last; });
   };
+
   const vals1 = getVals(ser), vals2 = getVals(ser2), allVals = [...vals1, ...vals2];
   const mn0 = Math.min(...allVals), mx0 = Math.max(...allVals);
   let lo, hi;
@@ -1134,25 +1136,43 @@ function spark(ser, id, opt = {}, ser2 = null) {
     else { const p = ((mx0 - mn0) || 1) * 0.2; lo = mn0 - p; hi = mx0 + p; }
   } else { lo = Math.min(0, mn0); hi = mx0 === lo ? lo + 1 : mx0 * 1.1; }
 
-  const W = opt.W || 190, H = opt.H || 84, pr = 34, pt = 8, pb = 8;
+  const W = opt.W || 340, H = opt.H || 110, pr = 42, pt = 14, pb = 26;
   const dec = opt.dec ?? ((opt.fit ? hi - lo : hi) > 20 ? 0 : 1), pw = W - pr, gid = 'sg' + safeId(id);
   const lineColor = opt.color || '#8f81ff', fillColor = opt.color || '#7c6cf0';
   const Y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo));
 
-  let svgContent = [hi, (hi + lo) / 2, lo].map(v => `<line x1="0" x2="${pw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${W}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" fill="#8b8fa8" font-size="9">${fmt(v, dec)}</text>`).join('');
+  // Gitternetz & Achsenbeschriftung
+  let svgContent = [hi, (hi + lo) / 2, lo].map(v => 
+    `<line x1="0" x2="${pw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${W}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" fill="#8b8fa8" font-size="9">${fmt(v, dec)}</text>`
+  ).join('');
+
+  // Gestrichelte Linie für den Vortag (24h Vergleich)
   if (vals2.length) {
     const X2 = i => i * pw / (vals2.length - 1 || 1);
     const line2 = vals2.map((v, i) => `${i ? 'L' : 'M'}${X2(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-    svgContent += `<path d="${line2}" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-dasharray="4 5" stroke-linejoin="round"/>`;
+    svgContent += `<path d="${line2}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="4 4" stroke-linejoin="round"/>`;
   }
+
+  // Hauptlinie & Verlauf
   if (vals1.length) {
     const X1 = i => i * pw / (vals1.length - 1 || 1);
     const line1 = vals1.map((v, i) => `${i ? 'L' : 'M'}${X1(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
     const area1 = `${line1} L${X1(vals1.length - 1).toFixed(1)},${H - pb} L0,${H - pb} Z`;
     const lx = X1(vals1.length - 1), ly = Y(vals1[vals1.length - 1]);
-    svgContent += `<path d="${area1}" fill="url(#${gid})"/><path d="${line1}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.5" fill="#fff" stroke="${fillColor}" stroke-width="2"/>`;
+    svgContent += `<path d="${area1}" fill="url(#${gid})"/><path d="${line1}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="#fff" stroke="${fillColor}" stroke-width="2"/>`;
   }
-  return `<svg viewBox="0 0 ${W} ${H}"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fillColor}" stop-opacity=".45"/><stop offset="1" stop-color="${fillColor}" stop-opacity="0"/></linearGradient></defs>${svgContent}</svg>`;
+
+  // Uhrzeiten an der X-Achse (alle 4 Stunden bzw. Datenpunkte)
+  const nowHour = new Date().getHours();
+  const timeLabels = vals1.map((_, i) => {
+    const h = (nowHour - vals1.length + 1 + i + 24) % 24;
+    if (i % Math.max(1, Math.floor(vals1.length / 5)) === 0 || i === vals1.length - 1) {
+      return `<text x="${(i * pw / (vals1.length - 1 || 1)).toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${pad(h)}:00</text>`;
+    }
+    return '';
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fillColor}" stop-opacity=".45"/><stop offset="1" stop-color="${fillColor}" stop-opacity="0"/></linearGradient></defs>${svgContent}${timeLabels}</svg>`;
 }
 
 function metricCard(m) {
@@ -1506,17 +1526,55 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
   const btn = metric.subButtons.find(x => x.id === btnId);
   if (!btn) return;
   sm.mode = 'energy'; sm.metricId = metric.id; sm.energyBtn = btnId; sm.open = true;
+
+  const nowHour = new Date().getHours();
   const rows = (btn.entities || []).map(ent => {
     const s = S(ent.entity);
     const v = s && s.state && !['unknown','unavailable'].includes(s.state) ? parseFloat(s.state) : NaN;
     const valStr = !isNaN(v) ? `${fmt(v, 1)} ${ent.unit || ''}` : (s ? s.state : '—');
-    const chartHtml = ent.chart ? `<div class="chart" style="margin-top:12px">${spark(series['sub:' + ent.entity], 'sub' + ent.entity, { fit: true, W: 320, H: 65, color: `var(--${btn.color || 'acc'})` })}</div>` : '';
-    return `<div class="sr col" style="background:rgba(255,255,255,.03);padding:14px;border-radius:14px;border:1px solid var(--line);margin-bottom:12px;align-items:stretch;gap:6px;">
-      <div class="srl" style="display:flex;justify-content:space-between;align-items:center;width:100%;"><span class="mut sm" style="font-size:12px;color:#c4c7dc">${esc(ent.name)}</span><b style="font-size:16px">${esc(valStr)}</b></div>${chartHtml}</div>`;
+    
+    // Ermittlung von Maximum und Minimum aus der Serie für die Info-Anzeige
+    const ser = series['sub:' + ent.entity] || [];
+    const serYest = series['sub:' + ent.entity + '_yest'] || [];
+    let maxInfo = '—', minInfo = '—';
+    if (ser.filter(x => x != null).length > 0) {
+      const valid = ser.map((val, idx) => ({ val, idx })).filter(x => x.val != null);
+      if (valid.length) {
+        const maxObj = valid.reduce((max, cur) => cur.val > max.val ? cur : max, valid[0]);
+        const minObj = valid.reduce((min, cur) => cur.val < min.val ? cur : min, valid[0]);
+        const maxH = (nowHour - ser.length + 1 + maxObj.idx + 24) % 24;
+        const minH = (nowHour - ser.length + 1 + minObj.idx + 24) % 24;
+        maxInfo = `${fmt(maxObj.val, 1)} ${ent.unit || ''} (um ${pad(maxH)}:00 Uhr)`;
+        minInfo = `${fmt(minObj.val, 1)} ${ent.unit || ''} (um ${pad(minH)}:00 Uhr)`;
+      }
+    }
+
+    const chartHtml = ent.chart ? `<div class="chart" style="width:100%;margin-top:12px">${spark(ser, 'sub' + ent.entity, { fit: true, W: 650, H: 150, color: `var(--${btn.color || 'acc'})` }, serYest)}</div>` : '';
+    
+    return `<div class="sr col" style="background:rgba(255,255,255,.03);padding:16px;border-radius:14px;border:1px solid var(--line);margin-bottom:14px;align-items:stretch;gap:8px;">
+      <div class="srl" style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <span style="font-weight:600;font-size:14px;color:#f2f3fa">${esc(ent.name)}</span>
+        <b style="font-size:18px">${esc(valStr)}</b>
+      </div>
+      <div style="display:flex;gap:16px;font-size:11px;color:var(--mut);flex-wrap:wrap">
+        <span>📈 Höchstwert: <strong style="color:var(--txt)">${maxInfo}</strong></span>
+        <span>📉 Tiefstwert: <strong style="color:var(--txt)">${minInfo}</strong></span>
+      </div>
+      <div style="font-size:10px;color:var(--mut)">Durchgezogene Linie: Heute · Gestrichelte Linie: Gestern (letzte 24h)</div>
+      ${chartHtml}
+    </div>`;
   }).join('');
-  document.getElementById('smsheet').innerHTML = `<div class="smh" style="margin-bottom:18px;"><div style="display:flex;align-items:center;gap:10px;color:var(--${btn.color || 'acc'})">${ic(btn.icon, 22)} <b style="color:var(--txt)">${esc(btn.name)}</b></div><button class="x2" data-act="smClose">✕</button></div>${rows}`;
+
+  document.getElementById('smsheet').innerHTML = `
+    <div class="smh" style="margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--${btn.color || 'acc'})">${ic(btn.icon, 22)} <b style="color:var(--txt);font-size:18px">${esc(btn.name)}</b></div>
+      <button class="x2" data-act="smClose">✕</button>
+    </div>
+    ${rows}`;
+  
   if (!isUpdate) document.getElementById('sm').classList.add('show');
 }
+
 function closeSM() {
   sm.open = false;
   document.getElementById('smsheet').classList.remove('wfc-wide');
