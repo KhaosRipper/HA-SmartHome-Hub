@@ -21,11 +21,7 @@ UPLOAD_SUBDIR = "smarthome_hub_uploads"
 
 
 def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
-    """Registriert oder aktualisiert den Eintrag in der Home Assistant Seitenleiste."""
-    try:
-        frontend.async_remove_panel(hass, DOMAIN)
-    except Exception:
-        pass
+    """Registriert oder aktualisiert das Seitenleisten-Panel via update=True."""
     frontend.async_register_built_in_panel(
         hass,
         component_name="iframe",
@@ -34,6 +30,7 @@ def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
         frontend_url_path=DOMAIN,
         config={"url": f"{STATIC_URL}/index.html"},
         require_admin=False,
+        update=True,
     )
 
 
@@ -101,7 +98,7 @@ async def ws_save_config(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Speichert die Konfiguration in .storage und aktualisiert Name/Icon der Seitenleiste."""
+    """Speichert die Konfiguration und aktualisiert Name/Icon der HA-Seitenleiste."""
     store: Store = hass.data[DOMAIN]["store"]
     cfg = msg["config"]
     await store.async_save(cfg)
