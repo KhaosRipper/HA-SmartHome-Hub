@@ -1296,7 +1296,7 @@ function metricCard(m) {
   }
   return `<section class="card"><div class="ch"><b>${esc(m.title)}</b><span class="mut sm">${headRight}</span></div>
     <div class="mv"><div><span class="big">${fmt(v, m.decimals ?? 1)}</span><span class="unit">${esc(m.unit)}</span><div class="m-sub">${trendHtml}${liveText}</div></div>
-    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="metricChart" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, {}, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
+    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, {}, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
 }
 
 function securityCard() {
@@ -1398,7 +1398,12 @@ function klimaView() {
     const devs = (r.devices || []).map(kDevice).join('');
     const charts = (r.charts || []).map(c => {
       const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');
-      return `<div class="kc"><div class="kct"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals })}</div>`;
+      const s = S(c.entity), a = (s && s.attributes) || {};
+      const unit = (c.title || '').includes('Luftfeucht') ? '%' : (a.unit_of_measurement || '°C');
+      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(c.title || '')}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="Antippen für Großansicht">
+        <div class="kct" style="pointer-events:none"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>
+        <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals })}</div>
+      </div>`;
     }).join('');
     return `<section class="card"><div class="kh"><div class="khl"><div class="kic">${ic(r.icon || 'home', 20)}</div><b>${esc(r.name)}</b></div><div class="khr">${boost}${set}</div></div>
       ${sens ? `<div class="chips" style="margin-top:12px">${sens}</div>` : ''}${devs}${charts}</section>`;
@@ -1494,7 +1499,10 @@ function statChartCard(group) {
     const unit = item.unit || a.unit_of_measurement || '';
     const val = Number.isFinite(raw) ? `${fmt(raw, item.decimals ?? 1)} ${unit}` : (st && !item.attr ? st.state : '—');
     const key = 'stats:' + item.entity + (item.attr ? ':' + item.attr : '');
-    return `<div class="stat-line"><div><div class="sm mut">${esc(item.name)}</div><div class="stat-value">${esc(val)}</div></div><div class="chart">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color })}</div></div>`;
+    return `<div class="stat-line">
+      <div><div class="sm mut">${esc(item.name)}</div><div class="stat-value">${esc(val)}</div></div>
+      <div class="chart clickable" data-act="chartModal" data-type="stat" data-entity="${esc(item.entity)}" data-attr="${esc(item.attr || '')}" data-name="${esc(item.name)}" data-unit="${esc(unit)}" data-dec="${item.decimals ?? 1}" data-mode="${esc(item.mode || 'avg')}" title="Antippen für Großansicht">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color })}</div>
+    </div>`;
   }).join('');
   return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic(group.icon || 'chart', 18)}<b>${esc(group.title)}</b></div><span class="mut sm">24 h</span></div>${rows}</section>`;
 }
@@ -1676,46 +1684,74 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
   if (!isUpdate) document.getElementById('sm').classList.add('show');
 }
 
-/* ---------- Metrik-Chart Großansicht (24 h / 7 Tage) ---------- */
+/* ---------- Universelles Chart-Popup (24 h / 7 Tage) ---------- */
 function seriesPointDate(i, len) {
-  const d = new Date();
-  d.setMinutes(0, 0, 0);
+  const d = new Date(); d.setMinutes(0, 0, 0);
   d.setHours(d.getHours() - (len - 1 - i));
   return d;
 }
 
-async function loadMetricRange(m) {
-  if (!m || !m.chart || sm.range !== '7d') return;
-  const key = '7d:' + m.chart;
-  if (series[key] && series[key + '_t'] && Date.now() - series[key + '_t'] < 5 * 60 * 1000) return;
-  sm.loading = true;
-  renderMetricModal();
-  try {
-    const mode = m.mode || 'avg';
-    const [cur, prev] = await Promise.all([
-      loadSeries(m.chart, mode, 168),
-      loadSeries(m.chart, mode, 168, null, 7).catch(() => null)
-    ]);
-    series[key] = cur;
-    series[key + '_prev'] = prev;
-    series[key + '_t'] = Date.now();
-  } catch (e) {
-    series[key] = null;
-    series[key + '_prev'] = null;
+function getChartCtx() {
+  if (sm.chartType === 'metric') {
+    const m = (CONFIG.metrics || []).find(x => x.id === sm.metricId);
+    if (!m) return null;
+    return {
+      id: m.id, title: m.title || 'Verlauf', mode: m.mode || 'avg', dec: m.decimals ?? 1,
+      ent: m.chart, attr: null, unit: m.unit || '', cUnit: m.chartUnit || '',
+      todayVal: num(m.entity), liveVal: num(m.chart),
+      key24: m.chart, prev24: m.chart + '_yest', key7: '7d:' + m.chart
+    };
   }
-  sm.loading = false;
-  if (sm.open && sm.mode === 'metric' && sm.metricId === m.id) renderMetricModal();
+  
+  // Für Custom Pages (stat) & Klima-Charts (klima)
+  const isKlima = sm.chartType === 'klima';
+  const s = S(sm.cEnt), a = (s && s.attributes) || {};
+  const rawVal = s ? (sm.cAttr ? a[sm.cAttr] : s.state) : null;
+  const val = rawVal != null ? parseFloat(rawVal) : null;
+  const kBase = (isKlima ? '24:' : 'stats:') + sm.cEnt + (sm.cAttr ? ':' + sm.cAttr : '');
+  
+  return {
+    id: sm.cEnt + (sm.cAttr || ''), title: sm.cName || 'Verlauf', mode: sm.cMode || 'avg', dec: sm.cDec,
+    ent: sm.cEnt, attr: sm.cAttr, unit: sm.cUnit || '', cUnit: sm.cUnit || '',
+    todayVal: val, liveVal: val,
+    key24: kBase, prev24: kBase + '_yest', key7: '7d:' + kBase
+  };
 }
 
-function renderMetricModal() {
-  const m = (CONFIG.metrics || []).find(x => x.id === sm.metricId);
-  if (!m) return;
+async function ensure24hPrevLoaded() {
+  const ctx = getChartCtx();
+  if (!ctx || series[ctx.prev24] !== undefined) return;
+  series[ctx.prev24] = null; // Doppeltes Laden verhindern
+  try {
+    series[ctx.prev24] = await loadSeries(ctx.ent, ctx.mode, 24, ctx.attr, 1);
+    if (sm.open && sm.mode === 'chart' && sm.range === '24h') renderChartModal();
+  } catch (e) {}
+}
+
+async function loadChartRange() {
+  const ctx = getChartCtx();
+  if (!ctx || sm.range !== '7d') return;
+  if (series[ctx.key7] && series[ctx.key7 + '_t'] && Date.now() - series[ctx.key7 + '_t'] < 5 * 60 * 1000) return;
+  
+  sm.loading = true; renderChartModal();
+  try {
+    const [cur, prev] = await Promise.all([
+      loadSeries(ctx.ent, ctx.mode, 168, ctx.attr),
+      loadSeries(ctx.ent, ctx.mode, 168, ctx.attr, 7).catch(() => null)
+    ]);
+    series[ctx.key7] = cur; series[ctx.key7 + '_prev'] = prev; series[ctx.key7 + '_t'] = Date.now();
+  } catch (e) {
+    series[ctx.key7] = null; series[ctx.key7 + '_prev'] = null;
+  }
+  sm.loading = false;
+  if (sm.open && sm.mode === 'chart') renderChartModal();
+}
+
+function renderChartModal() {
+  const ctx = getChartCtx(); if (!ctx) return;
   const is7 = sm.range === '7d';
-  const key7 = '7d:' + m.chart;
-  const ser = is7 ? series[key7] : series[m.chart];
-  const prev = is7 ? series[key7 + '_prev'] : series[m.chart + '_yest'];
-  const unitL = m.chartUnit ? ' ' + m.chartUnit : '';
-  const today = num(m.entity), live = num(m.chart);
+  const ser = is7 ? series[ctx.key7] : series[ctx.key24];
+  const prev = is7 ? series[ctx.key7 + '_prev'] : series[ctx.prev24];
 
   const pts = (ser || []).map((v, i) => ({ v, i })).filter(p => p.v != null);
   let stats = '';
@@ -1728,40 +1764,51 @@ function renderMetricModal() {
       return is7 ? `${d.toLocaleDateString('de-DE', { weekday: 'short' })}, ${pad(d.getHours())}:00 Uhr` : `um ${pad(d.getHours())}:00 Uhr`;
     };
     stats = `<div class="mc-stats">
-      <span>📈 Höchstwert: <strong>${fmt(hi.v, 1)}${esc(unitL)}</strong> (${esc(when(hi))})</span>
-      <span>📉 Tiefstwert: <strong>${fmt(lo.v, 1)}${esc(unitL)}</strong> (${esc(when(lo))})</span>
-      <span>Ø <strong>${fmt(avg, 1)}${esc(unitL)}</strong></span></div>`;
+      <span>📈 Höchstwert: <strong>${fmt(hi.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(hi))})</span>
+      <span>📉 Tiefstwert: <strong>${fmt(lo.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(lo))})</span>
+      <span>Ø <strong>${fmt(avg, 1)} ${esc(ctx.cUnit)}</strong></span></div>`;
   }
 
   const chartHtml = (is7 && sm.loading)
     ? '<div class="mut sm" style="padding:70px 0;text-align:center">Lade Verlaufsdaten …</div>'
-    : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + m.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7 }, prev)}</div>`;
-  const legend = is7
-    ? 'Durchgezogen: letzte 7 Tage · Gestrichelt: die 7 Tage davor'
-    : 'Durchgezogen: letzte 24 Stunden · Gestrichelt: dieselben 24 Stunden einen Tag zuvor';
+    : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + ctx.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7 }, prev)}</div>`;
+
+  const topVals = sm.chartType === 'metric' ? `
+    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.unit)}</span></div><small>Heute</small></div>
+    ${ctx.liveVal != null ? `<div><div class="mc-big">${fmt(ctx.liveVal, 0)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>${ctx.mode === 'last' ? 'Letzter Wert' : 'Aktuell'}</small></div>` : ''}
+  ` : `
+    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>Aktuell</small></div>
+  `;
 
   const sheet = document.getElementById('smsheet');
   sheet.classList.remove('wfc-wide');
   sheet.innerHTML = `
-    <div class="smh"><b>${esc(m.title || 'Verlauf')}</b><button class="x2" data-act="smClose">✕</button></div>
-    <div class="mc-top">
-      <div><div class="mc-big">${fmt(today, m.decimals ?? 1)}<span class="unit">${esc(m.unit || '')}</span></div><small>Heute</small></div>
-      ${live != null ? `<div><div class="mc-big">${fmt(live, 0)}<span class="unit">${esc(m.chartUnit || '')}</span></div><small>${m.mode === 'last' ? 'Letzter Wert' : 'Aktuell'}</small></div>` : ''}
-    </div>
+    <div class="smh"><b>${esc(ctx.title)}</b><button class="x2" data-act="smClose">✕</button></div>
+    <div class="mc-top">${topVals}</div>
     <div class="wfc-tabs">
-      <button class="wfc-tab ${is7 ? '' : 'on'}" data-act="metricRange" data-r="24h">24 Stunden</button>
-      <button class="wfc-tab ${is7 ? 'on' : ''}" data-act="metricRange" data-r="7d">7 Tage</button>
+      <button class="wfc-tab ${is7 ? '' : 'on'}" data-act="chartRange" data-r="24h">24 Stunden</button>
+      <button class="wfc-tab ${is7 ? 'on' : ''}" data-act="chartRange" data-r="7d">7 Tage</button>
     </div>
     ${chartHtml}${stats}
-    <div class="mut" style="margin-top:8px;font-size:10px">${legend}</div>`;
+    <div class="mut" style="margin-top:8px;font-size:10px">Durchgezogen: ${is7 ? 'letzte 7 Tage' : 'letzte 24 Stunden'} · Gestrichelt: ${is7 ? 'die 7 Tage davor' : 'dieselben 24h am Vortag'}</div>`;
 }
 
-function openMetricChartModal(metricId) {
-  const m = (CONFIG.metrics || []).find(x => x.id === metricId);
-  if (!m || !m.chart) return;
-  sm.mode = 'metric'; sm.metricId = m.id; sm.range = '24h'; sm.loading = false; sm.open = true;
-  renderMetricModal();
+function openChartModal(el) {
+  sm.mode = 'chart';
+  sm.chartType = el.dataset.type;
+  sm.metricId = el.dataset.mid;
+  sm.cEnt = el.dataset.entity;
+  sm.cAttr = el.dataset.attr;
+  sm.cName = el.dataset.name;
+  sm.cUnit = el.dataset.unit;
+  sm.cDec = parseInt(el.dataset.dec || '1', 10);
+  sm.cMode = el.dataset.mode || 'avg';
+  sm.range = '24h';
+  sm.loading = false;
+  sm.open = true;
+  renderChartModal();
   document.getElementById('sm').classList.add('show');
+  ensure24hPrevLoaded(); // Lädt Gestern-Vergleich für Nicht-Metrik-Charts fließend nach
 }
 
 function closeSM() {
@@ -3091,11 +3138,11 @@ document.addEventListener('click', ev => {
   if (act === 'smOpen') { openSM(+el.dataset.i); return; }
   if (act === 'energymodal') { openEnergyModal(el.dataset.mid, el.dataset.bid); return; }
   if (act === 'ctile') { runClimateTile((c.tiles || [])[+el.dataset.i], c); return; }
-  if (act === 'metricChart') { openMetricChartModal(el.dataset.mid); return; }
-  if (act === 'metricRange') {
+  if (act === 'chartModal') { openChartModal(el); return; }
+  if (act === 'chartRange') {
     sm.range = el.dataset.r === '7d' ? '7d' : '24h';
-    renderMetricModal();
-    loadMetricRange((CONFIG.metrics || []).find(x => x.id === sm.metricId));
+    renderChartModal();
+    loadChartRange();
     return;
   }
   if (act === 'smClose') { closeSM(); return; }
