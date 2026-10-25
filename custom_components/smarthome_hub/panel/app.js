@@ -1940,33 +1940,75 @@ function getUpcomingTrashItems(maxDays = 2) {
   });
 }
 
-function homeHeaderBadges() {
-  const hb = CONFIG.headerBadges || {};
-  const badges = [];
-  const discharge = hb.batteryDischargePower ? num(hb.batteryDischargePower) : null;
-  const charge = hb.batteryChargePower ? num(hb.batteryChargePower) : null;
-  if (discharge != null && Math.abs(discharge) > 0.01 && hb.batteryEmptyTime) {
-    const left = formatCountdown(hb.batteryEmptyTime);
-    if (left && left !== 'Jetzt') badges.push({ icon: 'batteryClock', cls: 'orange', title: 'Akku leer in', value: left });
-  } else if (charge != null && Math.abs(charge) > 0.01 && hb.batteryFullTime) {
-    const full = formatCountdown(hb.batteryFullTime);
-    if (full && full !== 'Jetzt') badges.push({ icon: 'batteryCharge', cls: 'green', title: 'Akku voll in', value: full });
-  }
-  (hb.appliances || []).forEach(app => {
-    if (app.progressEntity) {
-      const prog = num(app.progressEntity);
-      if (prog != null && prog > 0 && prog < 100) {
-        const fin = formatCountdown(app.endEntity, app.runningText || 'Läuft …');
-        badges.push({ icon: app.icon || 'plug', cls: 'blue', title: app.name, value: fin === 'Jetzt' ? 'Fertig' : fin });
-      }
-    } else if (app.endEntity && stateIsUsable(S(app.endEntity))) {
-      const fin = formatCountdown(app.endEntity, app.runningText || 'Läuft …');
-      badges.push({ icon: app.icon || 'plug', cls: 'blue', title: app.name, value: fin === 'Jetzt' ? 'Fertig' : fin });
+function evalBadgeCondition(ent, op, val) {
+  if (!ent || !op) return true; // Keine Bedingung = immer anzeigen
+  const s = S(ent); if (!s || !stateIsUsable(s)) return false;
+  const vNum = parseFloat(s.state);
+  const valNum = parseFloat(val);
+  if (op === '>') return !isNaN(vNum) && vNum > valNum;
+  if (op === '<') return !isNaN(vNum) && vNum < valNum;
+  if (op === '==') return String(s.state).trim() === String(val).trim();
+  if (op === '!=') return String(s.state).trim() !== String(val).trim();
+  if (op === 'not_empty') return true;
+  return true;
+}
+
+function parseBadgeColor(logicStr, w1, w2) {
+  if (!logicStr) return 'blue';
+  const rules = logicStr.split(',').map(r => r.trim());
+  const checkVal = parseFloat(w1);
+  for (const r of rules) {
+    const [cond, color] = r.split(':').map(x => x.trim());
+    if (!color) continue;
+    if (cond === 'default') return color;
+    if (!isNaN(checkVal)) {
+      if (cond.startsWith('>') && checkVal > parseFloat(cond.slice(1))) return color;
+      if (cond.startsWith('<') && checkVal < parseFloat(cond.slice(1))) return color;
+      if (cond.startsWith('==') && checkVal === parseFloat(cond.slice(2))) return color;
+    } else {
+      if (cond === w1) return color; // Text-Match (z. B. "on:green")
     }
+  }
+  return 'blue'; // Fallback
+}
+
+function getBadgeValue(ent) {
+  if (!ent) return '';
+  const s = S(ent); if (!s || !stateIsUsable(s)) return '';
+  // Automatische Erkennung, ob es ein Datum/Uhrzeit für den Countdown ist
+  if (/^\d{4}-\d{2}-\d{2}/.test(s.state) || s.attributes.device_class === 'timestamp') {
+    return formatCountdown(ent);
+  }
+  return parseFloat(s.state) ? fmt(parseFloat(s.state), 1) : s.state;
+}
+
+function homeHeaderBadges() {
+  const items = CONFIG.headerBadgeItems || [];
+  const badges = [];
+
+  items.forEach(b => {
+    if (b.type === 'calendar') {
+      getUpcomingTrashItems(b.maxDays || 2).forEach(item => {
+        badges.push({ icon: item.type.icon, cls: 'trash', style: `--trash-c:${item.type.color}`, title: item.summary, value: item.when });
+      });
+      return;
+    }
+
+    if (!evalBadgeCondition(b.conditionEnt, b.conditionOp, b.conditionVal)) return;
+
+    const w1Raw = getBadgeValue(b.entity1);
+    const w2Raw = getBadgeValue(b.entity2);
+    
+    // Wenn W1 leer ist und zwingend benötigt wird, Badge verstecken
+    if (b.entity1 && !w1Raw) return; 
+
+    let text = (b.format || '[W1]').replace('[W1]', w1Raw).replace('[W2]', w2Raw);
+    if (text.includes('Jetzt')) text = 'Fertig';
+
+    const colorCls = parseBadgeColor(b.colorLogic, w1Raw, w2Raw);
+    badges.push({ icon: b.icon || 'plug', cls: colorCls, title: b.title, value: text });
   });
-  getUpcomingTrashItems(2).forEach(item => {
-    badges.push({ icon: item.type.icon, cls: 'trash', style: `--trash-c:${item.type.color}`, title: item.summary, value: item.when });
-  });
+
   if (!badges.length) return '';
   return `<div class="home-header-badges">${badges.map(b => `<span class="home-header-badge ${b.cls}" ${b.style ? `style="${esc(b.style)}"` : ''}>${ic(b.icon, 13)}<span>${esc(b.title)}: ${esc(b.value)}</span></span>`).join('')}</div>`;
 }
@@ -2459,9 +2501,58 @@ function renderCfgModal(preserveScroll = true) {
       </div>`;
     }).join('');
 
-    const hb = cfgDraft.headerBadges || {};
-    const cal = cfgDraft.calendars || {};
+    const badgeItems = cfgDraft.headerBadgeItems || [];
+    const hbHtml = badgeItems.map((b, bi) => {
+      const isCal = b.type === 'calendar';
+      return `<div class="cfg-box" style="background:rgba(255,255,255,.025)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>Header-Badge #${bi + 1}: ${esc(b.title || 'Neu')}</b>
+          <div class="order-btns">
+            <button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="-1" ${bi === 0 ? 'disabled' : ''}>▲</button>
+            <button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="1" ${bi === badgeItems.length - 1 ? 'disabled' : ''}>▼</button>
+            <button class="btn-danger" data-act="cfgDelHB" data-i="${bi}">✕</button>
+          </div>
+        </div>
+        <div class="cfg-row">
+          <div class="cfg-field"><label>Typ</label>
+            <select class="cfg-in" data-hb-i="${bi}" data-hb-k="type">
+              <option value="entity" ${!isCal ? 'selected' : ''}>Sensoren / Entitäten</option>
+              <option value="calendar" ${isCal ? 'selected' : ''}>Abfallkalender</option>
+            </select>
+          </div>
+          <div class="cfg-field"><label>Bezeichnung (Präfix)</label><input class="cfg-in" data-hb-i="${bi}" data-hb-k="title" value="${esc(b.title || '')}"></div>
+          <div class="cfg-field"><label>Icon</label>
+            <select class="cfg-in" data-hb-i="${bi}" data-hb-k="icon">
+              ${CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(b.icon || 'plug') === val ? 'selected' : ''}>${lab}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        ${isCal ? `
+        <div class="cfg-row">
+          <div class="cfg-field"><label>Vorschau (Tage im Voraus)</label><input type="number" class="cfg-in" data-hb-i="${bi}" data-hb-k="maxDays" value="${b.maxDays || 2}"></div>
+        </div>` : `
+        <div class="cfg-row">
+          <div class="cfg-field"><label>Entität 1 [W1]</label><input class="cfg-in" list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity1" value="${esc(b.entity1 || '')}"></div>
+          <div class="cfg-field"><label>Entität 2 [W2] (optional)</label><input class="cfg-in" list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity2" value="${esc(b.entity2 || '')}"></div>
+          <div class="cfg-field"><label>Format-Text</label><input class="cfg-in" data-hb-i="${bi}" data-hb-k="format" placeholder="[W1]% - Fertig in [W2]" value="${esc(b.format || '[W1]')}"></div>
+          <div class="cfg-field"><label>Farb-Logik (Kommabasiert)</label><input class="cfg-in" data-hb-i="${bi}" data-hb-k="colorLogic" placeholder="<20:red, >80:green, default:blue" value="${esc(b.colorLogic || 'default:blue')}"></div>
+        </div>
+        <div class="cfg-row" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:10px">
+          <div class="cfg-field"><label>Sichtbarkeits-Bedingung: Entität</label><input class="cfg-in" list="ha-entities-list" data-hb-i="${bi}" data-hb-k="conditionEnt" value="${esc(b.conditionEnt || '')}"></div>
+          <div class="cfg-field"><label>Operator</label>
+            <select class="cfg-in" data-hb-i="${bi}" data-hb-k="conditionOp">
+              <option value="">-- Immer anzeigen --</option>
+              ${[['>','Größer als'],['<','Kleiner als'],['==','Ist gleich'],['!=','Ist nicht gleich'],['not_empty','Hat einen Wert']].map(([v, l]) => `<option value="${v}" ${b.conditionOp === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>
+          <div class="cfg-field"><label>Vergleichswert</label><input class="cfg-in" data-hb-i="${bi}" data-hb-k="conditionVal" value="${esc(b.conditionVal || '')}"></div>
+        </div>`}
+      </div>`;
+    }).join('');
+
     const pf = (cfgDraft.powerFlow || []).map(x => `${x.label}:${x.entity}:${x.unit || 'W'}`).join('\n');
+    const cal = cfgDraft.calendars || {};
+
     body = `
       <div class="cfg-box">
         <b>Metrik-Kacheln auf der rechten Dashboard-Spalte (Energie, Wasser, Gas usw. frei anpassbar)</b>
@@ -2469,13 +2560,9 @@ function renderCfgModal(preserveScroll = true) {
         <button class="btn-pri" data-act="cfgAddMetric">+ Neue Metrik-Kachel (z. B. Energie / Wasser / PV) erstellen</button>
       </div>
       <div class="cfg-box">
-        <b>Header-Badges oben im Home-Banner (PV-Akku & Haushaltsgeräte)</b>
-        <div class="cfg-row">
-          <div class="cfg-field"><label>Batterie Entladeleistung (W)</label><input class="cfg-in" list="ha-entities-list" data-cpath="headerBadges.batteryDischargePower" value="${esc(hb.batteryDischargePower || '')}"></div>
-          <div class="cfg-field"><label>Batterie Ladeleistung (W)</label><input class="cfg-in" list="ha-entities-list" data-cpath="headerBadges.batteryChargePower" value="${esc(hb.batteryChargePower || '')}"></div>
-          <div class="cfg-field"><label>Sensor „Batterie leer um“</label><input class="cfg-in" list="ha-entities-list" data-cpath="headerBadges.batteryEmptyTime" value="${esc(hb.batteryEmptyTime || '')}"></div>
-          <div class="cfg-field"><label>Sensor „Batterie voll um“</label><input class="cfg-in" list="ha-entities-list" data-cpath="headerBadges.batteryFullTime" value="${esc(hb.batteryFullTime || '')}"></div>
-        </div>
+        <b>Header-Badges im Home-Banner (Baukasten für PV, Akku, Geräte & Müll)</b>
+        ${hbHtml || '<span class="mut sm">Keine Header-Badges angelegt.</span>'}
+        <button class="iconbtn" data-act="cfgAddHB">+ Neues Header-Badge hinzufügen</button>
       </div>
       <div class="cfg-box">
         <b>Power-Flow Entitäten (je Zeile: Name:entity_id:Einheit)</b>
@@ -2647,6 +2734,13 @@ document.addEventListener('input', e => {
     const m = cfgDraft.metrics[+t.dataset.mI];
     const k = t.dataset.mK;
     m[k] = k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value;
+  }
+  if (t.dataset.hbI != null) {
+    const b = cfgDraft.headerBadgeItems[+t.dataset.hbI];
+    const k = t.dataset.hbK;
+    if (k === 'maxDays') b[k] = parseInt(t.value, 10) || 2;
+    else b[k] = t.value;
+    if (k === 'type') renderCfgModal(true); // UI neu zeichnen, da sich Felder ändern
   }
   if (t.dataset.sbMi != null) {
     const sb = cfgDraft.metrics[+t.dataset.sbMi].subButtons[+t.dataset.sbI];
@@ -2823,9 +2917,12 @@ let ENTITIES = [];
 function rebuildEntitiesList() {
   const ids = [];
   if (CONFIG.greetingEntity) ids.push(CONFIG.greetingEntity);
-  const hb = CONFIG.headerBadges || {};
-  ids.push(hb.batteryDischargePower, hb.batteryChargePower, hb.batteryEmptyTime, hb.batteryFullTime);
-  (hb.appliances || []).forEach(a => ids.push(a.progressEntity, a.endEntity));
+  
+  // Neue Header-Badge-Logik registrieren
+  (CONFIG.headerBadgeItems || []).forEach(b => {
+    ids.push(b.entity1, b.entity2, b.conditionEnt);
+  });
+
   (CONFIG.powerFlow || []).forEach(p => ids.push(p.entity));
   (CONFIG.rooms || []).forEach(r => {
     ids.push(r.camera, r.climate);
@@ -2945,6 +3042,16 @@ document.addEventListener('click', ev => {
     }
     return;
   }
+  
+  /* Header Badges */
+  if (act === 'cfgAddHB') {
+    if (!Array.isArray(cfgDraft.headerBadgeItems)) cfgDraft.headerBadgeItems = [];
+    cfgDraft.headerBadgeItems.push({ type: 'entity', title: 'Neues Badge', icon: 'plug', format: '[W1]', colorLogic: 'default:blue' });
+    renderCfgModal(true); return;
+  }
+  if (act === 'cfgDelHB') { cfgDraft.headerBadgeItems.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveHB') { moveItem(cfgDraft.headerBadgeItems, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
   if (act === 'cfgDelDevTab') {
     const id = el.dataset.id;
     cfgDraft.deviceTabs = (cfgDraft.deviceTabs || []).filter(t => t.id !== id);

@@ -42,13 +42,17 @@ const EMPTY_CONFIG = {
     { label: "Einstellungen", icon: "settings", path: "/config/dashboard" }
   ],
 
-  headerBadges: {
-    batteryDischargePower: "",
-    batteryChargePower: "",
-    batteryEmptyTime: "",
-    batteryFullTime: "",
-    appliances: []
-  },
+  headerBadgeItems: [
+    { type: 'entity', title: 'Akku leer in', icon: 'batteryClock', format: '[W1]', colorLogic: 'default:orange',
+      entity1: 'sensor.batterie_leer_um_4', conditionEnt: 'sensor.senec_battery_discharge_power', conditionOp: '>', conditionVal: '10' },
+    { type: 'entity', title: 'Akku voll in', icon: 'batteryCharge', format: '[W1]', colorLogic: 'default:green',
+      entity1: 'sensor.batterie_voll_um', conditionEnt: 'sensor.senec_battery_charge_power', conditionOp: '>', conditionVal: '10' },
+    { type: 'entity', title: 'Geschirrspüler', icon: 'dishwasher', format: '[W1]% - [W2]', colorLogic: 'default:blue',
+      entity1: 'sensor.geschirrspuler_programm_fortschritt', entity2: 'sensor.geschirrspuler_programm_endzeit', conditionEnt: 'sensor.geschirrspuler_programm_fortschritt', conditionOp: '>', conditionVal: '0' },
+    { type: 'entity', title: 'Waschmaschine', icon: 'washing', format: '[W1]', colorLogic: 'default:blue',
+      entity1: 'sensor.waschmaschine_ende', conditionEnt: 'sensor.waschmaschine_ende', conditionOp: 'not_empty', conditionVal: '' },
+    { type: 'calendar', title: 'Abfall', icon: 'trash', format: 'Nächste 2 Tage', colorLogic: 'default:trash', maxDays: 2 }
+  ],
 
   calendars: {
     weatherEntity: "",
@@ -176,16 +180,17 @@ const TIMO_PRESET_CONFIG = {
     { label: "Einstellungen", icon: "settings", path: "/config/dashboard" }
   ],
 
-  headerBadges: {
-    batteryDischargePower: "sensor.senec_battery_discharge_power",
-    batteryChargePower: "sensor.senec_battery_charge_power",
-    batteryEmptyTime: "sensor.batterie_leer_um_4",
-    batteryFullTime: "sensor.batterie_voll_um",
-    appliances: [
-      { name: "Geschirrspüler", icon: "dishwasher", progressEntity: "sensor.geschirrspuler_programm_fortschritt", endEntity: "sensor.geschirrspuler_programm_endzeit", runningText: "Läuft …" },
-      { name: "Waschmaschine",  icon: "washing",    progressEntity: "", endEntity: "sensor.waschmaschine_ende", runningText: "Wäscht …" }
-    ]
-  },
+  headerBadgeItems: [
+    { type: 'entity', title: 'Akku leer in', icon: 'batteryClock', format: '[W1]', colorLogic: 'default:orange',
+      entity1: 'sensor.batterie_leer_um_4', conditionEnt: 'sensor.senec_battery_discharge_power', conditionOp: '>', conditionVal: '10' },
+    { type: 'entity', title: 'Akku voll in', icon: 'batteryCharge', format: '[W1]', colorLogic: 'default:green',
+      entity1: 'sensor.batterie_voll_um', conditionEnt: 'sensor.senec_battery_charge_power', conditionOp: '>', conditionVal: '10' },
+    { type: 'entity', title: 'Geschirrspüler', icon: 'dishwasher', format: '[W1]% - [W2]', colorLogic: 'default:blue',
+      entity1: 'sensor.geschirrspuler_programm_fortschritt', entity2: 'sensor.geschirrspuler_programm_endzeit', conditionEnt: 'sensor.geschirrspuler_programm_fortschritt', conditionOp: '>', conditionVal: '0' },
+    { type: 'entity', title: 'Waschmaschine', icon: 'washing', format: '[W1]', colorLogic: 'default:blue',
+      entity1: 'sensor.waschmaschine_ende', conditionEnt: 'sensor.waschmaschine_ende', conditionOp: 'not_empty', conditionVal: '' },
+    { type: 'calendar', title: 'Abfall', icon: 'trash', format: 'Nächste 2 Tage', colorLogic: 'default:trash', maxDays: 2 }
+  ],
 
   calendars: {
     weatherEntity: "weather.aussen_wetter_urloffen",
