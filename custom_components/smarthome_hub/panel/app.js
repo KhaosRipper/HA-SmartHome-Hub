@@ -108,6 +108,9 @@ function ensureConfigDefaults(cfg) {
     }
   });
 
+  if (!cfg.climate) cfg.climate = { title: 'Raumklima', label: 'Hauptbereich', entity: '', min: 16, max: 30, step: 0.5 };
+  if (!Array.isArray(cfg.climate.tiles)) cfg.climate.tiles = DEFAULT_CLIMATE_TILES();
+
   if (!cfg.weather) cfg.weather = {};
   if (cfg.weather.showCard === undefined) cfg.weather.showCard = true;
   if (cfg.weather.title === undefined) cfg.weather.title = 'Wetter';
@@ -799,6 +802,7 @@ async function refreshSeries() {
   }
   await refreshCustomPageSeries(false);
   ui.seriesVer++;
+  if (sm.open && sm.mode === 'metric') renderMetricModal();
   tick(true);
 }
 
@@ -1013,12 +1017,93 @@ function arc(cx, cy, r, a0, a1) {
   const [x0, y0] = p(a0), [x1, y1] = p(a1);
   return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${(a1 - a0) > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`;
 }
+/* ---------- Konfigurierbare Klima-Kacheln (Modus / Lüfter / eigene) ---------- */
+function DEFAULT_CLIMATE_TILES() {
+  return [
+    { type: 'hvac', show: true, label: 'Modus',  entity: '', attr: '', icon: 'sun' },
+    { type: 'fan',  show: true, label: 'Lüfter', entity: '', attr: '', icon: 'fan' }
+  ];
+}
+function getClimateTiles(room) {
+  if (room && Array.isArray(room.climateTiles)) return room.climateTiles;
+  const g = CONFIG.climate && CONFIG.climate.tiles;
+  return Array.isArray(g) ? g : DEFAULT_CLIMATE_TILES();
+}
+const TILE_TOGGLE_DOMAINS = ['switch', 'input_boolean', 'light', 'humidifier', 'automation'];
+function climateTileInfo(tile, c) {
+  const type = tile.type || 'custom';
+  const entity = String(tile.entity || c.entity || '').trim();
+  const label = tile.label || (type === 'hvac' ? 'Modus' : type === 'fan' ? 'Lüfter' : 'Wert');
+  const icon = ICONS[tile.icon] ? tile.icon : (type === 'hvac' ? 'sun' : type === 'fan' ? 'fan' : 'thermo');
+  const out = { entity, label, icon, value: '—', act: false };
+  const s = entity ? S(entity) : null;
+  if (!s) return out;
+  if (['unknown', 'unavailable'].includes(s.state)) { out.value = 'Nicht verfügbar'; return out; }
+  const a = s.attributes || {}, d = dom(entity);
+  const unit = tile.unit || (!tile.attr && a.unit_of_measurement) || '';
+  const fmtRaw = v => {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    const isNum = typeof v !== 'boolean' && String(v).trim() !== '' && Number.isFinite(n);
+    return (isNum ? fmt(n, tile.decimals ?? 1) : String(v)) + (unit ? ' ' + unit : '');
+  };
+  const shown = fallback => tile.attr ? fmtRaw(a[tile.attr]) : fallback;
+
+  if (d === 'climate' && type === 'hvac') {
+    out.value = shown(HVAC_DE[s.state] || s.state);
+    out.act = (a.hvac_modes || []).length > 0;
+  } else if (d === 'climate' && type === 'fan') {
+    out.value = shown(a.fan_mode || '—');
+    out.act = (a.fan_modes || []).length > 0;
+  } else if (d === 'fan') {
+    out.value = shown(s.state === 'off' ? 'Aus' : (a.preset_mode || (a.percentage != null ? `${a.percentage} %` : 'An')));
+    out.act = true;
+  } else if (d === 'select' || d === 'input_select') {
+    out.value = shown(s.state);
+    out.act = (a.options || []).length > 1;
+  } else if (TILE_TOGGLE_DOMAINS.includes(d)) {
+    out.value = shown(s.state === 'on' ? 'An' : s.state === 'off' ? 'Aus' : s.state);
+    out.act = true;
+  } else {
+    out.value = tile.attr ? fmtRaw(a[tile.attr]) : fmtRaw(s.state);
+  }
+  return out;
+}
+function climateTilesHtml(c) {
+  const list = (c.tiles || []).map((t, i) => ({ t, i })).filter(x => x.t && x.t.show !== false);
+  if (!list.length) return '';
+  return `<div class="two ctiles">${list.map(({ t, i }) => {
+    const info = climateTileInfo(t, c);
+    const inner = `${ic(info.icon, 18)}<span><small>${esc(info.label)}</small>${esc(info.value)}</span>`;
+    return info.act ? `<button class="mini" data-act="ctile" data-i="${i}">${inner}</button>` : `<div class="mini">${inner}</div>`;
+  }).join('')}</div>`;
+}
+function runClimateTile(tile, c) {
+  if (!tile) return;
+  const info = climateTileInfo(tile, c);
+  if (!info.act) return;
+  const e = info.entity, s = S(e);
+  if (!s) return;
+  const a = s.attributes || {}, d = dom(e);
+  const next = (list, cur) => list[(list.indexOf(cur) + 1) % list.length];
+  if (d === 'climate') {
+    if (tile.type === 'hvac') call('climate', 'set_hvac_mode', { entity_id: e, hvac_mode: next(a.hvac_modes || [], s.state) });
+    else call('climate', 'set_fan_mode', { entity_id: e, fan_mode: next(a.fan_modes || [], a.fan_mode) });
+  } else if (d === 'select' || d === 'input_select') {
+    call(d, 'select_option', { entity_id: e, option: next(a.options || [], s.state) });
+  } else if (d === 'fan') {
+    call('fan', 'toggle', { entity_id: e });
+  } else {
+    call('homeassistant', 'toggle', { entity_id: e });
+  }
+}
+
 function activeClimate() {
   const r = (CONFIG.rooms || [])[ui.room] || {};
   if (r.climate) {
     const s = S(r.climate);
     if (s && !['unknown', 'unavailable'].includes(s.state)) {
-      return { ...(CONFIG.climate || {}), entity: r.climate, name: r.name, type: 'climate' };
+      return { ...(CONFIG.climate || {}), entity: r.climate, name: r.name, type: 'climate', tiles: getClimateTiles(r) };
     }
   }
   return { ...(CONFIG.weather || {}), name: (CONFIG.weather && CONFIG.weather.label) || '', type: 'weather' };
@@ -1114,7 +1199,6 @@ function climateCard() {
   const k = [100 + 78 * Math.cos(tgtA * Math.PI / 180), 100 + 78 * Math.sin(tgtA * Math.PI / 180)];
   let label = 'Aus';
   if (s.state !== 'off') label = cur == null || tgt == null ? '—' : cur < tgt - 1 ? 'Zu kalt' : cur > tgt + 1 ? 'Zu warm' : 'Komfortabel';
-  const hv = HVAC_DE[s.state] || s.state;
   return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuell</span></div>
     <div class="gauge"><svg viewBox="0 0 200 175"><defs><linearGradient id="gg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--ok)"/><stop offset="1" stop-color="var(--acc)"/></linearGradient></defs>
       <path d="${arc(100, 100, 78, A0, A0 + SW)}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="9" stroke-linecap="round"/>
@@ -1122,8 +1206,7 @@ function climateCard() {
       ${tgt != null ? `<circle cx="${k[0].toFixed(1)}" cy="${k[1].toFixed(1)}" r="6" fill="#fff" stroke="var(--acc)" stroke-width="3"/>` : ''}</svg>
       <div class="gc"><div class="v">${fmt(cur, 1)}<sup>°C</sup></div><div class="mut sm">${label}${tgt != null ? ' · Soll ' + fmt(tgt, 1) + '°' : ''}</div>
         <div class="b"><button data-act="tmin">−</button><button data-act="tplus">+</button></div></div></div>
-    <div class="two"><button class="mini" data-act="hvac">${ic('sun', 18)}<span><small>Modus</small>${esc(hv)}</span></button>
-    <button class="mini" data-act="fan">${ic('fan', 18)}<span><small>Lüfter</small>${esc(a.fan_mode ? a.fan_mode : '—')}</span></button></div></section>`;
+    ${climateTilesHtml(c)}</section>`;
 }
 
 function spark(ser, id, opt = {}, ser2 = null) {
@@ -1173,7 +1256,13 @@ function spark(ser, id, opt = {}, ser2 = null) {
 
   // Uhrzeiten an der X-Achse (alle 4 Stunden bzw. Datenpunkte)
   const nowHour = new Date().getHours();
-  const timeLabels = vals1.map((_, i) => {
+  const timeLabels = opt.range7 ? vals1.map((_, i) => {
+    const dt = seriesPointDate(i, vals1.length);
+    if (dt.getHours() !== 0) return '';
+    const x = i * pw / (vals1.length - 1 || 1);
+    const tx = Math.min(pw - 12, Math.max(12, x));
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${H - pb}" stroke="rgba(255,255,255,.06)"/><text x="${tx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${esc(dt.toLocaleDateString('de-DE', { weekday: 'short' }))}</text>`;
+  }).join('') : vals1.map((_, i) => {
     const h = (nowHour - vals1.length + 1 + i + 24) % 24;
     if (i % Math.max(1, Math.floor(vals1.length / 5)) === 0 || i === vals1.length - 1) {
       return `<text x="${(i * pw / (vals1.length - 1 || 1)).toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${pad(h)}:00</text>`;
@@ -1207,7 +1296,7 @@ function metricCard(m) {
   }
   return `<section class="card"><div class="ch"><b>${esc(m.title)}</b><span class="mut sm">${headRight}</span></div>
     <div class="mv"><div><span class="big">${fmt(v, m.decimals ?? 1)}</span><span class="unit">${esc(m.unit)}</span><div class="m-sub">${trendHtml}${liveText}</div></div>
-    <div class="chart">${spark(series[m.chart], m.id, {}, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
+    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="metricChart" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, {}, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
 }
 
 function securityCard() {
@@ -1587,6 +1676,94 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
   if (!isUpdate) document.getElementById('sm').classList.add('show');
 }
 
+/* ---------- Metrik-Chart Großansicht (24 h / 7 Tage) ---------- */
+function seriesPointDate(i, len) {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() - (len - 1 - i));
+  return d;
+}
+
+async function loadMetricRange(m) {
+  if (!m || !m.chart || sm.range !== '7d') return;
+  const key = '7d:' + m.chart;
+  if (series[key] && series[key + '_t'] && Date.now() - series[key + '_t'] < 5 * 60 * 1000) return;
+  sm.loading = true;
+  renderMetricModal();
+  try {
+    const mode = m.mode || 'avg';
+    const [cur, prev] = await Promise.all([
+      loadSeries(m.chart, mode, 168),
+      loadSeries(m.chart, mode, 168, null, 7).catch(() => null)
+    ]);
+    series[key] = cur;
+    series[key + '_prev'] = prev;
+    series[key + '_t'] = Date.now();
+  } catch (e) {
+    series[key] = null;
+    series[key + '_prev'] = null;
+  }
+  sm.loading = false;
+  if (sm.open && sm.mode === 'metric' && sm.metricId === m.id) renderMetricModal();
+}
+
+function renderMetricModal() {
+  const m = (CONFIG.metrics || []).find(x => x.id === sm.metricId);
+  if (!m) return;
+  const is7 = sm.range === '7d';
+  const key7 = '7d:' + m.chart;
+  const ser = is7 ? series[key7] : series[m.chart];
+  const prev = is7 ? series[key7 + '_prev'] : series[m.chart + '_yest'];
+  const unitL = m.chartUnit ? ' ' + m.chartUnit : '';
+  const today = num(m.entity), live = num(m.chart);
+
+  const pts = (ser || []).map((v, i) => ({ v, i })).filter(p => p.v != null);
+  let stats = '';
+  if (pts.length) {
+    const hi = pts.reduce((a, b) => (b.v > a.v ? b : a));
+    const lo = pts.reduce((a, b) => (b.v < a.v ? b : a));
+    const avg = pts.reduce((sum, p) => sum + p.v, 0) / pts.length;
+    const when = p => {
+      const d = seriesPointDate(p.i, ser.length);
+      return is7 ? `${d.toLocaleDateString('de-DE', { weekday: 'short' })}, ${pad(d.getHours())}:00 Uhr` : `um ${pad(d.getHours())}:00 Uhr`;
+    };
+    stats = `<div class="mc-stats">
+      <span>📈 Höchstwert: <strong>${fmt(hi.v, 1)}${esc(unitL)}</strong> (${esc(when(hi))})</span>
+      <span>📉 Tiefstwert: <strong>${fmt(lo.v, 1)}${esc(unitL)}</strong> (${esc(when(lo))})</span>
+      <span>Ø <strong>${fmt(avg, 1)}${esc(unitL)}</strong></span></div>`;
+  }
+
+  const chartHtml = (is7 && sm.loading)
+    ? '<div class="mut sm" style="padding:70px 0;text-align:center">Lade Verlaufsdaten …</div>'
+    : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + m.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7 }, prev)}</div>`;
+  const legend = is7
+    ? 'Durchgezogen: letzte 7 Tage · Gestrichelt: die 7 Tage davor'
+    : 'Durchgezogen: letzte 24 Stunden · Gestrichelt: dieselben 24 Stunden einen Tag zuvor';
+
+  const sheet = document.getElementById('smsheet');
+  sheet.classList.remove('wfc-wide');
+  sheet.innerHTML = `
+    <div class="smh"><b>${esc(m.title || 'Verlauf')}</b><button class="x2" data-act="smClose">✕</button></div>
+    <div class="mc-top">
+      <div><div class="mc-big">${fmt(today, m.decimals ?? 1)}<span class="unit">${esc(m.unit || '')}</span></div><small>Heute</small></div>
+      ${live != null ? `<div><div class="mc-big">${fmt(live, 0)}<span class="unit">${esc(m.chartUnit || '')}</span></div><small>${m.mode === 'last' ? 'Letzter Wert' : 'Aktuell'}</small></div>` : ''}
+    </div>
+    <div class="wfc-tabs">
+      <button class="wfc-tab ${is7 ? '' : 'on'}" data-act="metricRange" data-r="24h">24 Stunden</button>
+      <button class="wfc-tab ${is7 ? 'on' : ''}" data-act="metricRange" data-r="7d">7 Tage</button>
+    </div>
+    ${chartHtml}${stats}
+    <div class="mut" style="margin-top:8px;font-size:10px">${legend}</div>`;
+}
+
+function openMetricChartModal(metricId) {
+  const m = (CONFIG.metrics || []).find(x => x.id === metricId);
+  if (!m || !m.chart) return;
+  sm.mode = 'metric'; sm.metricId = m.id; sm.range = '24h'; sm.loading = false; sm.open = true;
+  renderMetricModal();
+  document.getElementById('sm').classList.add('show');
+}
+
 function closeSM() {
   sm.open = false;
   document.getElementById('smsheet').classList.remove('wfc-wide');
@@ -1851,6 +2028,46 @@ const CHIP_COLOR_OPTIONS = [
   ['battery', 'Batterie-Automatik (Rot/Gelb/Grün)']
 ];
 
+const CTILE_TYPE_OPTIONS = [
+  ['hvac', 'Modus (Betriebsart durchschalten)'],
+  ['fan', 'Lüfter (Stufe durchschalten / Ein-Aus)'],
+  ['custom', 'Eigener Wert / Schalter']
+];
+function getTileArr(scope) {
+  if (!cfgDraft) return null;
+  if (scope === 'g') return cfgDraft.climate && cfgDraft.climate.tiles;
+  const r = cfgDraft.rooms[+scope];
+  return r && r.climateTiles;
+}
+function climateTilesEditorHtml(scope) {
+  const tiles = getTileArr(scope) || [];
+  const rows = tiles.map((t, i) => {
+    const at = `data-ct-s="${scope}" data-ct-i="${i}"`;
+    const defIcon = t.type === 'fan' ? 'fan' : t.type === 'custom' ? 'thermo' : 'sun';
+    return `<div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line)">
+      <label><input type="checkbox" ${at} data-ct-k="show" ${t.show !== false ? 'checked' : ''}> Anzeigen</label>
+      <div class="cfg-field"><label>Typ</label>
+        <select class="cfg-in" ${at} data-ct-k="type">${CTILE_TYPE_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(t.type || 'custom') === val ? 'selected' : ''}>${lab}</option>`).join('')}</select>
+      </div>
+      <div class="cfg-field"><label>Bezeichnung</label><input class="cfg-in" ${at} data-ct-k="label" placeholder="Modus / Lüfter" value="${esc(t.label || '')}"></div>
+      <div class="cfg-field"><label>Entität (leer = Klima-Entität des Raums)</label><input class="cfg-in" list="ha-entities-list" ${at} data-ct-k="entity" placeholder="climate.* / fan.* / select.* / switch.*" value="${esc(t.entity || '')}"></div>
+      <div class="cfg-field"><label>Attribut (optional, ersetzt den Status)</label><input class="cfg-in" ${at} data-ct-k="attr" placeholder="z. B. fan_mode" value="${esc(t.attr || '')}"></div>
+      <div class="cfg-field"><label>Einheit</label><input class="cfg-in" ${at} data-ct-k="unit" value="${esc(t.unit || '')}"></div>
+      <div class="cfg-field"><label>Nachkommastellen</label><input type="number" min="0" max="3" class="cfg-in" ${at} data-ct-k="decimals" value="${t.decimals ?? 1}"></div>
+      <div class="cfg-field"><label>Icon</label>
+        <select class="cfg-in" ${at} data-ct-k="icon">${CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(t.icon || defIcon) === val ? 'selected' : ''}>${lab}</option>`).join('')}</select>
+      </div>
+      <div class="order-btns" style="justify-self:end;align-self:end">
+        <button class="btn-move" data-act="cfgMoveCT" data-s="${scope}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button class="btn-move" data-act="cfgMoveCT" data-s="${scope}" data-i="${i}" data-dir="1" ${i === tiles.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="btn-danger" data-act="cfgDelCT" data-s="${scope}" data-i="${i}">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `${rows || '<span class="mut sm">Keine Kacheln – die Karte zeigt dann nur die Temperatur-Anzeige.</span>'}
+    <div><button class="iconbtn" data-act="cfgAddCT" data-s="${scope}">+ Kachel hinzufügen</button></div>`;
+}
+
 function openCfgEditor() {
   requirePin('editor', () => {
     cfgDraft = ensureConfigDefaults(JSON.parse(JSON.stringify(CONFIG)));
@@ -2032,6 +2249,12 @@ function renderCfgModal(preserveScroll = true) {
           <div><button class="iconbtn" data-act="cfgAddCamBtn" data-ri="${i}">+ Kamera-Button zu „${esc(r.name)}“ hinzufügen</button></div>
         </div>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+          <span class="mut sm" style="font-weight:600">Klima-Kacheln (Modus / Lüfter) in der Raumklima-Karte – wirkt nur, wenn der Raum eine Klima-Entität hat:</span>
+          ${Array.isArray(r.climateTiles)
+            ? `${climateTilesEditorHtml(String(i))}<div><button class="btn-danger" data-act="cfgRoomTilesReset" data-ri="${i}">Eigene Kacheln verwerfen (globale nutzen)</button></div>`
+            : `<span class="mut sm">Dieser Raum nutzt die globalen Kacheln (Tab „Klima-Baukasten“).</span><div><button class="iconbtn" data-act="cfgRoomTilesOwn" data-ri="${i}">Eigene Kacheln für „${esc(r.name)}“ anlegen</button></div>`}
+        </div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
           <span class="mut sm" style="font-weight:600">Kleine Raum-Badges unten links im Banner (°C, W, % usw.):</span>
           ${chipsHtml || '<span class="mut sm">Keine Badges für diesen Raum angelegt.</span>'}
           <div><button class="iconbtn" data-act="cfgAddChip" data-ri="${i}">+ Badge (°C / W / %) zu „${esc(r.name)}“ hinzufügen</button></div>
@@ -2116,7 +2339,11 @@ function renderCfgModal(preserveScroll = true) {
         </div>
       </div>`;
     }).join('');
-    body = `${cRooms}<button class="iconbtn" data-act="cfgAddCRoom">+ Klima-Raum hinzufügen</button>`;
+    body = `<div class="cfg-box">
+        <b>Raumklima-Karte im Dashboard: Standard-Kacheln für alle Räume</b>
+        <span class="mut sm">Gilt für jeden Raum ohne eigene Kacheln (eigene Kacheln legst du im Tab „Räume &amp; Badges“ pro Raum an). Ohne Entität wird die Klima-Entität des jeweiligen Raums verwendet.</span>
+        ${climateTilesEditorHtml('g')}
+      </div>${cRooms}<button class="iconbtn" data-act="cfgAddCRoom">+ Klima-Raum hinzufügen</button>`;
   } else if (cfgTab === 'energie') {
     const metrics = cfgDraft.metrics || [];
     const metricsHtml = metrics.map((m, mi) => {
@@ -2391,6 +2618,14 @@ document.addEventListener('input', e => {
       sb[k] = t.value;
     }
   }
+  if (t.dataset.ctS != null) {
+    const arr = getTileArr(t.dataset.ctS);
+    const tile = arr && arr[+t.dataset.ctI];
+    if (tile) {
+      const k = t.dataset.ctK;
+      tile[k] = t.type === 'checkbox' ? t.checked : (k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value);
+    }
+  }
   if (t.dataset.devtabName) {
     const tabObj = (cfgDraft.deviceTabs || []).find(x => x.id === t.dataset.devtabName);
     if (tabObj) tabObj.name = t.value;
@@ -2552,7 +2787,11 @@ function rebuildEntitiesList() {
   });
   (CONFIG.devices || []).forEach(d => ids.push(d.entity, d.power, d.energy));
   (CONFIG.covers || []).forEach(c => ids.push(c.entity));
-  if (CONFIG.climate) ids.push(CONFIG.climate.entity);
+  if (CONFIG.climate) {
+    ids.push(CONFIG.climate.entity);
+    (CONFIG.climate.tiles || []).forEach(t => ids.push(t.entity));
+  }
+  (CONFIG.rooms || []).forEach(r => (r.climateTiles || []).forEach(t => ids.push(t.entity)));
   if (CONFIG.weather) {
     ids.push(CONFIG.weather.entity, CONFIG.weather.tempEntity, CONFIG.weather.forecastEntity);
     (CONFIG.weather.items || []).forEach(it => ids.push(it.entity));
@@ -2586,7 +2825,7 @@ function tick(force) {
     return;
   }
   if (coverDrag.active) return;
-  const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position].join('|'); }).join(';')
+  const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage].join('|'); }).join(';')
     + `#${ui.room}${ui.view}${ui.showAll}${ui.seriesVer}${homeCalendarState.loadedAt}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
 }
@@ -2674,6 +2913,19 @@ document.addEventListener('click', ev => {
   }
 
   /* Wetter-Detailfelder hinzufügen / löschen / sortieren */
+  if (act === 'cfgAddCT') {
+    const arr = getTileArr(el.dataset.s);
+    if (arr) { arr.push({ type: 'custom', show: true, label: 'Neu', entity: '', attr: '', icon: 'thermo', decimals: 1 }); renderCfgModal(true); }
+    return;
+  }
+  if (act === 'cfgDelCT') { const arr = getTileArr(el.dataset.s); if (arr) arr.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveCT') { const arr = getTileArr(el.dataset.s); if (arr) moveItem(arr, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+  if (act === 'cfgRoomTilesOwn') {
+    cfgDraft.rooms[+el.dataset.ri].climateTiles = JSON.parse(JSON.stringify((cfgDraft.climate && cfgDraft.climate.tiles) || DEFAULT_CLIMATE_TILES()));
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgRoomTilesReset') { delete cfgDraft.rooms[+el.dataset.ri].climateTiles; renderCfgModal(true); return; }
   if (act === 'cfgAddWItem') {
     if (!Array.isArray(cfgDraft.weather.items)) cfgDraft.weather.items = [];
     cfgDraft.weather.items.push({ label: 'Neuer Wert', entity: '', attr: '', unit: '', icon: 'drop', decimals: 1 });
@@ -2838,6 +3090,14 @@ document.addEventListener('click', ev => {
   if (act === 'wfcDay') { weatherForecastState.selectedDay = +el.dataset.i; renderWeatherModal(); return; }
   if (act === 'smOpen') { openSM(+el.dataset.i); return; }
   if (act === 'energymodal') { openEnergyModal(el.dataset.mid, el.dataset.bid); return; }
+  if (act === 'ctile') { runClimateTile((c.tiles || [])[+el.dataset.i], c); return; }
+  if (act === 'metricChart') { openMetricChartModal(el.dataset.mid); return; }
+  if (act === 'metricRange') {
+    sm.range = el.dataset.r === '7d' ? '7d' : '24h';
+    renderMetricModal();
+    loadMetricRange((CONFIG.metrics || []).find(x => x.id === sm.metricId));
+    return;
+  }
   if (act === 'smClose') { closeSM(); return; }
   if (act === 'smTog') { call('homeassistant', 'toggle', { entity_id: el.dataset.e }); setTimeout(() => { if (sm.open && sm.mode === 'room') renderSM(); }, 700); return; }
   if (act === 'nav') {
@@ -2877,8 +3137,6 @@ document.addEventListener('click', ev => {
     const nv = clamp(Math.round((cur + (act === 'tplus' ? step : -step)) / step) * step, c.min ?? 16, c.max ?? 30);
     call('climate', 'set_temperature', { entity_id: c.entity, temperature: nv });
   }
-  else if (act === 'hvac' && cs) { const m = cs.attributes.hvac_modes || []; if (m.length) call('climate', 'set_hvac_mode', { entity_id: c.entity, hvac_mode: m[(m.indexOf(cs.state) + 1) % m.length] }); }
-  else if (act === 'fan' && cs) { const m = cs.attributes.fan_modes || []; if (m.length) call('climate', 'set_fan_mode', { entity_id: c.entity, fan_mode: m[(m.indexOf(cs.attributes.fan_mode) + 1) % m.length] }); }
   else if (act === 'lockEntity') {
     call('lock', 'lock', { entity_id: el.dataset.e });
   }
