@@ -2353,16 +2353,17 @@ function renderCfgModal(preserveScroll = true) {
     body = `${list}<button class="iconbtn" data-act="cfgAddRoom">+ Neuen Raum hinzufügen</button>`;
   } else if (cfgTab === 'geraete') {
     const dTabs = cfgDraft.deviceTabs || [];
-    if (!dTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = dTabs[0] ? dTabs[0].id : 'geraete';
+    if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter') cfgDevSubTab = dTabs[0] ? dTabs[0].id : 'geraete';
     const activeTabObj = dTabs.find(t => t.id === cfgDevSubTab) || { id: 'geraete', name: 'Geräte' };
-    const isCustomTab = activeTabObj.id !== 'geraete' && activeTabObj.id !== 'covers';
+    const isCustomTab = activeTabObj.id !== 'geraete' && activeTabObj.id !== 'covers' && cfgDevSubTab !== 'lichter';
 
     const subTabBar = `<div class="cfg-subtabs">
       ${dTabs.map((t, ti) => `<div style="display:inline-flex;align-items:center;gap:3px">
         <button class="pill ${cfgDevSubTab === t.id ? 'on' : ''}" data-act="cfgDevTab" data-id="${esc(t.id)}">${esc(t.name)}</button>
         ${dTabs.length > 2 ? `<button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="-1" ${ti === 0 ? 'disabled' : ''} title="Reiter nach links">◀</button><button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="1" ${ti === dTabs.length - 1 ? 'disabled' : ''} title="Reiter nach rechts">▶</button>` : ''}
       </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Reiter erstellen (z. B. Lichter / Steckdosen)</button>
+      <button class="pill ${cfgDevSubTab === 'lichter' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="lichter">💡 Lichter-Karte</button>
+      <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Reiter erstellen</button>
     </div>`;
 
     let subBody = '';
@@ -2379,6 +2380,27 @@ function renderCfgModal(preserveScroll = true) {
           </div>
         </div>`).join('');
       subBody = `<div class="cfg-box"><b>Rolläden (Covers) – Reihenfolge mit ▲/▼ anpassbar</b>${covs}<button class="iconbtn" data-act="cfgAddCov">+ Rolladen hinzufügen</button></div>`;
+    } else if (cfgDevSubTab === 'lichter') {
+      const totalLights = (cfgDraft.lights || []).length;
+      const lightsHtml = (cfgDraft.lights || []).map((g, i) => {
+        const ents = (g.entities || []).join(', ');
+        return `
+        <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px">
+          <div class="cfg-field"><label>Anzeigename (z. B. Küche, Lia)</label><input class="cfg-in" data-l-i="${i}" data-l-k="name" value="${esc(g.name)}"></div>
+          <div class="cfg-field" style="flex:2"><label>Entitäten (kommagetrennt, z. B. light.x, switch.y)</label><input class="cfg-in" data-l-i="${i}" data-l-k="entities" value="${esc(ents)}"></div>
+          <div class="order-btns" style="justify-self:end;align-self:end">
+            <button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
+            <button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === totalLights - 1 ? 'disabled' : ''}>▼</button>
+            <button class="btn-danger" data-act="cfgDelLight" data-i="${i}">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+      subBody = `<div class="cfg-box">
+        <b>Lichter-Karte (rechte Dashboard-Seite)</b>
+        <span class="mut sm">Fasse hier beliebig viele Lampen oder Schalter zu schaltbaren Gruppen zusammen. Der Hauptschalter der Karte schaltet immer die erste Gruppe in der Liste.</span>
+        <div style="margin-top:8px">${lightsHtml || '<span class="mut sm">Keine Licht-Gruppen angelegt.</span>'}</div>
+        <div><button class="iconbtn" data-act="cfgAddLight">+ Neue Licht-Gruppe hinzufügen</button></div>
+      </div>`;
     } else {
       const tabHeader = isCustomTab ? `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
@@ -2725,6 +2747,12 @@ document.addEventListener('input', e => {
   }
   if (t.dataset.dI != null) cfgDraft.devices[+t.dataset.dI][t.dataset.dK] = t.value;
   if (t.dataset.cvI != null) cfgDraft.covers[+t.dataset.cvI][t.dataset.cvK] = t.value;
+  if (t.dataset.lI != null) {
+    const g = cfgDraft.lights[+t.dataset.lI];
+    const k = t.dataset.lK;
+    if (k === 'entities') g.entities = t.value.split(',').map(x => x.trim()).filter(Boolean);
+    else g[k] = t.value;
+  }
   if (t.dataset.camI != null) cfgDraft.webrtcCameras[+t.dataset.camI][t.dataset.camK] = t.value;
   if (t.dataset.lkI != null) {
     cfgDraft.security.locks[+t.dataset.lkI][t.dataset.lkK] = t.value;
@@ -3113,6 +3141,14 @@ document.addEventListener('click', ev => {
   if (act === 'cfgMoveCamBtn') { moveItem(cfgDraft.rooms[+el.dataset.ri].camButtons, +el.dataset.bi, +el.dataset.dir); renderCfgModal(true); return; }
 
   /* Geräte & Rolläden + Sortierung */
+  /* Lichter-Karte */
+  if (act === 'cfgAddLight') {
+    if (!Array.isArray(cfgDraft.lights)) cfgDraft.lights = [];
+    cfgDraft.lights.push({ name: 'Neue Gruppe', entities: [] });
+    renderCfgModal(true); return;
+  }
+  if (act === 'cfgDelLight') { cfgDraft.lights.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveLight') { moveItem(cfgDraft.lights, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
   if (act === 'cfgAddDev') { cfgDraft.devices.push({ name: 'Neues Element', room: 'Home', entity: '', tab: el.dataset.tab || 'geraete' }); renderCfgModal(true); return; }
   if (act === 'cfgDelDev') { cfgDraft.devices.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveDevInTab') {
