@@ -126,6 +126,7 @@ function ensureConfigDefaults(cfg) {
       { label: 'Niederschlag',     entity: '', attr: 'precipitation', unit: 'mm',   icon: 'drop',   decimals: 1 }
     ];
   }
+  if (!cfg.lightsMain) cfg.lightsMain = { mode: 'group', group: 0, entities: [] };
   return cfg;
 }
 
@@ -735,7 +736,7 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   }
   
   const h = getHass(); if (!h) return null;
-  const url = `history/period/${start.toISOString()}?filter_entity_id=${id}&end_time=${encodeURIComponent(now.toISOString() )}${attr ? '' : '&minimal_response&no_attributes'}`;
+  const url = `history/period/${start.toISOString()}?filter_entity_id=${id}&end_time=${encodeURIComponent(now.toISOString())}${attr ? '' : '&minimal_response&no_attributes'}`;
   const res = await h.callApi('GET', url);
   const arr = (res && res[0]) || [];
   const pts = arr.map(p => ({
@@ -1322,12 +1323,30 @@ function securityCard() {
 }
 
 function groupInfo(g) { const on = (g.entities || []).filter(e => { const s = S(e); return s && s.state === 'on'; }).length; return { on, total: (g.entities || []).length }; }
+
+function getMainLightEntities() {
+  const lm = CONFIG.lightsMain || { mode: 'group', group: 0, entities: [] };
+  let ents = [];
+  if (lm.mode === 'all') {
+    (CONFIG.lights || []).forEach(g => {
+      if (g.mainSync !== false) ents.push(...(g.entities || []));
+    });
+  } else if (lm.mode === 'custom') {
+    ents = lm.entities || [];
+  } else {
+    const g = (CONFIG.lights || [])[lm.group || 0];
+    if (g) ents = g.entities || [];
+  }
+  return [...new Set(ents)]; // Duplikate entfernen
+}
+
 function lightsCard() {
   const gs = CONFIG.lights || [];
   if (!gs.length) return '';
-  const main = groupInfo(gs[0]);
+  const mainEnts = getMainLightEntities();
+  const main = groupInfo({ entities: mainEnts });
   const tiles = gs.map((g, i) => { const gi = groupInfo(g); return `<button class="tile ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${i}">${ic('bulb', 18)}<span><b>${esc(g.name)}</b><small>${gi.on}/${gi.total} an</small></span></button>`; }).join('');
-  return `<section class="card"><div class="ch"><b>Lichter</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrp" data-i="0"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>Lichter</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function getCoreNav() {
@@ -2381,13 +2400,41 @@ function renderCfgModal(preserveScroll = true) {
         </div>`).join('');
       subBody = `<div class="cfg-box"><b>Rolläden (Covers) – Reihenfolge mit ▲/▼ anpassbar</b>${covs}<button class="iconbtn" data-act="cfgAddCov">+ Rolladen hinzufügen</button></div>`;
     } else if (cfgDevSubTab === 'lichter') {
+      const lm = cfgDraft.lightsMain || { mode: 'group', group: 0, entities: [] };
+      const lmGroupOpts = (cfgDraft.lights || []).map((g, idx) => `<option value="${idx}" ${lm.group == idx ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
+      
+      let lmSubHtml = '';
+      if (lm.mode === 'group') {
+        lmSubHtml = `<div class="cfg-field"><label>Welche Gruppe soll gesteuert werden?</label><select class="cfg-in" data-lm-k="group">${lmGroupOpts}</select></div>`;
+      } else if (lm.mode === 'custom') {
+        lmSubHtml = `<div class="cfg-field"><label>Eigene Entitäten (kommagetrennt)</label><input class="cfg-in" data-lm-k="entities" value="${esc((lm.entities || []).join(', '))}"></div>`;
+      }
+
+      const mainEditorHtml = `
+        <div class="cfg-box" style="margin-bottom:12px;background:rgba(255,255,255,.03)">
+          <b style="color:var(--acc2)">Hauptschalter-Verhalten</b>
+          <div class="cfg-row">
+            <div class="cfg-field"><label>Modus</label>
+              <select class="cfg-in" data-lm-k="mode">
+                <option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle Gruppen steuern (per Checkbox wählbar)</option>
+                <option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option>
+                <option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene, unabhängige Entitäten steuern</option>
+              </select>
+            </div>
+            ${lmSubHtml}
+          </div>
+        </div>`;
+
       const totalLights = (cfgDraft.lights || []).length;
       const lightsHtml = (cfgDraft.lights || []).map((g, i) => {
         const ents = (g.entities || []).join(', ');
+        const mainSyncCheck = lm.mode === 'all' ? `<label style="margin-top:8px;display:block;font-size:12px;color:var(--mut)"><input type="checkbox" data-l-i="${i}" data-l-k="mainSync" ${g.mainSync !== false ? 'checked' : ''}> Vom Hauptschalter mitsteuern</label>` : '';
         return `
         <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px">
           <div class="cfg-field"><label>Anzeigename (z. B. Küche, Lia)</label><input class="cfg-in" data-l-i="${i}" data-l-k="name" value="${esc(g.name)}"></div>
-          <div class="cfg-field" style="flex:2"><label>Entitäten (kommagetrennt, z. B. light.x, switch.y)</label><input class="cfg-in" data-l-i="${i}" data-l-k="entities" value="${esc(ents)}"></div>
+          <div class="cfg-field" style="flex:2"><label>Entitäten (kommagetrennt, z. B. light.x, switch.y)</label><input class="cfg-in" data-l-i="${i}" data-l-k="entities" value="${esc(ents)}">
+          ${mainSyncCheck}
+          </div>
           <div class="order-btns" style="justify-self:end;align-self:end">
             <button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
             <button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === totalLights - 1 ? 'disabled' : ''}>▼</button>
@@ -2397,32 +2444,37 @@ function renderCfgModal(preserveScroll = true) {
       }).join('');
       subBody = `<div class="cfg-box">
         <b>Lichter-Karte (rechte Dashboard-Seite)</b>
-        <span class="mut sm">Fasse hier beliebig viele Lampen oder Schalter zu schaltbaren Gruppen zusammen. Der Hauptschalter der Karte schaltet immer die erste Gruppe in der Liste.</span>
+        <span class="mut sm">Fasse hier beliebig viele Lampen oder Schalter zu schaltbaren Gruppen zusammen.</span>
+        ${mainEditorHtml}
         <div style="margin-top:8px">${lightsHtml || '<span class="mut sm">Keine Licht-Gruppen angelegt.</span>'}</div>
         <div><button class="iconbtn" data-act="cfgAddLight">+ Neue Licht-Gruppe hinzufügen</button></div>
       </div>`;
     } else {
-      const tabHeader = isCustomTab ? `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
-          <div class="cfg-field" style="flex:1"><label>Name dieses Reiters (erscheint als eigene Kachel im Dashboard)</label>
-            <input class="cfg-in" data-devtab-name="${esc(activeTabObj.id)}" value="${esc(activeTabObj.name)}">
-          </div>
-          <button class="btn-danger" data-act="cfgDelDevTab" data-id="${esc(activeTabObj.id)}">Reiter löschen</button>
-        </div>` : `<b>Schaltbare Elemente im Reiter „${esc(activeTabObj.name)}“ (Reihenfolge mit ▲/▼ anpassbar)</b>`;
+      /* FIX: tabHeader und devRows waren im Original nicht definiert (ReferenceError) */
+      const tabIndices = (cfgDraft.devices || [])
+        .map((d, idx) => ((d.tab || 'geraete') === activeTabObj.id ? idx : -1))
+        .filter(idx => idx !== -1);
 
-      const filteredDevs = (cfgDraft.devices || []).map((d, i) => ({ d, i })).filter(x => (x.d.tab || 'geraete') === activeTabObj.id);
-      const devRows = filteredDevs.map(({ d, i }, posIdx) => `
-        <div class="cfg-row" style="border-bottom:1px solid var(--line);padding-bottom:8px">
-          <input class="cfg-in" placeholder="Name" data-d-i="${i}" data-d-k="name" value="${esc(d.name)}">
-          <input class="cfg-in" placeholder="Raum" data-d-i="${i}" data-d-k="room" value="${esc(d.room)}">
-          <input class="cfg-in" list="ha-entities-list" placeholder="Entität (switch/light/...)" data-d-i="${i}" data-d-k="entity" value="${esc(d.entity)}">
-          <input class="cfg-in" list="ha-entities-list" placeholder="Leistung (W) optional" data-d-i="${i}" data-d-k="power" value="${esc(d.power || '')}">
-          <div class="order-btns" style="justify-self:end">
-            <button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${posIdx}" data-dir="-1" ${posIdx === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
-            <button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${posIdx}" data-dir="1" ${posIdx === filteredDevs.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
-            <button class="btn-danger" data-act="cfgDelDev" data-i="${i}">✕</button>
+      const tabHeader = `<div class="cfg-row" style="margin-bottom:10px">
+        <div class="cfg-field"><label>Reiter-Name</label><input class="cfg-in" data-devtab-name="${esc(activeTabObj.id)}" value="${esc(activeTabObj.name)}"></div>
+        ${isCustomTab ? `<div style="align-self:end"><button class="btn-danger" data-act="cfgDelDevTab" data-id="${esc(activeTabObj.id)}">Reiter löschen</button></div>` : ''}
+      </div>`;
+
+      const devRows = tabIndices.map((idx, pos) => {
+        const d = cfgDraft.devices[idx];
+        return `<div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px">
+          <div class="cfg-field"><label>Name</label><input class="cfg-in" data-d-i="${idx}" data-d-k="name" value="${esc(d.name || '')}"></div>
+          <div class="cfg-field"><label>Raum</label><input class="cfg-in" data-d-i="${idx}" data-d-k="room" placeholder="Home / Küche …" value="${esc(d.room || '')}"></div>
+          <div class="cfg-field"><label>Entität</label><input class="cfg-in" list="ha-entities-list" placeholder="light.* / switch.* / climate.*" data-d-i="${idx}" data-d-k="entity" value="${esc(d.entity || '')}"></div>
+          <div class="cfg-field"><label>Leistungs-Sensor (optional)</label><input class="cfg-in" list="ha-entities-list" placeholder="sensor.* (W)" data-d-i="${idx}" data-d-k="power" value="${esc(d.power || '')}"></div>
+          <div class="cfg-field"><label>Energie-Sensor (optional)</label><input class="cfg-in" list="ha-entities-list" placeholder="sensor.* (kWh)" data-d-i="${idx}" data-d-k="energy" value="${esc(d.energy || '')}"></div>
+          <div class="order-btns" style="justify-self:end;align-self:end">
+            <button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="-1" ${pos === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
+            <button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="1" ${pos === tabIndices.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
+            <button class="btn-danger" data-act="cfgDelDev" data-i="${idx}">✕</button>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('') || '<div class="mut sm" style="padding:8px 0">Noch keine Elemente in diesem Reiter.</div>';
 
       subBody = `<div class="cfg-box">${tabHeader}${devRows}<button class="iconbtn" data-act="cfgAddDev" data-tab="${esc(activeTabObj.id)}">+ Element zu „${esc(activeTabObj.name)}“ hinzufügen</button></div>`;
     }
@@ -2747,10 +2799,18 @@ document.addEventListener('input', e => {
   }
   if (t.dataset.dI != null) cfgDraft.devices[+t.dataset.dI][t.dataset.dK] = t.value;
   if (t.dataset.cvI != null) cfgDraft.covers[+t.dataset.cvI][t.dataset.cvK] = t.value;
+  if (t.dataset.lmK) {
+    if (!cfgDraft.lightsMain) cfgDraft.lightsMain = { mode: 'group', group: 0, entities: [] };
+    const k = t.dataset.lmK;
+    if (k === 'mode') { cfgDraft.lightsMain.mode = t.value; renderCfgModal(true); }
+    else if (k === 'group') cfgDraft.lightsMain.group = parseInt(t.value, 10) || 0;
+    else if (k === 'entities') cfgDraft.lightsMain.entities = t.value.split(',').map(x => x.trim()).filter(Boolean);
+  }
   if (t.dataset.lI != null) {
     const g = cfgDraft.lights[+t.dataset.lI];
     const k = t.dataset.lK;
     if (k === 'entities') g.entities = t.value.split(',').map(x => x.trim()).filter(Boolean);
+    else if (k === 'mainSync') g.mainSync = t.checked;
     else g[k] = t.value;
   }
   if (t.dataset.camI != null) cfgDraft.webrtcCameras[+t.dataset.camI][t.dataset.camK] = t.value;
@@ -2941,6 +3001,7 @@ function render() {
 }
 
 /* ---------- Entitäten-Überwachung & Tick ---------- */
+/* FIX: Dieser Block stand im Original doppelt -> SyntaxError "ENTITIES has already been declared" */
 let ENTITIES = [];
 function rebuildEntitiesList() {
   const ids = [];
@@ -2983,6 +3044,9 @@ function rebuildEntitiesList() {
     getLocksList(CONFIG.security).forEach(l => ids.push(l.entity));
   }
   (CONFIG.lights || []).forEach(g => ids.push(...(g.entities || [])));
+  if (CONFIG.lightsMain && CONFIG.lightsMain.mode === 'custom') {
+    ids.push(...(CONFIG.lightsMain.entities || []));
+  }
   (CONFIG.customPages || []).forEach(p => (p.widgets || []).forEach(w => {
     if (w.entity) ids.push(w.entity);
     if (w.items) w.items.forEach(it => ids.push(it.entity));
@@ -3349,7 +3413,17 @@ document.addEventListener('click', ev => {
   else if (act === 'doorEntity') {
     call('lock', 'lock', { entity_id: el.dataset.e });
   }
-  else if (act === 'lgrp') { const g = CONFIG.lights[+el.dataset.i]; call('homeassistant', groupInfo(g).on ? 'turn_off' : 'turn_on', { entity_id: g.entities }); }
+  else if (act === 'lgrpMain') {
+    const ents = getMainLightEntities();
+    if (ents.length) {
+      const on = groupInfo({ entities: ents }).on;
+      call('homeassistant', on ? 'turn_off' : 'turn_on', { entity_id: ents });
+    }
+  }
+  else if (act === 'lgrp') { 
+    const g = CONFIG.lights[+el.dataset.i]; 
+    call('homeassistant', groupInfo(g).on ? 'turn_off' : 'turn_on', { entity_id: g.entities }); 
+  }
   tick(true);
 });
 
