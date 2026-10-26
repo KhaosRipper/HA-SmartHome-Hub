@@ -476,8 +476,9 @@ const TIMO_PRESET_CONFIG = {
       eyebrow: "Fußball", title: "Bundesliga",
       intro: "Informationen zum Verein und Spieltag.",
       widgets: [
-        { type: "entity_info", entity: "sensor.sc_freiburg", title: "Mein Verein", fields: "team_name:Verein,opponent_long_name:Gegner,team_score:Heim,opponent_score:Gast,date:Termin,venue:Stadion,team_position:Tabellenplatz" },
-        { type: "entity_info", entity: "sensor.bund_scoreboard2", title: "1. Bundesliga Tabelle", fields: "" }
+        { type: "buli_team", entity: "sensor.sc_freiburg", title: "Mein Verein" },
+        { type: "buli_table", entity: "sensor.bund_scoreboard2", title: "1. Bundesliga Tabelle" },
+        { type: "buli_matchday", title: "Spieltag Übersicht" }
       ]
     }
   ]
