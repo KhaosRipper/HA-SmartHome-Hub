@@ -1611,7 +1611,6 @@ function renderCustomWidget(w) {
 }
 
 function buliTeamCard(w) {
-  // Erlaubt eine kommagetrennte Liste (z.B. "sensor.sc_freiburg, sensor.stuttgart")
   const entities = String(w.entity || 'sensor.sc_freiburg').split(',').map(e => e.trim()).filter(Boolean);
   const title = w.title || 'Mein Verein';
 
@@ -1619,14 +1618,34 @@ function buliTeamCard(w) {
     return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">Keine Entitäten angegeben.</div></section>`;
   }
 
-  const cards = entities.map((e, idx) => {
+  // Alle Teams auslesen und mit Status-Priorität versehen
+  const teamData = entities.map(e => {
     const s = S(e);
     if (!s || !s.attributes || s.attributes.team_score === undefined) {
-      return `<div class="mut sm" style="padding:16px">Warte auf Daten von ${esc(e)}...</div>`;
+      return { entity: e, valid: false };
+    }
+    const status = s.state; // IN, PRE, POST
+    // Priorität für Sortierung: Live (0) -> Anstehend/Pre (1) -> Beendet (2)
+    const prio = status === 'IN' ? 0 : (status === 'PRE' ? 1 : 2);
+    const dateMs = s.attributes.date ? new Date(s.attributes.date).getTime() : 0;
+    return { entity: e, s, a: s.attributes, status, prio, dateMs, valid: true };
+  });
+
+  // Automatische Sortierung: Live-Spiele zuerst, dann nach Anstoßzeit / Status
+  teamData.sort((x, y) => {
+    if (!x.valid) return 1;
+    if (!y.valid) return -1;
+    if (x.prio !== y.prio) return x.prio - y.prio;
+    return x.dateMs - y.dateMs;
+  });
+
+  const cards = teamData.map((item, idx) => {
+    if (!item.valid) {
+      return `<div class="mut sm" style="padding:16px">Warte auf Daten von ${esc(item.entity)}...</div>`;
     }
 
-    const a = s.attributes;
-    const status = s.state; // IN, PRE, POST
+    const a = item.a;
+    const status = item.status;
     const isLive = status === 'IN';
     const isPost = status === 'POST';
 
@@ -1655,7 +1674,7 @@ function buliTeamCard(w) {
       subText = `Nächster Gegner: ${a.opponent_long_name || away} (${timeStr} Uhr)`;
     }
 
-    const borderBottom = idx === entities.length - 1 ? 'none' : '1px solid var(--line)';
+    const borderBottom = idx === teamData.length - 1 ? 'none' : '1px solid var(--line)';
 
     return `
       <div style="border-bottom:${borderBottom};">
