@@ -44,7 +44,8 @@ const ICONS = {
   trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   batteryClock:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10h2"/><circle cx="17" cy="17" r="4"/><path d="M17 15v2l1.5 1"/>',
-  batteryCharge:'<rect x="3" y="6" width="17" height="12" rx="2"/><path d="M20 10h2v4h-2M11 8l-3 5h3l-1 3 4-6h-3z"/>'
+  batteryCharge:'<rect x="3" y="6" width="17" height="12" rx="2"/><path d="M20 10h2v4h-2M11 8l-3 5h3l-1 3 4-6h-3z"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>'
 };
 const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ICONS.plug}</svg>`;
 
@@ -1601,6 +1602,8 @@ function renderCustomWidget(w) {
     return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}"></iframe></section>`;
   }
   if (w.type === 'buli_table') return buliTableCard(w);
+  if (w.type === 'f1_next') return f1NextRaceCard(w);
+  if (w.type === 'f1_standings') return f1StandingsCard(w);
   return '';
 }
 
@@ -1654,6 +1657,149 @@ function buliTableCard(w) {
       <div class="text-center" style="width:26px">Pkt</div>
     </div>
     <div style="display:flex;flex-direction:column">${rows}</div>
+  </section>`;
+}
+
+
+/* ---------- Formel 1 Widgets (Exakt auf Nicxe/f1_sensor v6 abgestimmt) ---------- */
+function getF1TeamColor(team) {
+  const t = (team || '').toLowerCase();
+  if (t.includes('red bull') || t.includes('rbr')) return '#3671C6';
+  if (t.includes('mercedes')) return '#00D7B6';
+  if (t.includes('ferrari')) return '#ED1131';
+  if (t.includes('mclaren')) return '#F47600';
+  if (t.includes('aston')) return '#229971';
+  if (t.includes('alpine')) return '#00A1E8';
+  if (t.includes('williams')) return '#1868DB';
+  if (t.includes('racing bulls') || t.includes('rb')) return '#6C98FF';
+  if (t.includes('sauber') || t.includes('stake') || t.includes('alfa')) return '#00E701';
+  if (t.includes('haas')) return '#9C9FA2';
+  if (t.includes('audi')) return '#F50537';
+  if (t.includes('cadillac')) return '#909090';
+  return '#8b8fa8';
+}
+
+function f1NextRaceCard(w) {
+  const e = w.entity || 'sensor.f1_next_race';
+  const s = S(e) || S('sensor.f1_race_f1_next_race');
+  if (!s || ['unknown', 'unavailable'].includes(s.state)) {
+    return `<section class="f1-card"><div class="ch"><b>Nächstes Rennen</b></div><div class="mut sm">Warte auf Daten von ${esc(e)}...</div></section>`;
+  }
+
+  const a = s.attributes || {};
+  const raceName = a.race_name || 'Mexico City Grand Prix';
+  const circuit = a.circuit_name || 'Autódromo Hermanos Rodríguez';
+  const loc = [a.circuit_locality, a.circuit_country].filter(Boolean).join(', ');
+  const round = a.round ? `Round ${a.round}` : '';
+  const mapUrl = a.circuit_map_url || a.circuit_outline_url || '';
+  const flagUrl = a.country_flag_url || '';
+
+  // Zielzeitpunkt für den Countdown (Rennstart)
+  const targetIso = a.race_start || a.race_start_utc || s.state;
+  const targetMs = targetIso ? new Date(targetIso).getTime() : 0;
+
+  // Session-Planung aus den echten Attributen aufbauen
+  const rawSessions = [
+    { name: 'FP1', iso: a.first_practice_start || a.first_practice_start_utc },
+    { name: 'FP2', iso: a.second_practice_start || a.second_practice_start_utc },
+    { name: 'FP3', iso: a.third_practice_start || a.third_practice_start_utc },
+    { name: 'Sprint Quali', iso: a.sprint_qualifying_start || a.sprint_qualifying_start_utc },
+    { name: 'Sprint', iso: a.sprint_start || a.sprint_start_utc },
+    { name: 'Qualifying', iso: a.qualifying_start || a.qualifying_start_utc },
+    { name: 'Race', iso: targetIso, highlight: true }
+  ].filter(x => x.iso);
+
+  const nowMs = Date.now();
+  let nextFound = false;
+
+  const sessionRows = rawSessions.map(ses => {
+    const dObj = new Date(ses.iso);
+    const isPast = dObj.getTime() < nowMs;
+    const isNext = !isPast && !nextFound;
+    if (isNext) nextFound = true;
+
+    const dFmt = isNaN(dObj) ? ses.iso : dObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
+    const tFmt = isNaN(dObj) ? '' : dObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+
+    return `<div class="f1-sched-row ${isPast ? 'mut' : ''}" style="${isPast ? 'opacity:0.45' : ''}">
+       <div>
+         <div class="f1-sched-name">${esc(ses.name)}</div>
+         <div class="mut" style="font-size:11px">${dFmt} · ${tFmt}</div>
+       </div>
+       ${isNext ? `<div class="f1-sched-badge">NEXT</div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<section class="f1-card">
+    <div class="f1-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        ${flagUrl ? `<img src="${flagUrl}" style="width:26px;height:18px;object-fit:cover;border-radius:3px" alt="">` : ''}
+        <div>
+          <div class="f1-title">${esc(raceName)}</div>
+          <div class="mut sm" style="text-transform:uppercase;letter-spacing:1px">${esc(circuit)}${loc ? ' · ' + esc(loc) : ''}</div>
+        </div>
+      </div>
+    </div>
+
+    ${targetMs ? `<div class="f1-timer-wrap">
+      <div class="mut sm" style="letter-spacing:1px">COUNTDOWN</div>
+      <div class="f1-timer" data-target="${targetMs}">Berechne...</div>
+      <div class="mut sm">to lights out</div>
+    </div>` : ''}
+
+    ${mapUrl ? `<div class="f1-map">
+      <div class="mut sm" style="text-align:left;letter-spacing:1px;margin-bottom:8px">CIRCUIT MAP</div>
+      <img src="${mapUrl}" alt="Track Map">
+      <div class="mut sm" style="margin-top:8px">${esc(circuit)} ${round ? '· ' + esc(round) : ''}</div>
+    </div>` : ''}
+
+    ${sessionRows ? `<div style="display:flex;flex-direction:column;gap:4px">
+      <div class="mut sm" style="text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">Weekend Schedule</div>
+      ${sessionRows}
+    </div>` : ''}
+  </section>`;
+}
+
+function f1StandingsCard(w) {
+  const e = w.entity || 'sensor.f1_driver_standings';
+  const s = S(e) || S('sensor.f1_championship_f1_driver_standings');
+  if (!s || !s.attributes) {
+    return `<section class="f1-card"><div class="ch"><b>WM-Stand (Fahrer)</b></div><div class="mut sm">Warte auf Daten von ${esc(e)}...</div></section>`;
+  }
+
+  const a = s.attributes;
+  const list = a.driver_standings || a.standings || a.drivers || [];
+
+  if (!list.length) {
+    return `<section class="f1-card"><div class="ch"><b>WM-Stand (Fahrer)</b></div><div class="mut sm">Keine Tabellendaten gefunden.</div></section>`;
+  }
+
+  const rows = list.map((d, idx) => {
+    const pos = d.position || (idx + 1);
+    const drv = d.Driver || {};
+    const code = drv.code || d.code || '—';
+    const constr = (d.Constructors && d.Constructors[0]) || {};
+    const teamName = constr.name || d.team || '';
+    const color = getF1TeamColor(teamName);
+    const pts = d.points || 0;
+
+    return `<div class="f1-driver-row">
+      <div class="f1-pos">${pos}</div>
+      <div class="f1-bar" style="background:${color}"></div>
+      <div style="flex:1;min-width:0">
+        <div class="f1-code" style="color:${color}">${esc(code)}</div>
+        <div class="f1-team">${esc(teamName)}</div>
+      </div>
+      <div class="f1-pts">${pts}</div>
+    </div>`;
+  }).join('');
+
+  return `<section class="f1-card" style="padding:0">
+    <div style="padding:16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--line);text-align:center">
+      <div style="font-size:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase">WM-Stand (Fahrer)</div>
+      <div class="mut sm" style="letter-spacing:2px;margin-top:2px">SEASON ${esc(a.season || '2026')}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;padding:8px 16px 16px">${rows}</div>
   </section>`;
 }
 
@@ -2509,7 +2655,7 @@ function renderCfgModal(preserveScroll = true) {
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
       ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-        ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+        ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle'],['f1_next','K) Formel 1 - Nächstes Rennen'],['f1_standings','L) Formel 1 - WM-Stand']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
         ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
         ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
         <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
@@ -2889,7 +3035,10 @@ function rebuildEntitiesList() {
     ids.push(...(CONFIG.lightsMain.entities || []));
   }
   (CONFIG.customPages || []).forEach(p => (p.widgets || []).forEach(w => {
-    if (w.entity) ids.push(w.entity);
+    if (w.type === 'buli_table') ids.push(w.entity || 'sensor.bund_scoreboard2');
+    else if (w.type === 'f1_next') ids.push(w.entity || 'sensor.f1_next_race', 'sensor.f1_race_f1_next_race');
+    else if (w.type === 'f1_standings') ids.push(w.entity || 'sensor.f1_driver_standings', 'sensor.f1_championship_f1_driver_standings');
+    else if (w.entity) ids.push(w.entity);
     if (w.items) w.items.forEach(it => ids.push(it.entity));
   }));
   ENTITIES = [...new Set(ids.filter(Boolean))];
@@ -2909,11 +3058,25 @@ function tick(force) {
 
 function runtimeTick() {
   document.querySelectorAll('.rt').forEach(el => { el.textContent = fmtDur(Date.now() - +el.dataset.since); });
+  
+  // F1 Live-Countdown
+  document.querySelectorAll('.f1-timer').forEach(el => {
+    const diff = +el.dataset.target - Date.now();
+    if (diff <= 0) { el.textContent = 'Rennen läuft'; return; }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    el.textContent = `T-${d}d ${pad(h)}h ${pad(m)}m`;
+  });
+
   if (CONFIG.showDateTime) {
-    const now = new Date(), opts = { timeZone: CONFIG.dateTimeTimeZone || 'Europe/Berlin' };
-    const dateEl = document.getElementById('hub-date'), timeEl = document.getElementById('hub-time');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString(CONFIG.dateTimeLocale || 'de-DE', { ...opts, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString(CONFIG.dateTimeLocale || 'de-DE', { ...opts, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = new Date();
+    const dtOpts = { timeZone: CONFIG.dateTimeTimeZone || 'Europe/Berlin' };
+    const loc = CONFIG.dateTimeLocale || 'de-DE';
+    const dEl = document.getElementById('hub-date');
+    const tEl = document.getElementById('hub-time');
+    if (dEl) dEl.textContent = now.toLocaleDateString(loc, { ...dtOpts, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    if (tEl) tEl.textContent = now.toLocaleTimeString(loc, { ...dtOpts, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 }
 
