@@ -1600,10 +1600,61 @@ function renderCustomWidget(w) {
   if (w.type === 'iframe') {
     return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}"></iframe></section>`;
   }
-  if (w.type === 'buli_table') {
-    return `<buli-table-card entity="${esc(w.entity || 'sensor.bund_scoreboard2')}"></buli-table-card>`;
-  }
+  if (w.type === 'buli_table') return buliTableCard(w);
   return '';
+}
+
+function buliTableCard(w) {
+  const e = w.entity || 'sensor.bund_scoreboard2';
+  const t = w.title || 'Bundesliga';
+  const s = S(e);
+  
+  if (!s || !s.attributes || !s.attributes.entries) {
+    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(t)}</b></div></div><div class="mut sm" style="padding:8px 0">Warte auf Daten von ${esc(e)}...</div></section>`;
+  }
+  
+  const clean = n => ({"Bayern Munich":"FC Bayern","Borussia Dortmund":"BVB","Bayer Leverkusen":"Leverkusen","Hamburg SV":"HSV","FC Cologne":"Köln","Werder Bremen":"Bremen","VfL Wolfsburg":"Wolfsburg","1. FC Heidenheim 1846":"Heidenheim","Borussia Moenchengladbach":"Gladbach","Borussia Mönchengladbach":"Gladbach","Eintracht Frankfurt":"Frankfurt","TSG Hoffenheim":"Hoffenheim","VfB Stuttgart":"Stuttgart","RB Leipzig":"RB Leipzig","FC Augsburg":"Augsburg","1. FC Union Berlin":"Union Berlin","St. Pauli":"St. Pauli"}[n] || n);
+  
+  const rows = s.attributes.entries.map(ent => {
+    const tm = ent.team, st = ent.stats;
+    const gs = n => (st.find(x => x.name === n)?.value || 0);
+    const gd = n => (st.find(x => x.name === n)?.displayValue || '0');
+    const diff = gs('pointDifferential');
+    const dCls = diff > 0 ? 'color:var(--ok)' : (diff < 0 ? 'color:var(--warn)' : 'color:var(--mut)');
+    const bg = (tm.name === "SC Freiburg" || tm.location === "SC Freiburg") ? 'on' : '';
+    const logo = tm.logos?.[0]?.href || '';
+    const col = ent.note?.color || 'transparent';
+    
+    return `<div class="buli-row ${bg}">
+      <div class="buli-c" style="background:${col}"></div>
+      <div class="text-center font-bold" style="width:20px">${gs('rank')}</div>
+      <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0"><img src="${logo}" style="width:18px;height:18px;object-fit:contain" alt=""><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(clean(tm.displayName))}</b></div>
+      <div class="text-center" style="width:18px">${gs('gamesPlayed')}</div>
+      <div class="text-center" style="width:18px">${gs('wins')}</div>
+      <div class="text-center" style="width:18px">${gs('ties')}</div>
+      <div class="text-center" style="width:18px">${gs('losses')}</div>
+      <div class="text-center mut sm" style="width:34px">${gs('pointsFor')}:${gs('pointsAgainst')}</div>
+      <div class="text-center" style="width:28px;${dCls}">${gd('pointDifferential')}</div>
+      <div class="text-center font-bold" style="width:26px;color:var(--acc2)">${gs('points')}</div>
+    </div>`;
+  }).join('');
+  
+  return `<section class="card">
+    <div class="ch" style="margin-bottom:12px"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(t)}</b></div></div>
+    <div class="buli-row h">
+      <div class="buli-c" style="background:transparent"></div>
+      <div class="text-center" style="width:20px">Pl</div>
+      <div style="flex:1">Verein</div>
+      <div class="text-center" style="width:18px" title="Spiele">Sp</div>
+      <div class="text-center" style="width:18px" title="Siege">S</div>
+      <div class="text-center" style="width:18px" title="Unentschieden">U</div>
+      <div class="text-center" style="width:18px" title="Niederlagen">N</div>
+      <div class="text-center" style="width:34px">Tore</div>
+      <div class="text-center" style="width:28px" title="Tordifferenz">Dif</div>
+      <div class="text-center" style="width:26px">Pkt</div>
+    </div>
+    <div style="display:flex;flex-direction:column">${rows}</div>
+  </section>`;
 }
 
 function customPageView(pageId) {
