@@ -1954,7 +1954,7 @@ function getUpcomingTrashItems(maxDays = 2) {
   }).map(ev => {
     const day = new Date(ev.startMs); day.setHours(0, 0, 0, 0);
     const days = Math.round((day.getTime() - today) / 86400000);
-    const when = days === 0 ? 'Heute' : days === 1 ? 'Morgen' : day.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const when = days === 0 ? 'Heute' : days === 1 ? 'Morgen' : `in ${days} Tagen`;
     return { ...ev, days, when, type: wasteType(ev.summary) };
   });
 }
