@@ -59,7 +59,7 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 *7-Tage-Vorhersage mit 3-Stunden-Intervallen für Temperatur, Niederschlag und Windrichtung.*
 
 ### 4. Detail-Verläufe & Chart-Popup
-<img width="716" height="556" alt="image" src="https://github.com/user-attachments/assets/d740d243-23a0-474b-a815-5517c29abbac" />
+<img width="739" height="555" alt="image" src="https://github.com/user-attachments/assets/5a4ecf4d-8125-49c3-9f1f-4d7853ec3a7d" />
 
 *Jedes Verlaufsdiagramm lässt sich für eine hochauflösende 24h- / 7-Tage-Vergleichsansicht inklusive Extremwerten antippen.*
 
