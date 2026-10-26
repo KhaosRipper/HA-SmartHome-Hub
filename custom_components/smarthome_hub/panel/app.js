@@ -2310,6 +2310,7 @@ function homeTrashCard(maxDays = 2, maxItems = 6, subtitle = 'Nächste 3 Tage') 
 let cfgDraft = null;
 let cfgTab = 'allgemein';
 let cfgDevSubTab = 'geraete';
+let lastOpenedBoxKey = null;
 
 const CHIP_ICON_OPTIONS = [
   ['expand', '⛶ Vergrößern (expand)'],
@@ -2647,22 +2648,27 @@ function renderCfgModal(preserveScroll = true) {
     </div>`).join('')}
     <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true);
 
-  let tSeiten = (cfgDraft.customPages || []).map((p, pi) => box(`Menü-Seite: ${esc(p.label)}`, 'Konfiguriere Widgets für diese eigene Unterseite.', `
-    <div class="cfg-row">
-      ${fld('Menü-Name', `data-pg-i="${pi}" data-pg-k="label" value="${esc(p.label)}"`)}
-      ${fld('Überschrift', `data-pg-i="${pi}" data-pg-k="title" value="${esc(p.title || '')}"`)}
-      ${fld('Icon', `data-pg-i="${pi}" data-pg-k="icon" value="${esc(p.icon || 'chart')}"`)}
-    </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
-      ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-        ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle'],['f1_next','K) Formel 1 - Nächstes Rennen'],['f1_standings','L) Formel 1 - WM-Stand']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
-        ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
-        ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
-      </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget hinzufügen</button>
-    </div>`, pi===0, `<div class="order-btns"><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi===cfgDraft.customPages.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`)).join('') + 
-    `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue Unterseite anlegen</button>`;
+  let tSeiten = (cfgDraft.customPages || []).map((p, pi) => {
+    const boxKey = `page_${p.id || pi}`;
+    const isOpen = lastOpenedBoxKey ? lastOpenedBoxKey === boxKey : pi === 0;
+
+    return box(`Menü-Seite: ${esc(p.label)}`, 'Konfiguriere Widgets für diese eigene Unterseite.', `
+      <div class="cfg-row">
+        ${fld('Menü-Name', `data-pg-i="${pi}" data-pg-k="label" value="${esc(p.label)}"`)}
+        ${fld('Überschrift', `data-pg-i="${pi}" data-pg-k="title" value="${esc(p.title || '')}"`)}
+        ${fld('Icon', `data-pg-i="${pi}" data-pg-k="icon" value="${esc(p.icon || 'chart')}"`)}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+        ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
+          ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle'],['f1_next','K) Formel 1 - Nächstes Rennen'],['f1_standings','L) Formel 1 - WM-Stand']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+          ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
+          ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
+          <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
+        </div>`).join('')}
+        <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget hinzufügen</button>
+      </div>`, isOpen, `<div class="order-btns"><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi===cfgDraft.customPages.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`);
+  }).join('') + 
+  `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue Unterseite anlegen</button>`;
 
   let tBackup = box('Schnellstart & Vorlagen', 'Überschreibe das aktuelle Setup mit Vorlagen.', `
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3283,10 +3289,27 @@ document.addEventListener('click', ev => {
   if (act === 'cfgAddCRoom') { cfgDraft.climateRooms.push({ name: 'Raum', icon: 'radiator', sensors: [], devices: [], charts: [] }); renderCfgModal(true); return; }
   if (act === 'cfgDelCRoom') { cfgDraft.climateRooms.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveCRoom') { moveItem(cfgDraft.climateRooms, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
-  if (act === 'cfgAddPage') { cfgDraft.customPages.push({ id: 'p_' + Date.now(), label: 'Neue Seite', icon: 'chart', title: 'Neue Seite', widgets: [] }); renderCfgModal(true); return; }
+  if (act === 'cfgAddPage') {
+    const newId = 'p_' + Date.now();
+    cfgDraft.customPages.push({ id: newId, label: 'Neue Seite', icon: 'chart', title: 'Neue Seite', widgets: [] });
+    lastOpenedBoxKey = `page_${newId}`;
+    renderCfgModal(true);
+    setTimeout(() => {
+      const body = document.querySelector('#cfgsheet .cfg-body');
+      if (body) body.scrollTop = body.scrollHeight;
+    }, 50);
+    return;
+  }
   if (act === 'cfgDelPage') { cfgDraft.customPages.splice(+el.dataset.pi, 1); renderCfgModal(true); return; }
   if (act === 'cfgMovePage') { moveItem(cfgDraft.customPages, +el.dataset.pi, +el.dataset.dir); renderCfgModal(true); return; }
-  if (act === 'cfgAddWidget') { cfgDraft.customPages[+el.dataset.pi].widgets.push({ type: 'entity_info', title: 'Kachel', entity: '' }); renderCfgModal(true); return; }
+  if (act === 'cfgAddWidget') {
+    const pi = +el.dataset.pi;
+    const page = cfgDraft.customPages[pi];
+    lastOpenedBoxKey = `page_${page.id || pi}`;
+    page.widgets.push({ type: 'entity_info', title: 'Kachel', entity: '' });
+    renderCfgModal(true);
+    return;
+  }
   if (act === 'cfgDelWidget') { cfgDraft.customPages[+el.dataset.pi].widgets.splice(+el.dataset.wi, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveWidget') { moveItem(cfgDraft.customPages[+el.dataset.pi].widgets, +el.dataset.wi, +el.dataset.dir); renderCfgModal(true); return; }
 
