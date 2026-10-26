@@ -382,3 +382,13 @@ button.mini:hover{background:rgba(255,255,255,.08)}
 .mc-stats{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:10px}
 .mc-stats strong{color:var(--txt)}
 .modal .chart.chart-big svg{height:260px !important}
+
+
+/* Bundesliga Widget */
+.buli-row{display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:13px}
+.buli-row.h{border-bottom:2px solid var(--line);color:var(--acc2);font-size:11px;text-transform:uppercase;font-weight:600;padding-bottom:6px;margin-bottom:4px}
+.buli-row:last-child{border-bottom:0}
+.buli-row.on{background:rgba(124,108,240,.18);border-radius:8px;border-bottom-color:transparent}
+.buli-c{width:4px;height:16px;border-radius:2px;flex:none}
+
+
