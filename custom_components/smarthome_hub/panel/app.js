@@ -1611,65 +1611,80 @@ function renderCustomWidget(w) {
 }
 
 function buliTeamCard(w) {
-  const e = w.entity || 'sensor.sc_freiburg';
+  // Erlaubt eine kommagetrennte Liste (z.B. "sensor.sc_freiburg, sensor.stuttgart")
+  const entities = String(w.entity || 'sensor.sc_freiburg').split(',').map(e => e.trim()).filter(Boolean);
   const title = w.title || 'Mein Verein';
-  const s = S(e);
 
-  if (!s || !s.attributes || s.attributes.team_score === undefined) {
-    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">Warte auf Daten von ${esc(e)}...</div></section>`;
+  if (!entities.length) {
+    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">Keine Entitäten angegeben.</div></section>`;
   }
 
-  const a = s.attributes;
-  const status = s.state; // IN, PRE, POST
-  const isLive = status === 'IN';
-  const isPost = status === 'POST';
+  const cards = entities.map((e, idx) => {
+    const s = S(e);
+    if (!s || !s.attributes || s.attributes.team_score === undefined) {
+      return `<div class="mut sm" style="padding:16px">Warte auf Daten von ${esc(e)}...</div>`;
+    }
 
-  const home = a.team_name || 'Heim';
-  const away = a.opponent_name || 'Gast';
-  const hScore = a.team_score !== null ? a.team_score : '-';
-  const aScore = a.opponent_score !== null ? a.opponent_score : '-';
+    const a = s.attributes;
+    const status = s.state; // IN, PRE, POST
+    const isLive = status === 'IN';
+    const isPost = status === 'POST';
 
-  const dateStr = a.date ? new Date(a.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
-  const timeStr = a.date ? new Date(a.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+    const home = a.team_name || 'Heim';
+    const away = a.opponent_name || 'Gast';
+    const hScore = a.team_score !== null ? a.team_score : '-';
+    const aScore = a.opponent_score !== null ? a.opponent_score : '-';
 
-  let statusText = 'Nächstes Spiel in Vorbereitung';
-  let statusIcon = 'check';
-  let statusColor = 'var(--ok)'; // Grün
-  let subText = `Letzter Gegner: ${a.opponent_long_name || away}`;
+    const dateStr = a.date ? new Date(a.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
+    const timeStr = a.date ? new Date(a.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
 
-  if (isLive) {
-    statusText = 'LIVE Ticker';
-    statusIcon = 'race';
-    statusColor = 'var(--warn)'; // Orange
-    subText = `Aktueller Gegner: ${a.opponent_long_name || away}`;
-  } else if (isPost) {
-    statusText = 'Spiel beendet (FT)';
-  } else {
-    statusIcon = 'calendar';
-    subText = `Nächster Gegner: ${a.opponent_long_name || away} (${timeStr} Uhr)`;
-  }
+    let statusText = 'Nächstes Spiel in Vorbereitung';
+    let statusIcon = 'check';
+    let statusColor = 'var(--ok)';
+    let subText = `Letzter Gegner: ${a.opponent_long_name || away}`;
 
-  return `<section class="card" style="padding:0;overflow:hidden;border:1px solid ${isLive ? 'var(--warn)' : '#6a74d3'}">
+    if (isLive) {
+      statusText = 'LIVE Ticker';
+      statusIcon = 'race';
+      statusColor = 'var(--warn)';
+      subText = `Aktueller Gegner: ${a.opponent_long_name || away}`;
+    } else if (isPost) {
+      statusText = 'Spiel beendet (FT)';
+    } else {
+      statusIcon = 'calendar';
+      subText = `Nächster Gegner: ${a.opponent_long_name || away} (${timeStr} Uhr)`;
+    }
+
+    const borderBottom = idx === entities.length - 1 ? 'none' : '1px solid var(--line)';
+
+    return `
+      <div style="border-bottom:${borderBottom};">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;text-align:center">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <img src="${a.team_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+            <span style="font-weight:600;font-size:14px">${esc(home)}</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:32px;font-weight:800;letter-spacing:2px;line-height:1;color:${isLive ? 'var(--warn)' : 'inherit'}">${hScore} : ${aScore}</div>
+            <div style="color:var(--mut);font-size:12px;font-weight:500">${isPost ? 'FT - ' : ''}${dateStr}</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <img src="${a.opponent_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+            <span style="font-weight:600;font-size:14px">${esc(away)}</span>
+          </div>
+        </div>
+        <div style="padding:12px 16px;background:rgba(255,255,255,.03);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px">
+          <div style="color:${statusColor};display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb, ${statusColor} 15%, transparent)">${ic(statusIcon, 14)}</div>
+          <div><b style="display:block;font-size:13px">${statusText}</b><small style="color:var(--mut);font-size:11px;display:block;margin-top:2px">${esc(subText)}</small></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `<section class="card" style="padding:0;overflow:hidden;border:1px solid #6a74d3">
     <div style="padding:14px 16px 0"><div class="ch" style="margin:0"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div></div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;text-align:center">
-      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
-        <img src="${a.team_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
-        <span style="font-weight:600;font-size:14px">${esc(home)}</span>
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-        <div style="font-size:32px;font-weight:800;letter-spacing:2px;line-height:1">${hScore} : ${aScore}</div>
-        <div style="color:var(--mut);font-size:12px;font-weight:500">${isPost ? 'FT - ' : ''}${dateStr}</div>
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
-        <img src="${a.opponent_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
-        <span style="font-weight:600;font-size:14px">${esc(away)}</span>
-      </div>
-    </div>
-
-    <div style="padding:12px 16px;background:rgba(255,255,255,.03);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px">
-      <div style="color:${statusColor};display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb, ${statusColor} 15%, transparent)">${ic(statusIcon, 14)}</div>
-      <div><b style="display:block;font-size:13px">${statusText}</b><small style="color:var(--mut);font-size:11px;display:block;margin-top:2px">${esc(subText)}</small></div>
+    <div style="display:flex;flex-direction:column;">
+      ${cards}
     </div>
   </section>`;
 }
@@ -1927,7 +1942,8 @@ function customPageView(pageId) {
   const page = (CONFIG.customPages || []).find(p => p.id === pageId);
   if (!page) return `<div class="mut">Seite nicht gefunden.</div>`;
   const widgetsHtml = (page.widgets || []).map(renderCustomWidget).join('');
-  return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}<div class="page-grid">${widgetsHtml || '<div class="mut">Noch keine Widgets auf dieser Seite.</div>'}</div>`;
+  const layoutCls = page.layout === 'column' ? 'page-column' : 'page-grid';
+  return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}<div class="${layoutCls}">${widgetsHtml || '<div class="mut">Noch keine Widgets auf dieser Seite.</div>'}</div>`;
 }
 
 /* ---------- Modal für Klima-Einstellungen & Energie ---------- */
@@ -2777,6 +2793,7 @@ function renderCfgModal(preserveScroll = true) {
         ${fld('Menü-Name', `data-pg-i="${pi}" data-pg-k="label" value="${esc(p.label)}"`)}
         ${fld('Überschrift', `data-pg-i="${pi}" data-pg-k="title" value="${esc(p.title || '')}"`)}
         ${fld('Icon', `data-pg-i="${pi}" data-pg-k="icon" value="${esc(p.icon || 'chart')}"`)}
+        ${sel('Layout', `<option value="grid" ${p.layout !== 'column' ? 'selected' : ''}>Nebeneinander (Grid)</option><option value="column" ${p.layout === 'column' ? 'selected' : ''}>Untereinander (1 Spalte)</option>`, `data-pg-i="${pi}" data-pg-k="layout"`)}
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
