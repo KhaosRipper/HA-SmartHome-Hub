@@ -1600,6 +1600,9 @@ function renderCustomWidget(w) {
   if (w.type === 'iframe') {
     return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}"></iframe></section>`;
   }
+  if (w.type === 'buli_table') {
+    return `<buli-table-card entity="${esc(w.entity || 'sensor.bund_scoreboard2')}"></buli-table-card>`;
+  }
   return '';
 }
 
@@ -2455,7 +2458,7 @@ function renderCfgModal(preserveScroll = true) {
     </div>
     <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
       ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-        ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+        ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
         ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
         ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
         <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
