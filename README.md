@@ -49,7 +49,7 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 *Haupt-Dashboard mit Hero-Banner, Raumauswahl, Live-Badges, Gerätesteuerung und Metrik-Kacheln.*
 
 ### 2. Der visuelle In-App-Konfigurator
-<img width="1054" height="806" alt="image" src="https://github.com/user-attachments/assets/82f2b70c-2a88-432a-a6bb-f66d981c015d" />
+<img width="1076" height="623" alt="image" src="https://github.com/user-attachments/assets/c588a6f3-415a-476a-9de4-2b0959be4b91" />
 
 *Grafischer Editor für Räume, Geräte, Wetter-Details, Metrik-Kacheln und Themes.*
 
