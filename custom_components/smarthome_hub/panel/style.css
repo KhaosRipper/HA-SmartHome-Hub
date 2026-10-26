@@ -413,3 +413,9 @@ button.mini:hover{background:rgba(255,255,255,.08)}
 .f1-pts{font-weight:700;font-size:15px;color:var(--txt);font-variant-numeric:tabular-nums;margin-left:auto}
 
 
+/* Interaktive Charts & Scrubber Tooltip */
+.spark-svg { position: relative; user-select: none; -webkit-user-select: none; }
+.scrub-overlay { touch-action: pan-y; }
+.scrubber-ui { pointer-events: none; }
+.scrub-tip-bg { filter: drop-shadow(0 4px 8px rgba(0,0,0,.65)); }
+

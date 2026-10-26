@@ -718,23 +718,40 @@ function openWeatherModal() {
   document.getElementById('sm').classList.add('show');
 }
 
-/* ---------- Verlaufsdaten ---------- */
+/* ---------- Verlaufsdaten (5-Minuten-Auflösung) ---------- */
+function seriesPointDate(i, len, range7 = false) {
+  const totalSpanMs = range7 ? 168 * 3600e3 : 24 * 3600e3;
+  const stepMs = totalSpanMs / Math.max(1, len - 1);
+  return new Date(Date.now() - (len - 1 - i) * stepMs);
+}
+
 async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   if (!id) return null;
   const realNow = new Date();
   const now = new Date(realNow.getTime() - (offsetDays * 86400000));
   const start = new Date(now);
   
-  // Wenn keine Stunden übergeben wurden, standardmäßig die letzten 24h laden (perfekt für nachts/morgens)
+  // Standardmäßig letzte 24h laden
   const useHours = hours || (offsetDays > 0 ? 24 : Math.max(24, realNow.getHours() + 1));
-  start.setTime(now.getTime() - useHours * 3600e3);
-  start.setMinutes(0, 0, 0);
+  
+  // 5-Minuten-Auflösung bei <= 24h (288 Punkte); 60-Minuten-Auflösung bei 7 Tagen
+  const stepMin = useHours <= 24 ? 5 : 60;
+  const stepMs = stepMin * 60 * 1000;
 
-  const n = useHours + 1;
+  start.setTime(now.getTime() - useHours * 3600e3);
+  start.setTime(Math.floor(start.getTime() / stepMs) * stepMs);
+
+  const n = Math.floor((now.getTime() - start.getTime()) / stepMs) + 1;
 
   if (DEMO) {
     let v = 5;
-    return Array.from({ length: n }, (_, i) => useHours <= 24 ? 21 + Math.sin((i + offsetDays * 10) / 3) * 1.5 : mode === 'last' ? (v += 8) : 300 + Math.sin(i / 2) * 180);
+    return Array.from({ length: n }, (_, i) => {
+      if (useHours <= 24) {
+        const t = (i + offsetDays * 288) / 24;
+        return +(21 + Math.sin(t) * 1.5 + Math.cos(t * 2.5) * 0.3).toFixed(2);
+      }
+      return mode === 'last' ? (v += 8) : +(300 + Math.sin(i / 2) * 180).toFixed(1);
+    });
   }
   
   const h = getHass(); if (!h) return null;
@@ -749,18 +766,300 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   
   const out = []; let prev = null;
   for (let i = 0; i < n; i++) {
-    const a = start.getTime() + i * 3600e3, b = a + 3600e3;
+    const a = start.getTime() + i * stepMs, b = a + stepMs;
     const inB = pts.filter(p => p.t >= a && p.t < b);
     const before = pts.filter(p => p.t < a).pop();
     if (before) prev = before.v;
     let val = prev;
     if (inB.length) val = mode === 'last' ? inB[inB.length - 1].v : inB.reduce((s, p) => s + p.v, 0) / inB.length;
     if (val != null) prev = val;
-    out.push(val);
+    out.push(val != null ? +val.toFixed(2) : null);
   }
   return out;
 }
 
+/* ---------- Sparkline-Rendering mit Scrubber ---------- */
+const sparkData = {};
+
+function spark(ser, id, opt = {}, ser2 = null) {
+  const ok1 = ser && ser.filter(v => v != null).length >= 2;
+  const ok2 = ser2 && ser2.filter(v => v != null).length >= 2;
+  if (!ok1 && !ok2) return '<div class="mut sm" style="padding:20px 0;text-align:center">Keine Verlaufsdaten</div>';
+
+  const getVals = s => {
+    if (!s) return [];
+    let last = s.find(v => v != null) || 0;
+    return s.map(v => { if (v != null) last = v; return last; });
+  };
+
+  const vals1 = getVals(ser), vals2 = getVals(ser2), allVals = [...vals1, ...vals2];
+  const mn0 = Math.min(...allVals), mx0 = Math.max(...allVals);
+  let lo, hi;
+  if (opt.fit) {
+    if (opt.min != null && opt.max != null) { lo = Math.min(opt.min, mn0); hi = Math.max(opt.max, mx0); }
+    else { const p = ((mx0 - mn0) || 1) * 0.2; lo = mn0 - p; hi = mx0 + p; }
+  } else { lo = Math.min(0, mn0); hi = mx0 === lo ? lo + 1 : mx0 * 1.1; }
+
+  const W = opt.W || 340, H = opt.H || 110, pr = 42, pt = 14, pb = 26;
+  const dec = opt.dec ?? ((opt.fit ? hi - lo : hi) > 20 ? 0 : 1), pw = W - pr, gid = 'sg' + safeId(id);
+  const lineColor = opt.color || '#8f81ff', fillColor = opt.color || '#7c6cf0';
+  const Y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo || 1));
+
+  sparkData[gid] = {
+    vals1, vals2, opt, pw, W, H, pt, pb, lo, hi, dec,
+    unit: opt.unit || '',
+    range7: !!opt.range7
+  };
+
+  // Hilfslinien & Achsenskalierung
+  let svgContent = [hi, (hi + lo) / 2, lo].map(v => 
+    `<line x1="0" x2="${pw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${W}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" fill="#8b8fa8" font-size="9">${fmt(v, dec)}</text>`
+  ).join('');
+
+  // Vortagskurve (gestrichelt)
+  if (vals2.length) {
+    const X2 = i => i * pw / (vals2.length - 1 || 1);
+    const line2 = vals2.map((v, i) => `${i ? 'L' : 'M'}${X2(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    svgContent += `<path d="${line2}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="4 4" stroke-linejoin="round"/>`;
+  }
+
+  // Hauptkurve
+  if (vals1.length) {
+    const X1 = i => i * pw / (vals1.length - 1 || 1);
+    const line1 = vals1.map((v, i) => `${i ? 'L' : 'M'}${X1(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    const area1 = `${line1} L${X1(vals1.length - 1).toFixed(1)},${H - pb} L0,${H - pb} Z`;
+    const lx = X1(vals1.length - 1), ly = Y(vals1[vals1.length - 1]);
+    svgContent += `<path d="${area1}" fill="url(#${gid})"/><path d="${line1}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="#fff" stroke="${fillColor}" stroke-width="2"/>`;
+  }
+
+  // Zeitbeschriftung
+  const timeLabels = opt.range7 ? vals1.map((_, i) => {
+    const dt = seriesPointDate(i, vals1.length, true);
+    const prevDt = i > 0 ? seriesPointDate(i - 1, vals1.length, true) : null;
+    if (prevDt && prevDt.getDate() === dt.getDate()) return '';
+    const x = i * pw / (vals1.length - 1 || 1);
+    const tx = Math.min(pw - 14, Math.max(14, x));
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${H - pb}" stroke="rgba(255,255,255,.06)"/><text x="${tx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${esc(dt.toLocaleDateString('de-DE', { weekday: 'short' }))}</text>`;
+  }).join('') : vals1.map((_, i) => {
+    const dt = seriesPointDate(i, vals1.length, false);
+    const prevDt = i > 0 ? seriesPointDate(i - 1, vals1.length, false) : null;
+    const isHourMark = (!prevDt || prevDt.getHours() !== dt.getHours()) && (dt.getHours() % 4 === 0) && (dt.getMinutes() === 0 || dt.getMinutes() < 6);
+    const isLast = i === vals1.length - 1;
+    if (isHourMark || isLast) {
+      const x = (i * pw / (vals1.length - 1 || 1)).toFixed(1);
+      return `<text x="${x}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${pad(dt.getHours())}:00</text>`;
+    }
+    return '';
+  }).join('');
+
+  // Scrubber-Elemente (vertikale Linie, Indikator-Punkte und Tooltip)
+  const scrubberUI = `
+    <g class="scrubber-ui" id="scrub-${gid}" style="display:none;pointer-events:none">
+      <line class="scrub-line" x1="0" y1="${pt}" x2="0" y2="${H - pb}" stroke="rgba(255,255,255,.7)" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <circle class="scrub-dot2" cx="0" cy="0" r="3.5" fill="rgba(255,255,255,.7)" stroke="#8b8fa8" stroke-width="1.5" style="display:none"/>
+      <circle class="scrub-dot1" cx="0" cy="0" r="5" fill="#fff" stroke="${lineColor}" stroke-width="2.5"/>
+      <g class="scrub-tip" transform="translate(0, 0)">
+        <rect class="scrub-tip-bg" x="-45" y="-32" width="90" height="28" rx="6" fill="#12132a" stroke="rgba(255,255,255,.2)" stroke-width="1"/>
+        <text class="scrub-tip-txt1" x="0" y="-18" text-anchor="middle" fill="#f2f3fa" font-size="11" font-weight="700">0</text>
+        <text class="scrub-tip-txt2" x="0" y="-7" text-anchor="middle" fill="#8b8fa8" font-size="9">00:00</text>
+      </g>
+    </g>
+    <rect class="scrub-overlay" data-spark-id="${gid}" data-act="chartScrubClick" x="0" y="0" width="${pw}" height="${H}" fill="transparent" style="cursor:crosshair;touch-action:pan-y"/>
+  `;
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="spark-svg" data-spark-id="${gid}" style="width:100%;height:auto;overflow:visible"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fillColor}" stop-opacity=".45"/><stop offset="1" stop-color="${fillColor}" stop-opacity="0"/></linearGradient></defs>${svgContent}${timeLabels}${scrubberUI}</svg>`;
+}
+
+/* ---------- Scrubber Interaktion (Mouse & Touch) ---------- */
+function updateChartScrubber(e, overlay) {
+  const el = overlay || e.target.closest('.scrub-overlay');
+  if (!el) return;
+  const gid = el.dataset.sparkId;
+  const meta = sparkData[gid];
+  if (!meta || !meta.vals1 || !meta.vals1.length) return;
+
+  const svg = el.closest('svg');
+  if (!svg) return;
+  const scrubGroup = svg.querySelector('.scrubber-ui');
+  if (!scrubGroup) return;
+
+  const rect = el.getBoundingClientRect();
+  const relX = clamp(e.clientX - rect.left, 0, rect.width);
+  const frac = rect.width > 0 ? relX / rect.width : 0;
+  
+  const totalPts = meta.vals1.length;
+  const idx = clamp(Math.round(frac * (totalPts - 1)), 0, totalPts - 1);
+  const val1 = meta.vals1[idx];
+  const val2 = meta.vals2 && meta.vals2.length > idx ? meta.vals2[idx] : null;
+
+  const X = idx * meta.pw / (totalPts - 1 || 1);
+  const Y1 = meta.pt + (meta.H - meta.pt - meta.pb) * (1 - (val1 - meta.lo) / (meta.hi - meta.lo || 1));
+
+  const line = scrubGroup.querySelector('.scrub-line');
+  line.setAttribute('x1', X.toFixed(1));
+  line.setAttribute('x2', X.toFixed(1));
+
+  const dot1 = scrubGroup.querySelector('.scrub-dot1');
+  dot1.setAttribute('cx', X.toFixed(1));
+  dot1.setAttribute('cy', Y1.toFixed(1));
+
+  const dot2 = scrubGroup.querySelector('.scrub-dot2');
+  if (val2 != null && dot2) {
+    const Y2 = meta.pt + (meta.H - meta.pt - meta.pb) * (1 - (val2 - meta.lo) / (meta.hi - meta.lo || 1));
+    dot2.setAttribute('cx', X.toFixed(1));
+    dot2.setAttribute('cy', Y2.toFixed(1));
+    dot2.style.display = '';
+  } else if (dot2) {
+    dot2.style.display = 'none';
+  }
+
+  const dt = seriesPointDate(idx, totalPts, meta.range7);
+  const timeStr = meta.range7
+    ? `${dt.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}, ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+    : `${pad(dt.getHours())}:${pad(dt.getMinutes())} Uhr`;
+
+  let valStr = `${fmt(val1, meta.dec)} ${meta.unit}`.trim();
+  if (val2 != null) {
+    valStr += ` (Gestern: ${fmt(val2, meta.dec)})`;
+  }
+
+  const tip = scrubGroup.querySelector('.scrub-tip');
+  const tipTxt1 = tip.querySelector('.scrub-tip-txt1');
+  const tipTxt2 = tip.querySelector('.scrub-tip-txt2');
+  const tipBg = tip.querySelector('.scrub-tip-bg');
+
+  tipTxt1.textContent = valStr;
+  tipTxt2.textContent = timeStr;
+
+  const textWidth = Math.max(90, Math.max(valStr.length * 7.2, timeStr.length * 6.5) + 18);
+  tipBg.setAttribute('width', textWidth);
+  tipBg.setAttribute('x', -textWidth / 2);
+
+  const tipX = clamp(X, textWidth / 2 + 4, meta.pw - textWidth / 2 - 4);
+// Wenn oben genug Platz ist (>38px), Tooltip über den Punkt setzen, andernfalls darunter
+  const tipY = (Y1 > 40) ? (Y1 - 8) : (Y1 + 38);
+  tip.setAttribute('transform', `translate(${tipX.toFixed(1)}, ${tipY.toFixed(1)})`);
+
+  scrubGroup.style.display = '';
+}
+
+function hideAllChartScrubbers() {
+  document.querySelectorAll('.scrubber-ui').forEach(el => { el.style.display = 'none'; });
+}
+
+let scrubActive = false;
+let scrubStartX = 0;
+let scrubStartY = 0;
+let scrubMoved = false;
+
+document.addEventListener('pointerdown', ev => {
+  const overlay = ev.target.closest('.scrub-overlay');
+  if (!overlay) return;
+  scrubActive = true;
+  scrubMoved = false;
+  scrubStartX = ev.clientX;
+  scrubStartY = ev.clientY;
+  updateChartScrubber(ev, overlay);
+});
+
+document.addEventListener('pointermove', ev => {
+  const overlay = ev.target.closest('.scrub-overlay');
+  if (overlay) {
+    if (scrubActive && Math.hypot(ev.clientX - scrubStartX, ev.clientY - scrubStartY) > 10) {
+      scrubMoved = true;
+    }
+    updateChartScrubber(ev, overlay);
+  } else if (!scrubActive) {
+    hideAllChartScrubbers();
+  }
+});
+
+function endScrub(ev) {
+  if (!scrubActive) return;
+  scrubActive = false;
+  // scrubMoved nach Klick-Event-Zyklus verzögert zurücksetzen
+  setTimeout(() => { scrubMoved = false; }, 200);
+  if (ev.pointerType === 'touch') {
+    setTimeout(hideAllChartScrubbers, 2500);
+  } else {
+    hideAllChartScrubbers();
+  }
+}
+document.addEventListener('pointerup', endScrub);
+document.addEventListener('pointercancel', endScrub);
+
+/* ---------- Geräte-Status ---------- */
+function devInfo(d) {
+  const s = S(d.entity), dm = dom(d.entity), st = s ? s.state : 'unavailable';
+  let on = false, label = 'Aus', cls = 'off';
+  if (!s || st === 'unavailable' || st === 'unknown') { label = 'Nicht verfügbar'; }
+  else if (dm === 'climate') {
+    if (st !== 'off') {
+      on = true; const a = s.attributes.hvac_action;
+      if (a === 'heating') { label = 'Heizt'; cls = 'warn'; }
+      else if (a === 'cooling') { label = 'Kühlt'; cls = 'cool'; }
+      else if (a === 'idle' || a === 'off') { label = 'Standby'; cls = 'idle'; }
+      else { label = 'An'; cls = 'on'; }
+    }
+  }
+  else if (dm === 'cover') { on = st !== 'closed'; label = st === 'opening' ? 'Öffnet' : st === 'closing' ? 'Schließt' : on ? 'Offen' : 'Geschlossen'; cls = on ? 'on' : 'off'; }
+  else if (dm === 'lawn_mower') { on = st === 'mowing'; label = ({ mowing:'Mäht', docked:'Station', paused:'Pause', returning:'Rückfahrt', error:'Fehler' })[st] || st; cls = on ? 'on' : st === 'error' ? 'warn' : 'off'; }
+  else if (dm === 'lock') { on = st === 'unlocked'; label = on ? 'Offen' : 'Verriegelt'; cls = on ? 'warn' : 'on'; }
+  else if (dm === 'camera') { on = st !== 'off'; label = on ? 'Aktiv' : 'Aus'; cls = on ? 'on' : 'off'; }
+  else if (dm === 'media_player') {
+    if (st === 'standby') { label = 'Standby'; cls = 'idle'; }
+    else if (st !== 'off') { on = true; label = st === 'playing' ? 'Spielt' : 'An'; cls = 'on'; }
+  }
+  else { on = st === 'on' || st === 'open'; label = on ? 'An' : 'Aus'; cls = on ? 'on' : 'off'; }
+  return { s, on, label, cls, st };
+}
+function devIcon(d) {
+  if (d.icon && ICONS[d.icon]) return d.icon;
+  return ({ light:'bulb', climate:'thermo', media_player:'tv', camera:'camera', switch:'plug', cover:'blinds', lawn_mower:'mower', fan:'fan', lock:'lock' })[dom(d.entity)] || 'plug';
+}
+function toggleDevice(e) {
+  const dm = dom(e), st = (S(e) || {}).state, info = devInfo((CONFIG.devices || []).find(x => x.entity === e) || { entity: e });
+  if (dm === 'camera') return;
+  if (dm === 'cover') call('cover', 'toggle', { entity_id: e });
+  else if (dm === 'climate') call('climate', info.on ? 'turn_off' : 'turn_on', { entity_id: e });
+  else if (dm === 'lawn_mower') call('lawn_mower', st === 'mowing' ? 'dock' : 'start_mowing', { entity_id: e });
+  else if (dm === 'lock') {
+    if (st === 'locked') requirePin('doorUnlock', () => call('lock', 'unlock', { entity_id: e }), 'Türschloss entriegeln');
+    else call('lock', 'lock', { entity_id: e });
+  }
+  else call('homeassistant', 'toggle', { entity_id: e });
+}
+
+/* ---------- Render-Komponenten ---------- */
+function rightTopStatus() {
+  const sec = CONFIG.security || {}, problems = [];
+  const locks = getLocksList(sec);
+  locks.forEach(l => {
+    const lk = S(l.entity);
+    if (lk && lk.state !== 'locked') problems.push(`${l.name || 'Tür'} entriegelt`);
+  });
+  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && s.state === 'on'; }).length;
+  if (openW) problems.push(`${openW} Fenster offen`);
+
+  const lockPills = locks.map(l => {
+    const lk = S(l.entity);
+    const locked = !lk || lk.state === 'locked';
+    const armed = ui.unlockArmedEntity === l.entity && ui.unlockArmedUntil > Date.now();
+    return `<div class="lockpill" title="${esc(l.name)}">
+      ${locks.length > 1 ? `<span class="mut sm" style="padding:0 6px">${esc(l.name)}</span>` : ''}
+      <button class="${locked ? 'on' : ''}" data-act="lockEntity" data-e="${esc(l.entity)}" title="${esc(l.name)} verriegeln">${ic('lock')}</button>
+      <span class="dots">›››</span>
+      <button class="${!locked ? 'open' : ''} ${armed ? 'armed' : ''}" data-act="unlockEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}" title="${esc(l.name)} entriegeln">${ic('unlock')}</button>
+    </div>`;
+  }).join('');
+
+  return `<div class="stat">
+    <div class="t"><b class="${problems.length ? 'warn' : 'ok'}">${problems.length ? 'Achtung' : 'Zuhause ist gesichert'}</b><span class="mut sm">${problems.length ? esc(problems.join(' · ')) : 'Alle Systeme normal'}</span></div>
+    ${lockPills}
+  </div>`;
+}
+
+/* ---------- Verlaufs-Lader ---------- */
 async function loadYesterdayMetric(m) {
   if (m.yesterdayEntity) {
     const val = num(m.yesterdayEntity);
@@ -845,10 +1144,12 @@ function devInfo(d) {
   else { on = st === 'on' || st === 'open'; label = on ? 'An' : 'Aus'; cls = on ? 'on' : 'off'; }
   return { s, on, label, cls, st };
 }
+
 function devIcon(d) {
   if (d.icon && ICONS[d.icon]) return d.icon;
   return ({ light:'bulb', climate:'thermo', media_player:'tv', camera:'camera', switch:'plug', cover:'blinds', lawn_mower:'mower', fan:'fan', lock:'lock' })[dom(d.entity)] || 'plug';
 }
+
 function toggleDevice(e) {
   const dm = dom(e), st = (S(e) || {}).state, info = devInfo((CONFIG.devices || []).find(x => x.entity === e) || { entity: e });
   if (dm === 'camera') return;
@@ -862,7 +1163,7 @@ function toggleDevice(e) {
   else call('homeassistant', 'toggle', { entity_id: e });
 }
 
-/* ---------- Render-Komponenten ---------- */
+/* ---------- Statusanzeige Rechts ---------- */
 function rightTopStatus() {
   const sec = CONFIG.security || {}, problems = [];
   const locks = getLocksList(sec);
@@ -1212,8 +1513,6 @@ function climateCard() {
     ${climateTilesHtml(c)}</section>`;
 }
 
-function spark(ser, id, opt = {}, ser2 = null) {
-  const ok1 = ser && ser.filter(v => v != null).length >= 2;
   const ok2 = ser2 && ser2.filter(v => v != null).length >= 2;
   if (!ok1 && !ok2) return '<div class="mut sm" style="padding:20px 0;text-align:center">Keine Verlaufsdaten</div>';
 
@@ -1257,23 +1556,42 @@ function spark(ser, id, opt = {}, ser2 = null) {
     svgContent += `<path d="${area1}" fill="url(#${gid})"/><path d="${line1}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="#fff" stroke="${fillColor}" stroke-width="2"/>`;
   }
 
-  // Uhrzeiten an der X-Achse (alle 4 Stunden bzw. Datenpunkte)
-  const nowHour = new Date().getHours();
+// Zeitbeschriftung (korrekt für 5-Minuten- & 7-Tage-Raster)
   const timeLabels = opt.range7 ? vals1.map((_, i) => {
-    const dt = seriesPointDate(i, vals1.length);
-    if (dt.getHours() !== 0) return '';
+    const dt = seriesPointDate(i, vals1.length, true);
+    const prevDt = i > 0 ? seriesPointDate(i - 1, vals1.length, true) : null;
+    if (prevDt && prevDt.getDate() === dt.getDate()) return '';
     const x = i * pw / (vals1.length - 1 || 1);
-    const tx = Math.min(pw - 12, Math.max(12, x));
+    const tx = Math.min(pw - 14, Math.max(14, x));
     return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${H - pb}" stroke="rgba(255,255,255,.06)"/><text x="${tx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${esc(dt.toLocaleDateString('de-DE', { weekday: 'short' }))}</text>`;
   }).join('') : vals1.map((_, i) => {
-    const h = (nowHour - vals1.length + 1 + i + 24) % 24;
-    if (i % Math.max(1, Math.floor(vals1.length / 5)) === 0 || i === vals1.length - 1) {
-      return `<text x="${(i * pw / (vals1.length - 1 || 1)).toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${pad(h)}:00</text>`;
+    const dt = seriesPointDate(i, vals1.length, false);
+    const prevDt = i > 0 ? seriesPointDate(i - 1, vals1.length, false) : null;
+    const isHourMark = (!prevDt || prevDt.getHours() !== dt.getHours()) && (dt.getHours() % 4 === 0) && (dt.getMinutes() === 0 || dt.getMinutes() < 6);
+    const isLast = i === vals1.length - 1;
+    if (isHourMark || isLast) {
+      const x = (i * pw / (vals1.length - 1 || 1)).toFixed(1);
+      return `<text x="${x}" y="${H - 6}" text-anchor="middle" fill="#8b8fa8" font-size="10">${pad(dt.getHours())}:00</text>`;
     }
     return '';
   }).join('');
 
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fillColor}" stop-opacity=".45"/><stop offset="1" stop-color="${fillColor}" stop-opacity="0"/></linearGradient></defs>${svgContent}${timeLabels}</svg>`;
+  // Scrubber-Elemente (vertikale Linie, Indikator-Punkte und Tooltip)
+  const scrubberUI = `
+    <g class="scrubber-ui" id="scrub-${gid}" style="display:none;pointer-events:none">
+      <line class="scrub-line" x1="0" y1="${pt}" x2="0" y2="${H - pb}" stroke="rgba(255,255,255,.7)" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <circle class="scrub-dot2" cx="0" cy="0" r="3.5" fill="rgba(255,255,255,.7)" stroke="#8b8fa8" stroke-width="1.5" style="display:none"/>
+      <circle class="scrub-dot1" cx="0" cy="0" r="5" fill="#fff" stroke="${lineColor}" stroke-width="2.5"/>
+      <g class="scrub-tip" transform="translate(0, 0)">
+        <rect class="scrub-tip-bg" x="-45" y="-32" width="90" height="28" rx="6" fill="#12132a" stroke="rgba(255,255,255,.2)" stroke-width="1"/>
+        <text class="scrub-tip-txt1" x="0" y="-18" text-anchor="middle" fill="#f2f3fa" font-size="11" font-weight="700">0</text>
+        <text class="scrub-tip-txt2" x="0" y="-7" text-anchor="middle" fill="#8b8fa8" font-size="9">00:00</text>
+      </g>
+    </g>
+    <rect class="scrub-overlay" data-spark-id="${gid}" x="0" y="0" width="${pw}" height="${H}" fill="transparent" style="cursor:crosshair;touch-action:pan-y"/>
+  `;
+
+  return `<svg viewBox="0 0 ${W} ${H}" class="spark-svg" data-spark-id="${gid}" style="width:100%;height:auto;overflow:visible"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fillColor}" stop-opacity=".45"/><stop offset="1" stop-color="${fillColor}" stop-opacity="0"/></linearGradient></defs>${svgContent}${timeLabels}${scrubberUI}</svg>`;
 }
 
 function metricCard(m) {
@@ -1299,7 +1617,7 @@ function metricCard(m) {
   }
   return `<section class="card"><div class="ch"><b>${esc(m.title)}</b><span class="mut sm">${headRight}</span></div>
     <div class="mv"><div><span class="big">${fmt(v, m.decimals ?? 1)}</span><span class="unit">${esc(m.unit)}</span><div class="m-sub">${trendHtml}${liveText}</div></div>
-    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, {}, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
+    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, { unit: m.chartUnit || m.unit || '', dec: m.decimals ?? 1 }, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
 }
 
 function securityCard() {
@@ -1423,8 +1741,7 @@ function klimaView() {
       const unit = (c.title || '').includes('Luftfeucht') ? '%' : (a.unit_of_measurement || '°C');
       return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(c.title || '')}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="Antippen für Großansicht">
         <div class="kct" style="pointer-events:none"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>
-        <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals })}</div>
-      </div>`;
+        <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals, unit })}</div>      </div>`;
     }).join('');
     return `<section class="card"><div class="kh"><div class="khl"><div class="kic">${ic(r.icon || 'home', 20)}</div><b>${esc(r.name)}</b></div><div class="khr">${boost}${set}</div></div>
       ${sens ? `<div class="chips" style="margin-top:12px">${sens}</div>` : ''}${devs}${charts}</section>`;
@@ -1522,7 +1839,7 @@ function statChartCard(group) {
     const key = 'stats:' + item.entity + (item.attr ? ':' + item.attr : '');
     return `<div class="stat-line">
       <div><div class="sm mut">${esc(item.name)}</div><div class="stat-value">${esc(val)}</div></div>
-      <div class="chart clickable" data-act="chartModal" data-type="stat" data-entity="${esc(item.entity)}" data-attr="${esc(item.attr || '')}" data-name="${esc(item.name)}" data-unit="${esc(unit)}" data-dec="${item.decimals ?? 1}" data-mode="${esc(item.mode || 'avg')}" title="Antippen für Großansicht">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color })}</div>
+      <div class="chart clickable" data-act="chartModal" data-type="stat" data-entity="${esc(item.entity)}" data-attr="${esc(item.attr || '')}" data-name="${esc(item.name)}" data-unit="${esc(unit)}" data-dec="${item.decimals ?? 1}" data-mode="${esc(item.mode || 'avg')}" title="Antippen für Großansicht">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color, unit })}</div>
     </div>`;
   }).join('');
   return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic(group.icon || 'chart', 18)}<b>${esc(group.title)}</b></div><span class="mut sm">24 h</span></div>${rows}</section>`;
@@ -2058,12 +2375,6 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
   if (!isUpdate) document.getElementById('sm').classList.add('show');
 }
 
-/* ---------- Universelles Chart-Popup (24 h / 7 Tage) ---------- */
-function seriesPointDate(i, len) {
-  const d = new Date(); d.setMinutes(0, 0, 0);
-  d.setHours(d.getHours() - (len - 1 - i));
-  return d;
-}
 
 function getChartCtx() {
   if (sm.chartType === 'metric') {
@@ -2145,7 +2456,7 @@ function renderChartModal() {
 
   const chartHtml = (is7 && sm.loading)
     ? '<div class="mut sm" style="padding:70px 0;text-align:center">Lade Verlaufsdaten …</div>'
-    : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + ctx.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7 }, prev)}</div>`;
+    : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + ctx.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7, unit: ctx.cUnit || ctx.unit || '', dec: ctx.dec }, prev)}</div>`;
 
   const topVals = sm.chartType === 'metric' ? `
     <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.unit)}</span></div><small>Heute</small></div>
@@ -3284,6 +3595,7 @@ document.addEventListener('click', ev => {
   if (act === 'pinClose') { document.getElementById('pinmodal').classList.remove('show'); return; }
   if (act === 'pinkey') { handlePinKey(el.dataset.k); return; }
 
+
   /* Konfigurator-Aktionen */
   if (act === 'cfgOpen') { openCfgEditor(); return; }
   if (act === 'cfgClose') { document.getElementById('cfgmodal').classList.remove('show'); return; }
@@ -3528,7 +3840,17 @@ document.addEventListener('click', ev => {
   if (act === 'smOpen') { openSM(+el.dataset.i); return; }
   if (act === 'energymodal') { openEnergyModal(el.dataset.mid, el.dataset.bid); return; }
   if (act === 'ctile') { runClimateTile((c.tiles || [])[+el.dataset.i], c); return; }
-  if (act === 'chartModal') { openChartModal(el); return; }
+  if (act === 'chartScrubClick') {
+    if (scrubMoved) { scrubMoved = false; return; }
+    const parentModal = el.closest('[data-act="chartModal"]');
+    if (parentModal) openChartModal(parentModal);
+    return;
+  }
+  if (act === 'chartModal') {
+    if (scrubMoved) { scrubMoved = false; return; }
+    openChartModal(el);
+    return;
+  }
   if (act === 'chartRange') {
     sm.range = el.dataset.r === '7d' ? '7d' : '24h';
     renderChartModal();
