@@ -1,4 +1,5 @@
 const ICONS = {
+  check:'<path d="M20 6L9 17l-5-5"/>',
   home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
   devices:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   auto:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v3.5a3 3 0 0 0 3 3h6.5"/>',
@@ -1586,6 +1587,8 @@ function renderCustomWidget(w) {
     const fields = String(w.fields || '').split(',').map(x => x.trim()).filter(Boolean).map(pair => pair.includes(':') ? pair.split(':') : pair);
     return entityInfoCard(w.entity, w.title || w.entity, fields);
   }
+  if (w.type === 'buli_team') return buliTeamCard(w);
+  if (w.type === 'buli_matchday') return buliMatchdayCard(w);
   if (w.type === 'stat_group') return statChartCard(w);
   if (w.type === 'power_flow') return powerFlowCard(w.title || 'Power Flow');
   if (w.type === 'weather_forecast') return weatherForecastCard(w.title);
@@ -1605,6 +1608,123 @@ function renderCustomWidget(w) {
   if (w.type === 'f1_next') return f1NextRaceCard(w);
   if (w.type === 'f1_standings') return f1StandingsCard(w);
   return '';
+}
+
+function buliTeamCard(w) {
+  const e = w.entity || 'sensor.sc_freiburg';
+  const title = w.title || 'Mein Verein';
+  const s = S(e);
+
+  if (!s || !s.attributes || s.attributes.team_score === undefined) {
+    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">Warte auf Daten von ${esc(e)}...</div></section>`;
+  }
+
+  const a = s.attributes;
+  const status = s.state; // IN, PRE, POST
+  const isLive = status === 'IN';
+  const isPost = status === 'POST';
+
+  const home = a.team_name || 'Heim';
+  const away = a.opponent_name || 'Gast';
+  const hScore = a.team_score !== null ? a.team_score : '-';
+  const aScore = a.opponent_score !== null ? a.opponent_score : '-';
+
+  const dateStr = a.date ? new Date(a.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
+  const timeStr = a.date ? new Date(a.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  let statusText = 'Nächstes Spiel in Vorbereitung';
+  let statusIcon = 'check';
+  let statusColor = 'var(--ok)'; // Grün
+  let subText = `Letzter Gegner: ${a.opponent_long_name || away}`;
+
+  if (isLive) {
+    statusText = 'LIVE Ticker';
+    statusIcon = 'race';
+    statusColor = 'var(--warn)'; // Orange
+    subText = `Aktueller Gegner: ${a.opponent_long_name || away}`;
+  } else if (isPost) {
+    statusText = 'Spiel beendet (FT)';
+  } else {
+    statusIcon = 'calendar';
+    subText = `Nächster Gegner: ${a.opponent_long_name || away} (${timeStr} Uhr)`;
+  }
+
+  return `<section class="card" style="padding:0;overflow:hidden;border:1px solid ${isLive ? 'var(--warn)' : '#6a74d3'}">
+    <div style="padding:14px 16px 0"><div class="ch" style="margin:0"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;text-align:center">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+        <img src="${a.team_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+        <span style="font-weight:600;font-size:14px">${esc(home)}</span>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:32px;font-weight:800;letter-spacing:2px;line-height:1">${hScore} : ${aScore}</div>
+        <div style="color:var(--mut);font-size:12px;font-weight:500">${isPost ? 'FT - ' : ''}${dateStr}</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+        <img src="${a.opponent_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+        <span style="font-weight:600;font-size:14px">${esc(away)}</span>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;background:rgba(255,255,255,.03);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px">
+      <div style="color:${statusColor};display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb, ${statusColor} 15%, transparent)">${ic(statusIcon, 14)}</div>
+      <div><b style="display:block;font-size:13px">${statusText}</b><small style="color:var(--mut);font-size:11px;display:block;margin-top:2px">${esc(subText)}</small></div>
+    </div>
+  </section>`;
+}
+
+function buliMatchdayCard(w) {
+  const title = w.title || 'Spieltag Übersicht';
+  const h = getHass();
+
+  if (!h || !h.states) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut sm">Keine Daten...</div></section>`;
+
+  // Filtert automatisch alle Teamtracker-Entitäten, die als "home" markiert sind
+  const matches = Object.values(h.states).filter(s =>
+    s.entity_id.startsWith('sensor.') &&
+    s.attributes &&
+    s.attributes.team_homeaway === 'home' &&
+    s.attributes.team_score !== undefined
+  ).sort((a, b) => {
+    const da = a.attributes.date ? new Date(a.attributes.date).getTime() : 0;
+    const db = b.attributes.date ? new Date(b.attributes.date).getTime() : 0;
+    return da - db;
+  });
+
+  const rows = matches.map(s => {
+    const a = s.attributes;
+    const status = s.state;
+    const home = a.team_name || 'Heim';
+    const away = a.opponent_name || 'Gast';
+    const hScore = a.team_score !== null ? a.team_score : 0;
+    const aScore = a.opponent_score !== null ? a.opponent_score : 0;
+
+    let timeStr = '';
+    if (status === 'IN' || status === 'POST') {
+      timeStr = `Ergebnis: ${hScore} : ${aScore}`;
+    } else if (a.date) {
+      const d = new Date(a.date);
+      timeStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + '. • ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+    }
+
+    let color = 'var(--mut)';
+    if (status === 'IN') color = 'var(--ok)';
+    else if (status === 'PRE') color = 'var(--warn)';
+
+    return `<div style="display:flex;align-items:center;gap:14px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:12px;margin-bottom:8px">
+      <div style="color:${color};width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);display:grid;place-items:center;flex:none">${ic('soccer', 18)}</div>
+      <div style="min-width:0;flex:1">
+        <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(home)} — ${esc(away)}</div>
+        <div style="color:var(--mut);font-size:12px;margin-top:3px">${esc(timeStr)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<section class="card">
+    <div class="ch" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div>
+    <div style="display:flex;flex-direction:column">${rows || '<div class="mut sm" style="padding:8px 0">Keine Spiele gefunden. (Teamtracker Integration prüfen)</div>'}</div>
+  </section>`;
 }
 
 function buliTableCard(w) {
@@ -2660,7 +2780,7 @@ function renderCfgModal(preserveScroll = true) {
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         ${(p.widgets || []).map((w, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-          ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_table','J) Bundesliga Tabelle'],['f1_next','K) Formel 1 - Nächstes Rennen'],['f1_standings','L) Formel 1 - WM-Stand']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+          ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_team','J) Mein Verein (Teamtracker)'],['buli_table','K) Bundesliga Tabelle'],['buli_matchday','L) Spieltag Übersicht'],['f1_next','M) Formel 1 - Rennen'],['f1_standings','N) Formel 1 - WM']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
           ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
           ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
           <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
