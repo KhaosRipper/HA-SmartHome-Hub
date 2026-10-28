@@ -1887,6 +1887,81 @@ function powerFlowCard(title = 'Power Flow') {
   </section>`;
 }
 
+
+/* ---------- power-flow-card-plus (HACS) mit Kachel-Fallback ---------- */
+const hasPFCPlus = () => {
+  try { return !!window.parent.customElements.get('power-flow-card-plus'); }
+  catch (e) { return false; }
+};
+const pfcCache = {};
+
+function pfcDefaultConfig() {
+  const L = CONFIG.powerFlow || [];
+  const pick = (re, i) => {
+    const x = L.find(p => re.test((p.label || '') + ' ' + (p.entity || ''))) || L[i];
+    return (x && x.entity) || '';
+  };
+  return {
+    entities: {
+      grid: { entity: { consumption: pick(/bezug|import/i, 2), production: pick(/einspeis|export/i, 3) } },
+      solar: { entity: pick(/pv|solar|prod/i, 0) },
+      battery: {
+        entity: {
+          consumption: pick(/(?<!ent)ladung|(?<!dis)charge_power/i, 4),
+          production: pick(/entladung|discharge_power/i, 5)
+        },
+        state_of_charge: pick(/zustand|soc|percent/i, 6)
+      },
+      home: { entity: pick(/haus|home|verbr/i, 1) }
+    }
+  };
+}
+
+function powerFlowTilesCard(title = 'PV Anlage') {
+  const list = CONFIG.powerFlow || [];
+  if (!list.length) return '';
+  const tiles = list.map(p => {
+    const st = p.entity ? S(p.entity) : null;
+    const v = st && !['unknown', 'unavailable'].includes(st.state) ? parseFloat(st.state) : NaN;
+    const unit = p.unit || (st && st.attributes && st.attributes.unit_of_measurement) || '';
+    const txt = isNaN(v) ? '—' : `${fmt(v, 0)} ${esc(unit)}`;
+    return `<div class="mini">${ic(p.icon || 'plug', 18)}<span><small>${esc(p.label)}</small>${txt}</span></div>`;
+  }).join('');
+  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuelle Leistung</span></div><div class="two">${tiles}</div></section>`;
+}
+
+function powerFlowHacsCard(w) {
+  const title = w.title || 'Power Flow';
+  if (!hasPFCPlus()) {
+    return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">„power-flow-card-plus“ ist in Home Assistant nicht geladen. Über HACS installieren oder die Darstellung auf „Automatisch“ stellen.</div></section>`;
+  }
+  const key = 'pfc:' + title;
+  const cfg = w.cardConfig && typeof w.cardConfig === 'object' ? w.cardConfig : pfcDefaultConfig();
+  const sig = JSON.stringify(cfg);
+  if (!pfcCache[key] || pfcCache[key].sig !== sig) {
+    try {
+      const el = window.parent.document.createElement('power-flow-card-plus');
+      el.setConfig(cfg);
+      pfcCache[key] = { el, sig };
+    } catch (e) {
+      return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">Karten-Konfiguration fehlerhaft: ${esc(e.message)}</div></section>`;
+    }
+  }
+  return `<section class="pfc-card"><div class="pfc-host" data-pfc="${esc(key)}"></div></section>`;
+}
+
+function updatePFC() {
+  const h = getHass(); if (!h) return;
+  Object.values(pfcCache).forEach(({ el }) => { try { el.hass = h; } catch (e) {} });
+}
+function mountPFC() {
+  document.querySelectorAll('.pfc-host').forEach(host => {
+    const entry = pfcCache[host.dataset.pfc];
+    if (entry) host.appendChild(entry.el);
+  });
+  updatePFC();
+}
+
 function normalizeKey(v) { return String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
 function findChildPayload(root, child) {
   const names = [normalizeKey(child.id), normalizeKey(child.name)];
@@ -1938,7 +2013,11 @@ function renderCustomWidget(w) {
   if (w.type === 'buli_team') return buliTeamCard(w);
   if (w.type === 'buli_matchday') return buliMatchdayCard(w);
   if (w.type === 'stat_group') return statChartCard(w);
-  if (w.type === 'power_flow') return powerFlowCard(w.title || 'Power Flow');
+    if (w.type === 'power_flow') {
+    if (w.mode === 'svg') return powerFlowCard(w.title || 'Power Flow');
+    const useCard = w.mode === 'card' || (w.mode !== 'native' && hasPFCPlus());
+    return useCard ? powerFlowHacsCard(w) : powerFlowTilesCard(w.title || 'PV Anlage');
+  }
   if (w.type === 'weather_forecast') return weatherForecastCard(w.title);
   if (w.type === 'devices') return devicesCard(w.room || '', w.title || 'Geräte', '');
   if (w.type === 'calendar') return homeCalendarCard(w.days || 14, w.title);
@@ -3161,6 +3240,7 @@ function renderCfgModal(preserveScroll = true) {
           ${sel('Widget-Typ', [['entity_info','A) Entitäts-Info'],['stat_group','B) 24h Statistik'],['devices','C) Geräteliste'],['calendar','D) Kalender'],['trash','E) Abfall'],['todo','F) Aufgaben'],['power_flow','G) Power Flow'],['weather_forecast','H) Wetter 7T'],['iframe','I) Iframe'],['buli_team','J) Mein Verein (Teamtracker)'],['buli_table','K) Bundesliga Tabelle'],['buli_matchday','L) Spieltag Übersicht'],['f1_next','M) Formel 1 - Rennen'],['f1_standings','N) Formel 1 - WM']].map(([v,l])=>`<option value="${v}" ${w.type===v?'selected':''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
           ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
           ${fld('Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
+          ${w.type === 'power_flow' ? sel('Darstellung', [['auto','Automatisch (HACS-Karte, sonst Kacheln)'],['card','Immer HACS-Karte'],['native','Immer Kacheln'],['svg','Eigene Kreis-Grafik']].map(([v,l]) => `<option value="${v}" ${(w.mode || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="mode"`) + txt('Karten-Konfiguration (JSON, optional)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="cardConfig" rows="6" style="font-family:monospace;font-size:11px"`, w.cardConfig ? JSON.stringify(w.cardConfig, null, 2) : '') : ''}
           <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi===0?'disabled':''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi===p.widgets.length-1?'disabled':''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
         </div>`).join('')}
         <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget hinzufügen</button>
@@ -3374,7 +3454,12 @@ document.addEventListener('input', e => {
       if (w.type === 'iframe') w.url = t.value;
       else if (w.type === 'devices') w.room = t.value;
       else w.entity = t.value;
-    } else w[k] = t.value;
+    } else if (k === 'cardConfig') {
+      try { w.cardConfig = t.value.trim() ? JSON.parse(t.value) : null; } catch (_) {}
+    } else {
+      w[k] = t.value;
+      if (k === 'type') renderCfgModal(true);
+    }
   }
   if (t.id === 'cfg-pf-text') {
     cfgDraft.powerFlow = t.value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
@@ -3488,7 +3573,8 @@ function render() {
   const newMain = document.querySelector('.main'), newSide = document.querySelector('.side');
   if (newMain) newMain.scrollTop = mainScroll;
   if (newSide) newSide.scrollTop = sideScroll;
-  if (ui.view === 'kameras') initCamObserver();
+    if (ui.view === 'kameras') initCamObserver();
+  mountPFC();
 }
 
 /* ---------- Entitäten-Überwachung & Tick ---------- */
@@ -3972,6 +4058,7 @@ document.addEventListener('click', ev => {
   refreshWeatherForecast(true);
   refreshHomeCalendars(true);
   setInterval(tick, 1500);
+  setInterval(updatePFC, 1500);
   setInterval(runtimeTick, 1000);
   setInterval(refreshSeries, 5 * 60 * 1000);
   setInterval(() => refreshWeatherForecast(true), 30 * 60 * 1000);
