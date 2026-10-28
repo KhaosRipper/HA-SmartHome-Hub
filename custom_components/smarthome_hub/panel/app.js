@@ -1766,15 +1766,125 @@ function statChartCard(group) {
   return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic(group.icon || 'chart', 18)}<b>${esc(group.title)}</b></div><span class="mut sm">24 h</span></div>${rows}</section>`;
 }
 
+
 function powerFlowCard(title = 'Power Flow') {
   const list = CONFIG.powerFlow || [];
   if (!list.length) return '';
-  const rows = list.map(item => {
-    const st = S(item.entity), value = st && !['unknown','unavailable'].includes(st.state) ? parseFloat(st.state) : NaN;
-    const unit = (st && st.attributes && st.attributes.unit_of_measurement) || item.unit || 'W';
-    return `<div class="mini">${ic(item.icon || 'bolt', 17)}<span><small>${esc(item.label)}</small>${Number.isFinite(value) ? `${fmt(value, 0)} ${esc(unit)}` : '—'}</span></div>`;
-  }).join('');
-  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuelle Leistung</span></div><div class="two">${rows}</div></section>`;
+
+  const findVal = (regex, fbIdx) => {
+    let item = list.find(x => regex.test(x.label || '') || regex.test(x.entity || ''));
+    if (!item && fbIdx != null) item = list[fbIdx];
+    if (!item || !item.entity) return 0;
+    const st = S(item.entity);
+    const v = st && !['unknown', 'unavailable'].includes(st.state) ? parseFloat(st.state) : 0;
+    return isNaN(v) ? 0 : v;
+  };
+
+  const pv       = Math.max(0, findVal(/pv|solar|prod/i, 0));
+  const home     = Math.max(0, findVal(/haus|home|verbr/i, 1));
+  const gridIn   = Math.max(0, findVal(/bezug|import/i, 2));
+  const gridOut  = Math.max(0, findVal(/einspeis|export/i, 3));
+  const batChg   = Math.max(0, findVal(/ladung|charge_power/i, 4));
+  const batDis   = Math.max(0, findVal(/entladung|discharge_power/i, 5));
+  const batSoc   = clamp(findVal(/zustand|soc|percent/i, 6), 0, 100);
+
+  const fmtP = w => w >= 1000 ? `${fmt(w / 1000, 1)} kW` : `${fmt(w, 0)} W`;
+
+  // Aktive Energieflüsse (Schwellenwert > 10 W)
+  const fPvGrid  = pv > 10 && gridOut > 10;
+  const fPvHome  = pv > 10 && home > 10;
+  const fPvBat   = pv > 10 && batChg > 10;
+  const fGridHome = gridIn > 10 && home > 10;
+  const fGridBat  = gridIn > 10 && batChg > 10 && pv < 10;
+  const fBatHome  = batDis > 10 && home > 10;
+
+  // SVG-Pfad-Definitionen
+  const pPvGrid   = "M 188 106 C 188 160, 145 160, 96 160";
+  const pPvHome   = "M 212 106 C 212 160, 255 160, 304 160";
+  const pPvBat    = "M 200 108 L 200 242";
+  const pGridHome = "M 98 175 L 302 175";
+  const pGridBat  = "M 96 190 C 145 190, 188 190, 188 244";
+  const pBatHome  = "M 212 244 C 212 190, 255 190, 304 190";
+
+  // Dynamischer 3-Farben-Ring für den Hausverbrauch (Orange = PV, Türkis = Akku, Blau = Netz)
+  const R = 38, C = 2 * Math.PI * R;
+  const totalIn = (pv > 0 ? Math.min(pv, home) : 0) + batDis + gridIn;
+  let homeRingSvg = `<circle cx="340" cy="175" r="${R}" class="pf-ring" stroke="#f59e0b"/>`;
+  if (totalIn > 10) {
+    const sPv   = clamp((pv > 0 ? Math.min(pv, home) : 0) / totalIn, 0, 1) * C;
+    const sBat  = clamp(batDis / totalIn, 0, 1) * C;
+    const sGrid = Math.max(0, C - sPv - sBat);
+    homeRingSvg = `
+      <circle cx="340" cy="175" r="${R}" class="pf-ring" stroke="#38bdf8" stroke-dasharray="${sGrid} ${C}" stroke-dashoffset="0" transform="rotate(-90 340 175)"/>
+      <circle cx="340" cy="175" r="${R}" class="pf-ring" stroke="#34d399" stroke-dasharray="${sBat} ${C}" stroke-dashoffset="${-sGrid}" transform="rotate(-90 340 175)"/>
+      <circle cx="340" cy="175" r="${R}" class="pf-ring" stroke="#f59e0b" stroke-dasharray="${sPv} ${C}" stroke-dashoffset="${-(sGrid + sBat)}" transform="rotate(-90 340 175)"/>`;
+  }
+
+  const dot = (path, color, active) => active ? `
+    <circle r="4.5" fill="${color}" filter="drop-shadow(0 0 5px ${color})">
+      <animateMotion dur="2.2s" repeatCount="indefinite" path="${path}"/>
+    </circle>` : '';
+
+  return `<section class="card">
+    <div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuelle Leistung</span></div>
+    <div class="pf-wrap">
+      <svg viewBox="0 0 400 350" class="pf-svg">
+        <!-- Verbindungslinien -->
+        <path d="${pPvGrid}"   class="pf-line ${fPvGrid ? 'on' : ''}"   stroke="#a855f7"/>
+        <path d="${pPvHome}"   class="pf-line ${fPvHome ? 'on' : ''}"   stroke="#f59e0b"/>
+        <path d="${pPvBat}"    class="pf-line ${fPvBat ? 'on' : ''}"    stroke="#a99bff"/>
+        <path d="${pGridHome}" class="pf-line ${fGridHome ? 'on' : ''}" stroke="#38bdf8"/>
+        <path d="${pGridBat}"  class="pf-line ${fGridBat ? 'on' : ''}"  stroke="#a855f7"/>
+        <path d="${pBatHome}"  class="pf-line ${fBatHome ? 'on' : ''}"  stroke="#34d399"/>
+
+        <!-- Animierte Energie-Punkte -->
+        ${dot(pPvGrid,   '#a855f7', fPvGrid)}
+        ${dot(pPvHome,   '#f59e0b', fPvHome)}
+        ${dot(pPvBat,    '#a99bff', fPvBat)}
+        ${dot(pGridHome, '#38bdf8', fGridHome)}
+        ${dot(pGridBat,  '#a855f7', fGridBat)}
+        ${dot(pBatHome,  '#34d399', fBatHome)}
+
+        <!-- Knoten: PV (Oben) -->
+        <text x="200" y="21" class="pf-lbl">PV</text>
+        <circle cx="200" cy="70" r="38" class="pf-node" stroke="#f59e0b"/>
+        <g transform="translate(191, 46)" stroke="#f2f3fa" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="3.5"/><path d="M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11"/>
+          <path d="M14 5l-3 5h3l-1 4 4-6h-3z"/>
+        </g>
+        <text x="200" y="86" class="pf-val">${esc(fmtP(pv))}</text>
+
+        <!-- Knoten: Netz (Links) -->
+        <circle cx="60" cy="175" r="38" class="pf-node" stroke="#a855f7"/>
+        <g transform="translate(51, 142)" stroke="#f2f3fa" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2L4 18M9 2l5 16M3 7h12M2 12h14M5 18h8"/>
+        </g>
+        <text x="60" y="176" class="pf-sub" fill="#c084fc">← ${esc(fmtP(gridOut))}</text>
+        <text x="60" y="191" class="pf-sub" fill="#38bdf8">→ ${esc(fmtP(gridIn))}</text>
+        <text x="60" y="230" class="pf-lbl">Netz</text>
+
+        <!-- Knoten: Home (Rechts) -->
+        ${homeRingSvg}
+        <g transform="translate(330, 148)" fill="#f2f3fa">
+          <path d="M10 2L1 10h3v8h5v-5h2v5h5v-8h3L10 2z"/>
+        </g>
+        <text x="340" y="187" class="pf-val">${esc(fmtP(home))}</text>
+        <text x="340" y="230" class="pf-lbl">Home</text>
+
+        <!-- Knoten: Batterie (Unten) -->
+        <circle cx="200" cy="280" r="38" class="pf-node" stroke="#a99bff"/>
+        <text x="200" y="257" class="pf-val" style="font-size:11px">${fmt(batSoc, 0)} %</text>
+        <g transform="translate(194, 262)" stroke="#f2f3fa" stroke-width="1.7" fill="none">
+          <rect x="2" y="3" width="8" height="14" rx="1.5"/>
+          <path d="M4.5 1h3"/>
+          <rect x="3.5" y="${15 - (batSoc / 100) * 10}" width="5" height="${(batSoc / 100) * 10}" fill="#34d399" stroke="none"/>
+        </g>
+        <text x="200" y="293" class="pf-sub" fill="#a99bff">↓ ${esc(fmtP(batChg))}</text>
+        <text x="200" y="307" class="pf-sub" fill="#34d399">↑ ${esc(fmtP(batDis))}</text>
+        <text x="200" y="335" class="pf-lbl">Batterie</text>
+      </svg>
+    </div>
+  </section>`;
 }
 
 function normalizeKey(v) { return String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); }

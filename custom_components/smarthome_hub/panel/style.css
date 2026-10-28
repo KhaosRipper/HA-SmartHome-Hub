@@ -419,3 +419,54 @@ button.mini:hover{background:rgba(255,255,255,.08)}
 .scrubber-ui { pointer-events: none; }
 .scrub-tip-bg { filter: drop-shadow(0 4px 8px rgba(0,0,0,.65)); }
 
+.pf-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+}
+.pf-svg {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  overflow: visible;
+}
+.pf-node {
+  fill: rgba(14, 15, 28, 0.85);
+  stroke-width: 2.5;
+}
+.pf-ring {
+  fill: rgba(14, 15, 28, 0.85);
+  stroke-width: 3.5;
+  transition: stroke-dasharray 0.4s ease, stroke-dashoffset 0.4s ease;
+}
+.pf-line {
+  fill: none;
+  stroke-width: 1.6;
+  opacity: 0.28;
+  transition: opacity 0.3s, stroke-width 0.3s;
+}
+.pf-line.on {
+  opacity: 0.85;
+  stroke-width: 2;
+}
+.pf-lbl {
+  fill: var(--mut);
+  font-size: 12px;
+  text-anchor: middle;
+  font-weight: 500;
+}
+.pf-val {
+  fill: var(--txt);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+.pf-sub {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
