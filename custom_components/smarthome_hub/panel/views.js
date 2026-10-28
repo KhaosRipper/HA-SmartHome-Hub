@@ -447,22 +447,46 @@ function securityCard() {
       <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>Kameras</b><small>${camOn} aktiv</small></span></button></div></section>`;
 }
 
-function groupInfo(g) { const on = (g.entities || []).filter(e => { const s = S(e); return s && s.state === 'on'; }).length; return { on, total: (g.entities || []).length }; }
+function getGroupToggleEntities(g) {
+  if (!g) return [];
+  const ex = Array.isArray(g.excludeGroup) ? g.excludeGroup : [];
+  return (g.entities || []).filter(e => !ex.includes(e));
+}
+
+function groupInfo(g) {
+  const ents = (g && g.entities) || [];
+  const on = ents.filter(e => { const s = S(e); return s && s.state === 'on'; }).length;
+  const toggleEnts = getGroupToggleEntities(g);
+  const toggleOn = toggleEnts.filter(e => { const s = S(e); return s && s.state === 'on'; }).length;
+  return { on, total: ents.length, toggleEnts, toggleOn };
+}
 
 function getMainLightEntities() {
   const lm = CONFIG.lightsMain || { mode: 'group', group: 0, entities: [] };
+  const globalExMain = new Set();
+  (CONFIG.lights || []).forEach(g => {
+    (g.excludeMain || []).forEach(e => globalExMain.add(e));
+  });
   let ents = [];
   if (lm.mode === 'all') {
     (CONFIG.lights || []).forEach(g => {
-      if (g.mainSync !== false) ents.push(...(g.entities || []));
+      if (g.mainSync !== false) {
+        const ex = g.excludeMain || [];
+        (g.entities || []).forEach(e => {
+          if (!ex.includes(e)) ents.push(e);
+        });
+      }
     });
   } else if (lm.mode === 'custom') {
-    ents = lm.entities || [];
+    ents = (lm.entities || []).filter(e => !globalExMain.has(e));
   } else {
     const g = (CONFIG.lights || [])[lm.group || 0];
-    if (g) ents = g.entities || [];
+    if (g) {
+      const ex = g.excludeMain || [];
+      ents = (g.entities || []).filter(e => !ex.includes(e));
+    }
   }
-  return [...new Set(ents)];
+  return [...new Set(ents)].filter(e => !globalExMain.has(e));
 }
 
 function lightsCard() {
@@ -472,15 +496,16 @@ function lightsCard() {
   const main = groupInfo({ entities: mainEnts });
   const tiles = gs.map((g, i) => {
     const gi = groupInfo(g);
-    return `<div class="tile tile-split ${gi.on ? 'on' : ''}">
-      <button class="tile-main-btn" data-act="lgrp" data-i="${i}" title="Gruppe ein-/ausschalten">
-        ${ic('bulb', 18)}
-        <span><b>${esc(g.name)}</b><small>${gi.on}/${gi.total} an</small></span>
-      </button>
-      <button class="tile-sub-btn" data-act="lgrpDetail" data-i="${i}" title="Helligkeit, Farbe & einzelne Lampen">${ic('sliders', 15)}</button>
+    return `<div class="tile tile-light ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${i}" title="Klick: Gruppe schalten · Gedrückthalten: Details & Ausnahmen">
+      ${ic('bulb', 18)}
+      <span class="tile-light-txt">
+        <b>${esc(g.name)}</b>
+        <small>${gi.on}/${gi.total} an</small>
+      </span>
+      <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${i}" title="Details, Helligkeit & Ausnahmen">⋯</button>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><b>Lichter</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>Lichter</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function getCoreNav() {

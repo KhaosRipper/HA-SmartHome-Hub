@@ -66,11 +66,24 @@ const DASHBOARD_CARD_LABELS = {
 /* ---------- Visueller Multi-Entitäts Chip-Picker (ohne Komma-Listen!) ---------- */
 function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = 'Entität suchen & auswählen…') {
   const arr = Array.isArray(list) ? list : [];
+  const isLightGrp = groupKey === 'lightGrp' && cfgDraft && cfgDraft.lights && cfgDraft.lights[+parentIdx];
+  const exGrpArr = isLightGrp && Array.isArray(cfgDraft.lights[+parentIdx].excludeGroup) ? cfgDraft.lights[+parentIdx].excludeGroup : [];
+  const exMainArr = isLightGrp && Array.isArray(cfgDraft.lights[+parentIdx].excludeMain) ? cfgDraft.lights[+parentIdx].excludeMain : [];
+
   const chips = arr.map((ent, ci) => {
     const st = S(ent);
     const fn = st && st.attributes && st.attributes.friendly_name ? st.attributes.friendly_name : '';
+    let exclBtns = '';
+    if (isLightGrp) {
+      const exG = exGrpArr.includes(ent);
+      const exM = exMainArr.includes(ent);
+      exclBtns = `
+        <button type="button" class="ent-chip-excl ${exG ? 'excl' : 'on'}" data-act="cfgLightExclGrp" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}" title="${exG ? 'Vom Gruppenschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Gruppenschalter aktiv (Klick zum Ausschließen)'}">${exG ? '🔒 Gruppe' : '💡 Gruppe'}</button>
+        <button type="button" class="ent-chip-excl ${exM ? 'excl' : 'on'}" data-act="cfgLightExclMain" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}" title="${exM ? 'Vom Master-Hauptschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Master-Hauptschalter aktiv (Klick zum Ausschließen)'}">${exM ? '🔒 Haupt' : '⚡ Haupt'}</button>`;
+    }
     return `<span class="ent-chip" title="${esc(ent)}">
       <span class="ent-chip-txt">${fn ? `<b>${esc(fn)}</b> <small>${esc(ent)}</small>` : `<b>${esc(ent)}</b>`}</span>
+      ${exclBtns}
       <button type="button" class="ent-chip-del" data-act="cfgChipDel" data-grp="${esc(groupKey)}" data-p="${esc(String(parentIdx))}" data-ci="${ci}" title="Entfernen">✕</button>
     </span>`;
   }).join('');
@@ -398,7 +411,7 @@ function renderCfgModal(preserveScroll = true) {
         <label><input type="checkbox" data-l-i="${i}" data-l-k="mainSync" ${g.mainSync !== false ? 'checked' : ''}> Im „Alle Lichter“-Hauptschalter berücksichtigen</label>
       </div>
       <div style="margin-top:8px">
-        <span class="cfg-desc">Zugeordnete Lampen / Schalter:</span>
+        <span class="cfg-desc">Zugeordnete Lampen / Schalter <small class="mut">(Klick auf <b>💡 Gruppe</b> / <b>⚡ Haupt</b> schließt einzelne Lampen vom Gruppen- bzw. Hauptschalter aus)</small>:</span>
         ${entityChipsHtml(g.entities || [], 'lightGrp', i, 'light.* oder switch.* auswählen…')}
       </div>`, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === cfgDraft.lights.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLight" data-i="${i}">Löschen</button></div>`)).join('');
 

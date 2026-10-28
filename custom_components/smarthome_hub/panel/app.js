@@ -397,10 +397,12 @@ document.addEventListener('input', ev => {
     if (lbl) lbl.textContent = v + '%';
     const g = (CONFIG.lights || [])[+el.dataset.i];
     if (g && g.entities) {
+      const targetEnts = getGroupToggleEntities(g);
+      const ents = targetEnts.length ? targetEnts : g.entities;
       clearTimeout(ddSliderTimer);
       ddSliderTimer = setTimeout(() => {
-        if (v <= 0) call('light', 'turn_off', { entity_id: g.entities });
-        else call('light', 'turn_on', { entity_id: g.entities, brightness_pct: v });
+        if (v <= 0) call('light', 'turn_off', { entity_id: ents });
+        else call('light', 'turn_on', { entity_id: ents, brightness_pct: v });
       }, 140);
     }
   } else if (act === 'ddMediaVol') {
@@ -459,10 +461,64 @@ document.addEventListener('input', ev => {
   }
 });
 
+/* ---------- Long-Press & Rechtsklick für Lichter-Kacheln ---------- */
+let lgrpHoldTimer = null;
+let lgrpLongPressed = false;
+let lgrpStartX = 0;
+let lgrpStartY = 0;
+
+document.addEventListener('pointerdown', ev => {
+  if (ev.target.closest('.tile-dots-btn')) return;
+  const tile = ev.target.closest('.tile-light[data-act="lgrp"]');
+  if (!tile) return;
+  if (ev.button != null && ev.button !== 0) return;
+  lgrpLongPressed = false;
+  lgrpStartX = ev.clientX;
+  lgrpStartY = ev.clientY;
+  const idx = +tile.dataset.i;
+  clearTimeout(lgrpHoldTimer);
+  lgrpHoldTimer = setTimeout(() => {
+    lgrpLongPressed = true;
+    try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
+    openLightGroupModal(idx);
+  }, 450);
+});
+
+document.addEventListener('pointermove', ev => {
+  if (!lgrpHoldTimer) return;
+  if (Math.hypot(ev.clientX - lgrpStartX, ev.clientY - lgrpStartY) > 10) {
+    clearTimeout(lgrpHoldTimer);
+    lgrpHoldTimer = null;
+  }
+});
+
+['pointerup', 'pointercancel', 'pointerleave'].forEach(evName => {
+  document.addEventListener(evName, () => {
+    if (lgrpHoldTimer) {
+      clearTimeout(lgrpHoldTimer);
+      lgrpHoldTimer = null;
+    }
+  });
+});
+
+document.addEventListener('contextmenu', ev => {
+  const tile = ev.target.closest('.tile-light[data-act="lgrp"]');
+  if (!tile) return;
+  ev.preventDefault();
+  clearTimeout(lgrpHoldTimer);
+  lgrpHoldTimer = null;
+  lgrpLongPressed = false;
+  openLightGroupModal(+tile.dataset.i);
+});
+
 /* ---------- Klick-Steuerung ---------- */
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, c = activeClimate(), cs = S(c.entity);
+  if (act === 'lgrp' && el.classList.contains('tile-light') && lgrpLongPressed) {
+    lgrpLongPressed = false;
+    return;
+  }
   if (act === 'noop' || act === 'cPos') return;
   if (act === 'lbClose') { closeLB(); return; }
   if (act === 'pinClose') { document.getElementById('pinmodal').classList.remove('show'); return; }
@@ -626,7 +682,9 @@ document.addEventListener('click', ev => {
     const g = (CONFIG.lights || [])[+el.dataset.i];
     const v = parseInt(el.dataset.v, 10) || 50;
     if (g && g.entities) {
-      call('light', 'turn_on', { entity_id: g.entities, brightness_pct: v });
+      const targetEnts = getGroupToggleEntities(g);
+      const ents = targetEnts.length ? targetEnts : g.entities;
+      call('light', 'turn_on', { entity_id: ents, brightness_pct: v });
       setTimeout(() => { if (sm.open && sm.mode === 'lgrpDetail') renderLightGroupModal(); tick(true); }, 250);
     }
     return;
@@ -635,8 +693,25 @@ document.addEventListener('click', ev => {
     const g = (CONFIG.lights || [])[+el.dataset.i];
     const rgb = (el.dataset.rgb || '255,200,120').split(',').map(Number);
     if (g && g.entities) {
-      call('light', 'turn_on', { entity_id: g.entities, rgb_color: rgb });
+      const targetEnts = getGroupToggleEntities(g);
+      const ents = targetEnts.length ? targetEnts : g.entities;
+      call('light', 'turn_on', { entity_id: ents, rgb_color: rgb });
       setTimeout(() => { if (sm.open && sm.mode === 'lgrpDetail') renderLightGroupModal(); tick(true); }, 250);
+    }
+    return;
+  }
+  if (act === 'ddToggleExclGrp' || act === 'ddToggleExclMain') {
+    const g = (CONFIG.lights || [])[+el.dataset.i];
+    const ent = el.dataset.e;
+    if (g && ent) {
+      const key = act === 'ddToggleExclGrp' ? 'excludeGroup' : 'excludeMain';
+      if (!Array.isArray(g[key])) g[key] = [];
+      const pos = g[key].indexOf(ent);
+      if (pos >= 0) g[key].splice(pos, 1);
+      else g[key].push(ent);
+      saveConfigToServer(CONFIG);
+      if (sm.open && sm.mode === 'lgrpDetail') renderLightGroupModal();
+      tick(true);
     }
     return;
   }
@@ -788,9 +863,27 @@ document.addEventListener('click', ev => {
           renderCfgModal(true);
         }
       } else {
-        targetArr.splice(+el.dataset.ci, 1);
+        const removed = targetArr.splice(+el.dataset.ci, 1)[0];
+        if (grp === 'lightGrp' && removed && cfgDraft.lights[+p]) {
+          const g = cfgDraft.lights[+p];
+          if (Array.isArray(g.excludeGroup)) g.excludeGroup = g.excludeGroup.filter(x => x !== removed);
+          if (Array.isArray(g.excludeMain)) g.excludeMain = g.excludeMain.filter(x => x !== removed);
+        }
         renderCfgModal(true);
       }
+    }
+    return;
+  }
+  if (act === 'cfgLightExclGrp' || act === 'cfgLightExclMain') {
+    const g = cfgDraft && cfgDraft.lights && cfgDraft.lights[+el.dataset.p];
+    const ent = el.dataset.e;
+    if (g && ent) {
+      const key = act === 'cfgLightExclGrp' ? 'excludeGroup' : 'excludeMain';
+      if (!Array.isArray(g[key])) g[key] = [];
+      const pos = g[key].indexOf(ent);
+      if (pos >= 0) g[key].splice(pos, 1);
+      else g[key].push(ent);
+      renderCfgModal(true);
     }
     return;
   }
@@ -1185,7 +1278,10 @@ document.addEventListener('click', ev => {
   else if (act === 'lgrp') {
     const g = CONFIG.lights[+el.dataset.i];
     if (g) {
-      call('homeassistant', groupInfo(g).on ? 'turn_off' : 'turn_on', { entity_id: g.entities });
+      const gi = groupInfo(g);
+      if (gi.toggleEnts.length) {
+        call('homeassistant', gi.toggleOn ? 'turn_off' : 'turn_on', { entity_id: gi.toggleEnts });
+      }
       setTimeout(() => { if (sm.open && sm.mode === 'lgrpDetail') renderLightGroupModal(); tick(true); }, 250);
     }
   }

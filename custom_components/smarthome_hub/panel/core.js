@@ -231,6 +231,11 @@ function ensureConfigDefaults(cfg) {
   }
   if (!cfg.lightsMain) cfg.lightsMain = { mode: 'group', group: 0, entities: [] };
   if (!Array.isArray(cfg.lights)) cfg.lights = [];
+  cfg.lights.forEach(g => {
+    if (!Array.isArray(g.entities)) g.entities = [];
+    if (!Array.isArray(g.excludeGroup)) g.excludeGroup = [];
+    if (!Array.isArray(g.excludeMain)) g.excludeMain = [];
+  });
   if (!Array.isArray(cfg.covers)) cfg.covers = [];
   if (!Array.isArray(cfg.devices)) cfg.devices = [];
   if (!Array.isArray(cfg.webrtcCameras)) cfg.webrtcCameras = [];

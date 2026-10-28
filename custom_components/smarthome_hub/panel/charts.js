@@ -1150,13 +1150,23 @@ function renderLightGroupModal() {
   const grp = (CONFIG.lights || [])[sm.lgrpIdx];
   if (!grp) return;
   const ents = grp.entities || [];
+  const exGrpArr = Array.isArray(grp.excludeGroup) ? grp.excludeGroup : [];
+  const exMainArr = Array.isArray(grp.excludeMain) ? grp.excludeMain : [];
+  const toggleEnts = getGroupToggleEntities(grp);
   const onEnts = ents.filter(e => S(e)?.state === 'on');
+  const toggleOnEnts = toggleEnts.filter(e => S(e)?.state === 'on');
   const isAnyOn = onEnts.length > 0;
+  const isToggleOn = toggleOnEnts.length > 0;
 
   // Average brightness across on lights
   let avgBri = isAnyOn ? 100 : 0;
   const bris = onEnts.map(e => S(e)?.attributes?.brightness).filter(v => v != null);
   if (bris.length) avgBri = Math.round((bris.reduce((a, b) => a + Number(b), 0) / bris.length / 255) * 100);
+
+  const exclCount = exGrpArr.filter(e => ents.includes(e)).length;
+  const subInfo = exclCount > 0
+    ? `Gruppenschalter steuert ${toggleEnts.length} von ${ents.length} Lampen (${exclCount} ausgenommen)`
+    : 'Gesamte Gruppe steuern';
 
   const sheet = document.getElementById('smsheet');
   sheet.classList.remove('wfc-wide');
@@ -1171,10 +1181,10 @@ function renderLightGroupModal() {
         <div class="dd-badge ${isAnyOn ? 'on' : ''}">${IC.bulb}</div>
         <div>
           <div class="dd-state-lbl">${isAnyOn ? `${onEnts.length} eingeschaltet (${avgBri}%)` : 'Alle ausgeschaltet'}</div>
-          <div class="dd-sub-lbl">Gesamte Gruppe steuern</div>
+          <div class="dd-sub-lbl">${esc(subInfo)}</div>
         </div>
       </div>
-      <button class="sw ${isAnyOn ? 'on' : ''}" data-act="lgrp" data-i="${sm.lgrpIdx}"></button>
+      <button class="sw ${isToggleOn ? 'on' : ''}" data-act="lgrp" data-i="${sm.lgrpIdx}" title="Gekoppelte Lampen der Gruppe ein-/ausschalten"></button>
     </div>
 
     <div class="dd-sec">
@@ -1193,13 +1203,18 @@ function renderLightGroupModal() {
     </div>
 
     <div class="dd-sec">
-      <div class="dd-sec-hd"><span>💡 Einzelne Lampen (${ents.length})</span></div>
+      <div class="dd-sec-hd">
+        <span>💡 Einzelne Lampen & Schalter-Kopplung (${ents.length})</span>
+        <span class="mut" style="font-size:11px">💡=Gruppenschalter · ⚡=Hauptschalter</span>
+      </div>
       <div class="dd-lamp-list">
         ${ents.map(e => {
           const st = S(e);
           const on = st?.state === 'on';
           const b = st?.attributes?.brightness != null ? Math.round((Number(st.attributes.brightness) / 255) * 100) : (on ? 100 : 0);
           const nm = st?.attributes?.friendly_name || e;
+          const exGrp = exGrpArr.includes(e);
+          const exMain = exMainArr.includes(e);
           return `
             <div class="dd-lamp-row">
               <div class="dd-lamp-info" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(nm)}" title="Details & Farbe öffnen">
@@ -1209,7 +1224,15 @@ function renderLightGroupModal() {
                   <div class="dd-lamp-sub">${on ? `An · ${b}%` : 'Aus'} · <span class="link-hint">Feinsteuerung ↗</span></div>
                 </div>
               </div>
-              <button class="sw ${on ? 'on' : ''}" data-act="ddToggle" data-e="${esc(e)}"></button>
+              <div class="dd-lamp-actions">
+                <button type="button" class="dd-excl-btn ${exGrp ? 'excl' : 'on'}" data-act="ddToggleExclGrp" data-i="${sm.lgrpIdx}" data-e="${esc(e)}" title="${exGrp ? 'Vom Gruppenschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Gruppenschalter enthalten (Klick zum Ausschließen)'}">
+                  ${exGrp ? '🔒 Gruppe' : '💡 Gruppe'}
+                </button>
+                <button type="button" class="dd-excl-btn ${exMain ? 'excl' : 'on'}" data-act="ddToggleExclMain" data-i="${sm.lgrpIdx}" data-e="${esc(e)}" title="${exMain ? 'Vom Master-Hauptschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Master-Hauptschalter enthalten (Klick zum Ausschließen)'}">
+                  ${exMain ? '🔒 Haupt' : '⚡ Haupt'}
+                </button>
+                <button class="sw ${on ? 'on' : ''}" data-act="ddToggle" data-e="${esc(e)}"></button>
+              </div>
             </div>`;
         }).join('')}
       </div>
