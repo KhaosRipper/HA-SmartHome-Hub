@@ -4,7 +4,7 @@
   "codeowners": ["@KhaosRipper"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "websocket_api"],
-  "documentation": "https://github.com/dein-nutzername/smarthome_hub",
+  "documentation": "https://github.com/KhaosRipper/smarthome_hub",
   "iot_class": "local_push",
-  "version": "1.9.1"
+  "version": "2.0.0"
 }
