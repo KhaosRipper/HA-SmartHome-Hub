@@ -1043,3 +1043,46 @@ html, body {
   border: 1px solid rgba(255,255,255,.3);
   display: inline-block;
 }
+
+/* --- Dynamische Spaltenanzahl (1–12 Spalten frei wählbar) --- */
+.grid.cols-custom,
+.kgrid.cols-custom,
+.cam-grid.cols-custom {
+  grid-template-columns: repeat(var(--custom-cols, 2), minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 900px) {
+  .grid.cols-custom,
+  .kgrid.cols-custom,
+  .cam-grid.cols-custom {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.qe-col-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: rgba(10, 11, 22, 0.72);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--mut);
+}
+.qe-col-input {
+  width: 50px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--txt);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+}
+.qe-col-input:focus {
+  outline: none;
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent);
+}

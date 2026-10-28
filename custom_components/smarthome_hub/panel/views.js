@@ -540,8 +540,10 @@ function kDevice(d) {
 }
 
 function klimaView() {
-  const colsMode = String(CONFIG.klimaCols || 'auto');
-  const gridCls = colsMode === '1' ? 'kgrid cols-1' : colsMode === '2' ? 'kgrid cols-2' : colsMode === '3' ? 'kgrid cols-3' : 'kgrid';
+  const colsRaw = String(CONFIG.klimaCols || 'auto');
+  const parsed = parseColsMode(colsRaw, 'auto', 2);
+  const gridCls = parsed.mode === 'cols' ? 'kgrid cols-custom' : 'kgrid';
+  const gridStyle = parsed.mode === 'cols' ? `style="--custom-cols:${parsed.cols}"` : '';
   const visibleRooms = (CONFIG.climateRooms || []).map((r, i) => ({ r, i })).filter(({ r }) => r.show !== false || ui.editMode);
   const cards = visibleRooms.map(({ r, i }) => {
     const sens = (r.sensors || []).map(x => {
@@ -576,9 +578,11 @@ function klimaView() {
   }).join('');
   const topToolbar = ui.editMode ? `<div class="qe-page-bar">
     <span>📐 <b>Klima-Spalten:</b></span>
-    ${[['auto','Automatisch'],['1','1 Spalte'],['2','2 Spalten'],['3','3 Spalten']].map(([k,lbl]) => `<button class="chip ${colsMode === k ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="${k}">${lbl}</button>`).join('')}
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="auto">Automatisch</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="${n}">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
+    <label class="qe-col-custom"><span>Frei:</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeKlimaColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>Sp.</span></label>
   </div>` : '';
-  return `<div class="ktop"><div class="hi">Klima</div><div class="name">Heizung &amp; Klimaanlagen</div><div class="greet">Temperaturen, Heizungen und Klimaanlagen aller Räume – direkt steuerbar.</div></div>${topToolbar}<div class="${gridCls}">${cards || '<div class="mut">Noch keine Klima-Räume angelegt.</div>'}</div>`;
+  return `<div class="ktop"><div class="hi">Klima</div><div class="name">Heizung &amp; Klimaanlagen</div><div class="greet">Temperaturen, Heizungen und Klimaanlagen aller Räume – direkt steuerbar.</div></div>${topToolbar}<div class="${gridCls}" ${gridStyle}>${cards || '<div class="mut">Noch keine Klima-Räume angelegt.</div>'}</div>`;
 }
 
 /* ---------- Baukasten für Eigene Seiten ---------- */
@@ -990,7 +994,7 @@ function buliMatchdayCard(w) {
   if (!h || !h.states) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut sm">Keine Daten...</div></section>`;
 
   const matches = Object.values(h.states).filter(s =>
-    s.entity_id.startsWith('sensor.') &&
+    s && s.entity_id && s.entity_id.startsWith('sensor.') &&
     s.attributes &&
     s.attributes.team_homeaway === 'home' &&
     s.attributes.team_score !== undefined
@@ -1233,8 +1237,18 @@ function customPageView(pageId) {
   const page = (CONFIG.customPages || [])[pIdx];
   if (!page) return `<div class="mut">Seite nicht gefunden.</div>`;
 
-  const layout = page.layout || 'grid';
+  const layout = String(page.layout || 'grid');
+  const parsed = parseColsMode(layout, 'auto', 2);
   const allWidgets = (page.widgets || []).map((w, wi) => ({ w, wi })).filter(({ w }) => w.show !== false || ui.editMode);
+
+  // Ermittle maximale Spaltenzahl (aus Seiten-Layout oder höchster Widget-Spaltenzuweisung)
+  const maxWidgetCol = allWidgets.reduce((mx, { w }) => {
+    const n = parseInt(w.col, 10);
+    return Number.isFinite(n) && n > mx ? n : mx;
+  }, 0);
+  const activeCols = parsed.mode === 'cols' ? parsed.cols : (parsed.mode === 'asym' ? 2 : Math.max(maxWidgetCol, 2));
+  const btnColsCount = clamp(Math.max(activeCols, 4), 2, 12);
+  const colChoices = ['auto', ...Array.from({ length: btnColsCount }, (_, i) => String(i + 1)), 'full'];
 
   const wrapWidget = ({ w, wi }) => {
     const inner = renderCustomWidget(w);
@@ -1245,7 +1259,7 @@ function customPageView(pageId) {
       <div class="qe-btns">
         <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="-1" title="Nach oben / links">↑</button>
         <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="1" title="Nach unten / rechts">↓</button>
-        ${['auto','1','2','3','full'].map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeWidgetCol" data-pi="${pIdx}" data-wi="${wi}" data-col="${c}" title="Spalte zuweisen">${c === 'auto' ? 'Auto' : c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
+        ${colChoices.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeWidgetCol" data-pi="${pIdx}" data-wi="${wi}" data-col="${c}" title="Spalte zuweisen">${c === 'auto' ? 'Auto' : c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
         <button class="qe-btn ${w.show === false ? 'off' : ''}" data-act="qeWidgetVis" data-pi="${pIdx}" data-wi="${wi}" title="Ein-/Ausblenden">${w.show === false ? '🙈' : '👁️'}</button>
         <button class="qe-btn" data-act="cfgOpenTab" data-tab="pages" title="Im Editor bearbeiten">⚙️</button>
       </div>
@@ -1256,44 +1270,51 @@ function customPageView(pageId) {
 
   const pageToolbar = ui.editMode ? `<div class="qe-page-bar">
     <span>📐 <b>Seiten-Layout:</b></span>
-    ${[
-      ['grid', 'Auto-Raster'],
-      ['column', '1 Spalte'],
-      ['2col', '2 Spalten (frei zuordenbar)'],
-      ['2col-asym', '2 Spalten (Links breit / Rechts schmal)'],
-      ['3col', '3 Spalten (frei zuordenbar)']
-    ].map(([k, lbl]) => `<button class="chip ${layout === k ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="${k}">${lbl}</button>`).join('')}
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="grid">Auto-Raster</button>
+    <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="2col-asym">2 Spalten (Links breit / Rechts schmal)</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="${n}col">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
+    <label class="qe-col-custom" title="Beliebige Spaltenanzahl eingeben (z. B. 5 oder 6)">
+      <span>Frei:</span>
+      <input type="number" min="1" max="12" class="qe-col-input" data-act="qePageColsInput" data-pi="${pIdx}" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
+      <span>Sp.</span>
+    </label>
   </div>` : '';
 
-  const hasExplicitCols = allWidgets.some(({ w }) => ['1', '2', '3'].includes(String(w.col || 'auto')));
-  const isMultiColMode = ['2col', '2col-asym', '3col'].includes(layout) || hasExplicitCols;
+  const hasExplicitCols = maxWidgetCol > 0;
+  const isMultiColMode = parsed.mode === 'cols' || parsed.mode === 'asym' || hasExplicitCols;
 
   if (!allWidgets.length) {
     return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}${pageToolbar}<div class="mut">Noch keine Widgets auf dieser Seite.</div>`;
   }
 
-  if (layout === 'column' || layout === '1col') {
+  if (parsed.mode === 'cols' && parsed.cols === 1) {
     return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}${pageToolbar}<div class="page-column">${allWidgets.map(wrapWidget).join('')}</div>`;
   }
 
   if (isMultiColMode) {
-    const numCols = layout === '3col' || allWidgets.some(({ w }) => String(w.col) === '3') ? 3 : 2;
-    const gridClass = numCols === 3 ? 'grid grid-3-col' : (layout === '2col-asym' ? 'grid' : 'grid grid-2-equal');
+    const numCols = parsed.mode === 'cols' ? parsed.cols : (parsed.mode === 'asym' ? 2 : Math.max(maxWidgetCol, 2));
+    const gridClass = parsed.mode === 'asym' ? 'grid' : 'grid cols-custom';
+    const gridStyle = parsed.mode === 'asym' ? '' : `style="--custom-cols:${numCols}"`;
     const fullTop = [];
     const cols = Array.from({ length: numCols }, () => []);
 
     allWidgets.forEach((item, idx) => {
       const c = String(item.w.col || 'auto');
-      if (c === 'full') fullTop.push(wrapWidget(item));
-      else if (c === '1') cols[0].push(wrapWidget(item));
-      else if (c === '2') cols[Math.min(1, numCols - 1)].push(wrapWidget(item));
-      else if (c === '3') cols[Math.min(2, numCols - 1)].push(wrapWidget(item));
-      else cols[idx % numCols].push(wrapWidget(item));
+      if (c === 'full') {
+        fullTop.push(wrapWidget(item));
+      } else {
+        const colNum = parseInt(c, 10);
+        if (Number.isFinite(colNum) && colNum >= 1) {
+          cols[Math.min(colNum - 1, numCols - 1)].push(wrapWidget(item));
+        } else {
+          cols[idx % numCols].push(wrapWidget(item));
+        }
+      }
     });
 
     return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}${pageToolbar}
       ${fullTop.length ? `<div class="col" style="margin-bottom:16px">${fullTop.join('')}</div>` : ''}
-      <div class="${gridClass}">
+      <div class="${gridClass}" ${gridStyle}>
         ${cols.map(cList => `<div class="col">${cList.join('')}</div>`).join('')}
       </div>`;
   }

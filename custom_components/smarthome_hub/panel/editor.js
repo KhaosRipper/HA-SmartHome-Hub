@@ -261,6 +261,12 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 2: LAYOUT & SPALTEN ----------
   const dLayout = cfgDraft.dashboardLayout || DEFAULT_DASHBOARD_LAYOUT();
+  const dashColsParsed = parseColsMode(cfgDraft.dashboardCols || '2-asym', 'asym', 2);
+  const maxDashColOpts = clamp(Math.max(dashColsParsed.cols || 2, 6), 4, 12);
+  const dashColSelectOpts = [
+    ...Array.from({ length: maxDashColOpts }, (_, i) => [String(i + 1), `Spalte ${i + 1}`]),
+    ['full', 'Volle Breite (über alle Spalten)']
+  ];
   const layoutRows = dLayout.map((item, li) => `
     <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);align-items:center">
       <label style="min-width:110px;font-weight:600;cursor:pointer">
@@ -268,12 +274,7 @@ function renderCfgModal(preserveScroll = true) {
         ${item.show !== false ? '👁️ Sichtbar' : '🙈 Ausgeblendet'}
       </label>
       <div style="flex:1.4;min-width:200px;font-weight:600">${esc(DASHBOARD_CARD_LABELS[item.id] || item.label || item.id)}</div>
-      ${sel('Spalte auf Startseite', [
-        ['1', 'Spalte 1 (Links / Hauptbereich)'],
-        ['2', 'Spalte 2 (Rechts / Seitenbereich)'],
-        ['3', 'Spalte 3 (nur bei 3-Spalten-Layout)'],
-        ['full', 'Volle Breite (über alle Spalten)']
-      ].map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="col"`)}
+      ${sel('Spalte auf Startseite', dashColSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="col"`)}
       ${sel('Sichtbar in Raum-Tab', [
         ['all', 'In allen Raum-Tabs'],
         ['home', 'Nur im 1. Tab (Home)']
@@ -284,34 +285,48 @@ function renderCfgModal(preserveScroll = true) {
       </div>
     </div>`).join('');
 
-  let tLayout = box('Startseiten-Spalten & Kachel-Anordnung', 'Bestimme frei, wie viele Spalten die Startseite hat und welche Karte in welcher Spalte und Reihenfolge erscheint. Tipp: Über das ✏️-Symbol unten links in der Seitenleiste kannst du Karten auch direkt live auf dem Dashboard verschieben!', `
+  let tLayout = box('Startseiten-Spalten & Kachel-Anordnung', 'Bestimme frei, wie viele Spalten die Startseite hat (Vorlagen 1–4 oder freie Zahl 1–12) und welche Karte in welcher Spalte und Reihenfolge erscheint.', `
     <div class="cfg-row" style="margin-bottom:12px">
-      ${sel('Spalten-Aufteilung der Startseite', [
+      ${sel('Spalten-Vorlage (Startseite)', [
         ['2-asym', '2 Spalten asymmetrisch – Links breit (1.55fr), Rechts kompakt (1fr) [Standard]'],
-        ['2-equal', '2 Spalten gleich breit (50% / 50%)'],
-        ['3-col', '3 Spalten gleich breit (ideal für große Wandtablets / Desktop)'],
-        ['1-col', '1 Spalte (alles untereinander)']
+        ['1-col', '1 Spalte (alles untereinander)'],
+        ['2-col', '2 Spalten gleich breit'],
+        ['3-col', '3 Spalten gleich breit'],
+        ['4-col', '4 Spalten gleich breit'],
+        ['5-col', '5 Spalten gleich breit'],
+        ['6-col', '6 Spalten gleich breit']
       ].map(([v, l]) => `<option value="${v}" ${(cfgDraft.dashboardCols || '2-asym') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="dashboardCols"`)}
+      ${fld('Oder freie Spaltenanzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="dashboardCols" value="${dashColsParsed.mode === 'cols' ? dashColsParsed.cols : ''}"`)}
       <button type="button" class="iconbtn" data-act="cfgResetDL" style="align-self:center">↺ Standard-Reihenfolge wiederherstellen</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px">${layoutRows}</div>
   `, true) +
-  box('Spalten-Anzahl für Klima & Kameras', 'Lege fest, wie viele Spalten auf den Unterseiten „Klima“ und „Kameras“ genutzt werden sollen.', `
+  box('Spalten-Anzahl für Klima & Kameras', 'Wähle eine Vorgabe (Auto / 1–4) oder gib eine freie Spaltenanzahl (1–12) ein.', `
     <div class="cfg-row">
-      ${sel('Klima-Seite: Spalten', [
+      ${sel('Klima-Seite: Vorlage', [
         ['auto', 'Automatisch (responsiv nach Bildschirmbreite)'],
-        ['1', 'Immer 1 Spalte (untereinander)'],
-        ['2', '2 Spalten nebeneinander'],
-        ['3', '3 Spalten nebeneinander']
+        ['1', '1 Spalte'],
+        ['2', '2 Spalten'],
+        ['3', '3 Spalten'],
+        ['4', '4 Spalten'],
+        ['5', '5 Spalten'],
+        ['6', '6 Spalten']
       ].map(([v, l]) => `<option value="${v}" ${String(cfgDraft.klimaCols || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="klimaCols"`)}
-      ${sel('Kamera-Seite: Spalten', [
-        ['auto', 'Automatisch (responsiv nach Bildschirmbreite)'],
-        ['1', 'Immer 1 Spalte (große Streams untereinander)'],
-        ['2', '2 Spalten nebeneinander'],
-        ['3', '3 Spalten nebeneinander']
-      ].map(([v, l]) => `<option value="${v}" ${String(cfgDraft.camCols || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="camCols"`)}
+      ${fld('Klima: Freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="klimaCols" value="${parseColsMode(cfgDraft.klimaCols, 'auto', 2).mode === 'cols' ? parseColsMode(cfgDraft.klimaCols, 'auto', 2).cols : ''}"`)}
     </div>
-    <span class="cfg-desc" style="margin-top:6px;display:block">Hinweis: Die Spalten und Zuordnungen für „Eigene Seiten“ (z.B. A+B in Spalte 1, C in Spalte 2) findest du im Reiter „📄 Eigene Seiten“ oder direkt per Klick auf ✏️ im Quick-Edit-Modus.</span>
+    <div class="cfg-row" style="margin-top:8px">
+      ${sel('Kamera-Seite: Vorlage', [
+        ['auto', 'Automatisch (responsiv nach Bildschirmbreite)'],
+        ['1', '1 Spalte'],
+        ['2', '2 Spalten'],
+        ['3', '3 Spalten'],
+        ['4', '4 Spalten'],
+        ['5', '5 Spalten'],
+        ['6', '6 Spalten']
+      ].map(([v, l]) => `<option value="${v}" ${String(cfgDraft.camCols || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="camCols"`)}
+      ${fld('Kameras: Freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="camCols" value="${parseColsMode(cfgDraft.camCols, 'auto', 2).mode === 'cols' ? parseColsMode(cfgDraft.camCols, 'auto', 2).cols : ''}"`)}
+    </div>
+    <span class="cfg-desc" style="margin-top:6px;display:block">Hinweis: Die Spalten und Zuordnungen für „Eigene Seiten“ findest du im Reiter „📄 Eigene Seiten“ oder direkt per Klick auf ✏️ im Quick-Edit-Modus.</span>
   `, true);
 
   // ---------- TAB 3: RÄUME & BADGES ----------
@@ -603,6 +618,13 @@ function renderCfgModal(preserveScroll = true) {
   let tSeiten = (cfgDraft.customPages || []).map((p, pi) => {
     const boxKey = `page_${p.id || pi}`;
     const isOpen = lastOpenedBoxKey ? lastOpenedBoxKey === boxKey : pi === 0;
+    const pgParsed = parseColsMode(p.layout || 'grid', 'auto', 2);
+    const maxWCol = clamp(Math.max(pgParsed.cols || 2, 6), 4, 12);
+    const wColOpts = [
+      ['auto', 'Automatisch einordnen'],
+      ...Array.from({ length: maxWCol }, (_, i) => [String(i + 1), `Immer in Spalte ${i + 1}`]),
+      ['full', 'Volle Seitenbreite']
+    ];
 
     return box(`Menü-Seite: ${esc(p.label)}`, 'Konfiguriere Spalten-Layout und Widgets für diese eigene Unterseite.', `
       <div class="cfg-row">
@@ -613,13 +635,17 @@ function renderCfgModal(preserveScroll = true) {
       </div>
       <div class="cfg-row">
         ${fld('Einleitungstext (Intro)', `data-pg-i="${pi}" data-pg-k="intro" value="${esc(p.intro || '')}"`)}
-        ${sel('Seiten-Spaltenlayout', [
+        ${sel('Seiten-Spaltenlayout (Vorlage)', [
           ['grid', 'Automatisches Raster (Nebeneinander)'],
-          ['column', '1 Spalte (Alles untereinander)'],
-          ['2col', '2 feste Spalten (z.B. Widget A+B in Spalte 1, C in Spalte 2)'],
           ['2col-asym', '2 Spalten asymmetrisch (Links breit, Rechts schmal)'],
-          ['3col', '3 feste Spalten (frei zuordenbar)']
+          ['1col', '1 Spalte (Alles untereinander)'],
+          ['2col', '2 feste Spalten (frei zuordenbar)'],
+          ['3col', '3 feste Spalten (frei zuordenbar)'],
+          ['4col', '4 feste Spalten (frei zuordenbar)'],
+          ['5col', '5 feste Spalten (frei zuordenbar)'],
+          ['6col', '6 feste Spalten (frei zuordenbar)']
         ].map(([v, l]) => `<option value="${v}" ${(p.layout || 'grid') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-pg-k="layout"`)}
+        ${fld('Oder freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-pg-cols-i="${pi}" value="${pgParsed.mode === 'cols' ? pgParsed.cols : ''}"`)}
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         <span class="cfg-desc">Widgets auf dieser Seite (jedes Widget kann einer festen Spalte zugewiesen werden):</span>
@@ -667,13 +693,7 @@ function renderCfgModal(preserveScroll = true) {
             <div class="cfg-row">
               <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="show" ${w.show !== false ? 'checked' : ''}> Sichtbar</label>
               ${sel('Widget-Typ', [['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
-              ${sel('Spalten-Zuweisung', [
-                ['auto', 'Automatisch einordnen'],
-                ['1', 'Immer in Spalte 1'],
-                ['2', 'Immer in Spalte 2'],
-                ['3', 'Immer in Spalte 3'],
-                ['full', 'Volle Seitenbreite']
-              ].map(([v, l]) => `<option value="${v}" ${String(w.col || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="col"`)}
+              ${sel('Spalten-Zuweisung', wColOpts.map(([v, l]) => `<option value="${v}" ${String(w.col || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="col"`)}
               ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
               ${fld('Haupt-Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
               <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi === p.widgets.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
@@ -798,6 +818,18 @@ document.addEventListener('input', e => {
   if (!cfgDraft) return;
   if (t.dataset.cpath) setByPath(cfgDraft, t.dataset.cpath, t.value);
   if (t.dataset.cbool) setByPath(cfgDraft, t.dataset.cbool, t.checked);
+  if (t.dataset.customCols) {
+    const n = clamp(parseInt(t.value, 10) || 0, 1, 12);
+    if (n >= 1) {
+      const key = t.dataset.customCols;
+      cfgDraft[key] = key === 'dashboardCols' ? `${n}-col` : String(n);
+    }
+  }
+  if (t.dataset.pgColsI != null) {
+    const n = clamp(parseInt(t.value, 10) || 0, 1, 12);
+    const pg = cfgDraft.customPages[+t.dataset.pgColsI];
+    if (pg && n >= 1) pg.layout = `${n}col`;
+  }
 
   // Dashboard Layout rows
   if (t.dataset.dlI != null) {

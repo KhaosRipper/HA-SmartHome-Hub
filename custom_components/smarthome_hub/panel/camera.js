@@ -432,8 +432,10 @@ function kamerasView() {
   const useGo2 = canUseGo2rtc();
   const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
   const modeLabel = useGo2 ? 'go2rtc (Lokales Netzwerk)' : 'Home Assistant Proxy (Companion App / Remote)';
-  const colsMode = String(CONFIG.camCols || 'auto');
-  const colCls = colsMode === '1' ? 'cols-1' : colsMode === '2' ? 'cols-2' : colsMode === '3' ? 'cols-3' : '';
+  const colsRaw = String(CONFIG.camCols || 'auto');
+  const parsed = parseColsMode(colsRaw, 'auto', 2);
+  const colCls = parsed.mode === 'cols' ? 'cols-custom' : '';
+  const colStyle = parsed.mode === 'cols' ? `style="--custom-cols:${parsed.cols}"` : '';
 
   const visibleCams = (CONFIG.webrtcCameras || []).map((c, i) => ({ c, i })).filter(({ c }) => c && (c.show !== false || ui.editMode));
   const cards = visibleCams.map(({ c, i }) => {
@@ -466,7 +468,9 @@ function kamerasView() {
 
   const topToolbar = ui.editMode ? `<div class="qe-page-bar">
     <span>📐 <b>Kamera-Spalten:</b></span>
-    ${[['auto','Automatisch'],['1','1 Spalte'],['2','2 Spalten'],['3','3 Spalten']].map(([k,lbl]) => `<button class="chip ${colsMode === k ? 'on' : ''}" data-act="qeSetCamCols" data-cols="${k}">${lbl}</button>`).join('')}
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetCamCols" data-cols="auto">Automatisch</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetCamCols" data-cols="${n}">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
+    <label class="qe-col-custom"><span>Frei:</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeCamColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>Sp.</span></label>
   </div>` : '';
 
   return `<div class="ktop" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
@@ -482,5 +486,5 @@ function kamerasView() {
     </div>
   </div>
   ${topToolbar}
-  <div class="cam-grid ${colCls}">${cards || '<div class="mut">Keine Kameras konfiguriert.</div>'}</div>`;
+  <div class="cam-grid ${colCls}" ${colStyle}>${cards || '<div class="mut">Keine Kameras konfiguriert.</div>'}</div>`;
 }

@@ -108,6 +108,20 @@ function moveItem(arr, idx, dir) {
   arr[target] = tmp;
 }
 
+function parseColsMode(val, defaultMode = 'auto', defaultCols = 2) {
+  const s = String(val ?? '').trim().toLowerCase();
+  if (!s || s === 'auto' || s === 'grid') return { mode: 'auto', cols: defaultCols };
+  if (s === '2-asym' || s === '2col-asym' || s === 'asym') return { mode: 'asym', cols: 2 };
+  if (s === '2-equal') return { mode: 'cols', cols: 2 };
+  if (s === 'column' || s === '1-col' || s === '1col') return { mode: 'cols', cols: 1 };
+  const m = s.match(/^(\d+)/);
+  if (m) {
+    const n = clamp(parseInt(m[1], 10) || defaultCols, 1, 12);
+    return { mode: 'cols', cols: n };
+  }
+  return { mode: defaultMode, cols: defaultCols };
+}
+
 function getLocksList(secObj = CONFIG.security) {
   const sec = secObj || {};
   if (Array.isArray(sec.locks) && sec.locks.length) return sec.locks.filter(l => l && l.entity);

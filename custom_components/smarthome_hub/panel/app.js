@@ -36,17 +36,18 @@ function renderDashCardHtml(id) {
   }
 }
 
-function buildDashQuickEditBar(item, idx, total) {
+function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
   if (!ui.editMode) return '';
   const colVal = String(item.col || '1');
   const scopeVal = item.scope || 'all';
   const edTab = DASH_CARD_EDITOR_TAB[item.id] || 'layout';
+  const colOpts = [...Array.from({ length: btnColsCount }, (_, i) => String(i + 1)), 'full'];
   return `<div class="qe-bar">
     <span class="qe-title">${esc(item.label || item.id)}</span>
     <div class="qe-btns">
       <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Nach oben">↑</button>
       <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="Nach unten">↓</button>
-      ${['1', '2', '3', 'full'].map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
+      ${colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
       <button class="qe-btn ${scopeVal === 'home' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Zuständigkeit: Alle Räume vs. Nur Home">${scopeVal === 'home' ? '🏠 Nur Home' : '🌐 Alle Räume'}</button>
       <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="Ein-/Ausblenden">${item.show === false ? '🙈' : '👁️'}</button>
       <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" title="Im Editor anpassen">⚙️</button>
@@ -77,11 +78,7 @@ function render() {
           <div id="mtabs-slot"></div>
           <div id="dash-qe-toolbar"></div>
           <div id="dash-full-top" class="col" style="margin-bottom:16px;display:none"></div>
-          <div class="grid" id="dash-grid">
-            <div class="col" id="dash-col-1"></div>
-            <div class="col" id="dash-col-2"></div>
-            <div class="col" id="dash-col-3" style="display:none"></div>
-          </div>
+          <div class="grid" id="dash-grid"></div>
           <div id="hero-parking" style="display:none">
             <div id="hero-qe-wrap" class="qe-wrap">
               <div id="hero-qe-slot"></div>
@@ -101,18 +98,23 @@ function render() {
 
     document.getElementById('mtabs-slot').innerHTML = mtabs();
 
-    const colsMode = CONFIG.dashboardCols || '2-asym';
+    const colsRaw = String(CONFIG.dashboardCols || '2-asym');
+    const parsed = parseColsMode(colsRaw, 'asym', 2);
+    const numCols = parsed.mode === 'cols' ? parsed.cols : 2;
+    const btnColsCount = clamp(Math.max(numCols, 4), 2, 12);
+
     const qeToolbar = document.getElementById('dash-qe-toolbar');
     if (qeToolbar) {
       qeToolbar.innerHTML = ui.editMode ? `<div class="qe-page-bar">
-        <span>✏️ <b>Quick-Edit aktiv</b> · Startseiten-Raster:</span>
-        ${[
-          ['2-asym', '2 Spalten (Links breit / Rechts kompakt)'],
-          ['2-equal', '2 Spalten (50% / 50%)'],
-          ['3-col', '3 Spalten'],
-          ['1-col', '1 Spalte']
-        ].map(([k, lbl]) => `<button class="chip ${colsMode === k ? 'on' : ''}" data-act="qeDashCols" data-cols="${k}">${lbl}</button>`).join('')}
-        <button class="chip" data-act="cfgOpenTab" data-tab="layout">📐 Layout-Tab öffnen</button>
+        <span>✏️ <b>Quick-Edit</b> · Startseiten-Spalten:</span>
+        <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qeDashCols" data-cols="2-asym">2 Spalten (Links breit / Rechts kompakt)</button>
+        ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeDashCols" data-cols="${n}-col">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
+        <label class="qe-col-custom" title="Beliebige Spaltenanzahl eingeben (z. B. 5 oder 6)">
+          <span>Frei:</span>
+          <input type="number" min="1" max="12" class="qe-col-input" data-act="qeDashColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
+          <span>Sp.</span>
+        </label>
+        <button class="chip" data-act="cfgOpenTab" data-tab="layout">📐 Layout-Tab</button>
         <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
       </div>` : '';
     }
@@ -126,25 +128,26 @@ function render() {
       ? CONFIG.dashboardLayout
       : DEFAULT_DASHBOARD_LAYOUT();
 
-    const numCols = colsMode === '3-col' ? 3 : colsMode === '1-col' ? 1 : 2;
     const dashGrid = document.getElementById('dash-grid');
     if (dashGrid) {
-      dashGrid.className = colsMode === '2-equal' ? 'grid grid-2-equal'
-        : colsMode === '3-col' ? 'grid grid-3-col'
-        : colsMode === '1-col' ? 'grid grid-1-col'
-        : 'grid';
+      if (parsed.mode === 'asym') {
+        dashGrid.className = 'grid';
+        dashGrid.style.removeProperty('--custom-cols');
+      } else {
+        dashGrid.className = 'grid cols-custom';
+        dashGrid.style.setProperty('--custom-cols', String(numCols));
+      }
+      // Stelle sicher, dass genau numCols Spalten-Container existieren
+      let colsHtml = '';
+      for (let c = 1; c <= numCols; c++) {
+        colsHtml += `<div class="col" id="dash-col-${c}"></div>`;
+      }
+      dashGrid.innerHTML = colsHtml;
     }
 
-    const col1El = document.getElementById('dash-col-1');
-    const col2El = document.getElementById('dash-col-2');
-    const col3El = document.getElementById('dash-col-3');
     const fullTopEl = document.getElementById('dash-full-top');
-
-    if (col2El) col2El.style.display = numCols >= 2 ? '' : 'none';
-    if (col3El) col3El.style.display = numCols >= 3 ? '' : 'none';
-
-    const buckets = { full: [], 1: [], 2: [], 3: [] };
-    let heroTargetBucket = null;
+    const buckets = { full: [] };
+    for (let c = 1; c <= numCols; c++) buckets[c] = [];
     let heroVisible = false;
 
     layout.forEach((item, idx) => {
@@ -155,13 +158,12 @@ function render() {
       if (!isShown && !ui.editMode) return;
 
       let targetCol = item.col === 'full' ? 'full' : (parseInt(item.col, 10) || 1);
-      if (targetCol !== 'full' && targetCol > numCols) targetCol = numCols;
+      if (targetCol !== 'full') targetCol = clamp(targetCol, 1, numCols);
 
-      const qeBar = buildDashQuickEditBar(item, idx, layout.length);
+      const qeBar = buildDashQuickEditBar(item, idx, layout.length, btnColsCount);
 
       if (item.id === 'hero') {
         heroVisible = isShown && inScope;
-        heroTargetBucket = targetCol;
         const heroQeSlot = document.getElementById('hero-qe-slot');
         if (heroQeSlot) heroQeSlot.innerHTML = qeBar;
         if (heroWrap) {
@@ -192,9 +194,9 @@ function render() {
       fullTopEl.style.display = buckets.full.length ? 'flex' : 'none';
       mountBucket(fullTopEl, buckets.full);
     }
-    mountBucket(col1El, buckets[1]);
-    if (numCols >= 2) mountBucket(col2El, buckets[2]);
-    if (numCols >= 3) mountBucket(col3El, buckets[3]);
+    for (let c = 1; c <= numCols; c++) {
+      mountBucket(document.getElementById(`dash-col-${c}`), buckets[c]);
+    }
 
     if (heroVisible || ui.editMode) {
       const banner = document.getElementById('hero-banner');
@@ -248,7 +250,7 @@ function rebuildEntitiesList() {
   (CONFIG.rooms || []).forEach(r => {
     ids.push(r.camera, r.climate);
     (r.chips || []).forEach(c => ids.push(c.entity));
-    (r.camButtons || []).forEach(b => ids.push(c.entity));
+    (r.camButtons || []).forEach(b => ids.push(b.entity));
   });
   (CONFIG.devices || []).forEach(d => ids.push(d.entity, d.power, d.energy));
   (CONFIG.covers || []).forEach(c => ids.push(c.entity));
@@ -425,6 +427,35 @@ document.addEventListener('input', ev => {
     ddSliderTimer = setTimeout(() => {
       call('climate', 'set_temperature', { entity_id: el.dataset.e, temperature: v });
     }, 150);
+  } else if (act === 'qeDashColsInput') {
+    const n = clamp(parseInt(el.value, 10) || 0, 1, 12);
+    if (n >= 1) {
+      CONFIG.dashboardCols = `${n}-col`;
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
+  } else if (act === 'qePageColsInput') {
+    const n = clamp(parseInt(el.value, 10) || 0, 1, 12);
+    const pg = (CONFIG.customPages || [])[+el.dataset.pi];
+    if (pg && n >= 1) {
+      pg.layout = `${n}col`;
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
+  } else if (act === 'qeKlimaColsInput') {
+    const n = clamp(parseInt(el.value, 10) || 0, 1, 12);
+    if (n >= 1) {
+      CONFIG.klimaCols = String(n);
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
+  } else if (act === 'qeCamColsInput') {
+    const n = clamp(parseInt(el.value, 10) || 0, 1, 12);
+    if (n >= 1) {
+      CONFIG.camCols = String(n);
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
   }
 });
 
@@ -1163,10 +1194,18 @@ document.addEventListener('click', ev => {
 
 /* ---------- Initialisierung ---------- */
 (async function init() {
-  await loadConfigFromServer();
-  await probeGo2rtc(true);
-  rebuildEntitiesList();
+  try {
+    await loadConfigFromServer();
+  } catch (e) {
+    console.warn('loadConfigFromServer error:', e);
+  }
+  try {
+    rebuildEntitiesList();
+  } catch (e) {
+    console.warn('rebuildEntitiesList error:', e);
+  }
   render();
+  probeGo2rtc(true);
   refreshSeries();
   refreshWeatherForecast(true);
   refreshHomeCalendars(true);
