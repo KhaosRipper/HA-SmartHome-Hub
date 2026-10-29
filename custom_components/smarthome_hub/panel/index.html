@@ -3,24 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Smart Home Hub</title>
-<link rel="stylesheet" href="style.css?v=2.0.3">
+<link rel="stylesheet" href="style.css?v=2.0.5">
 </head>
 <body>
 <div id="app" class="app"></div>
 <div id="toast" class="toast"></div>
-<div id="lb" class="lb" data-act="lbClose"><div class="cap" id="lbcap"></div><button class="x" data-act="lbClose">✕</button><div id="lbbody"></div></div>
+<div id="lb" class="lb" data-act="lbClose">
+  <div class="lb-topbar" data-act="noop">
+    <div class="cap" id="lbcap"></div>
+    <div class="lb-actions">
+      <button type="button" class="lb-btn" id="lb-switch-src" data-act="lbSwitchSource" style="display:none" title="Stream-Quelle wechseln (go2rtc ↔ Home Assistant)">⇄ Quelle wechseln</button>
+      <button type="button" class="lb-btn" data-act="lbFullscreen" title="Vollbild umschalten">⛶ Vollbild</button>
+      <button type="button" class="x" data-act="lbClose" title="Schließen">✕</button>
+    </div>
+  </div>
+  <div id="lbbody" class="lb-body" data-act="noop"></div>
+</div>
 <div id="sm" class="modal" data-act="smClose"><div class="sheet" id="smsheet" data-act="noop"></div></div>
 <div id="pinmodal" class="modal" data-act="pinClose"><div class="sheet pin-sheet" id="pinsheet" data-act="noop"></div></div>
 <div id="cfgmodal" class="modal" data-act="cfgClose"><div class="sheet cfg-sheet" id="cfgsheet" data-act="noop"></div></div>
 <datalist id="ha-entities-list"></datalist>
 
-<script src="config.js?v=2.0.3"></script>
-<script src="core.js?v=2.0.3"></script>
-<script src="camera.js?v=2.0.3"></script>
-<script src="charts.js?v=2.0.3"></script>
-<script src="views.js?v=2.0.3"></script>
-<script src="editor.js?v=2.0.3"></script>
-<script src="app.js?v=2.0.3"></script>
+<script src="config.js?v=2.0.5"></script>
+<script src="core.js?v=2.0.5"></script>
+<script src="camera.js?v=2.0.5"></script>
+<script src="charts.js?v=2.0.5"></script>
+<script src="views.js?v=2.0.5"></script>
+<script src="editor.js?v=2.0.5"></script>
+<script src="app.js?v=2.0.5"></script>
 </body>
 </html>

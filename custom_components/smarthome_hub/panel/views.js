@@ -115,12 +115,17 @@ function heroOverlayContent() {
   const isBgLiveStream = useGo2 || useHaCam;
   const showLive = isBgLiveStream && r.showLiveBadge !== false;
 
-  const camBtns = (r.camButtons || []).map(b => {
+  const rawBtns = Array.isArray(r.camButtons) && r.camButtons.length
+    ? r.camButtons
+    : (isBgLiveStream ? [{ name: 'Vergrößern', icon: 'expand', stream: '', entity: '' }] : []);
+
+  const camBtns = rawBtns.map(b => {
     const btnIcon = b.icon || 'expand';
     const btnName = b.name != null ? String(b.name).trim() : '';
     const stream = b.stream || '';
     const entity = b.entity || '';
-    return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}">${ic(btnIcon, 14)}${btnName ? esc(btnName) : ''}</button>`;
+    const showTxt = btnName && btnName !== 'Vergrößern';
+    return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}" title="${esc(btnName || 'Vollbild öffnen')}">${ic(btnIcon, 14)}${showTxt ? esc(btnName) : ''}</button>`;
   }).join('');
 
   return `<div class="hero-top">
@@ -135,7 +140,7 @@ function heroOverlayContent() {
       <h2>${esc(r.name)}</h2>
       <div class="hero-bar">
         <div class="chips">${chips}</div>
-        ${(showLive || camBtns) ? `<div class="camtools">${showLive ? '<span class="live">● LIVE</span>' : ''}${camBtns}</div>` : ''}
+        ${(showLive || camBtns) ? `<div class="camtools">${showLive ? '<span class="live" data-act="camBig" style="cursor:pointer" title="Vollbild öffnen">● LIVE</span>' : ''}${camBtns}</div>` : ''}
       </div>
     </div>`;
 }
@@ -909,7 +914,25 @@ function renderCustomWidget(w) {
     return entityInfoCard(w.entity, w.title || 'To-Do Liste');
   }
   if (w.type === 'iframe') {
-    return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}"></iframe></section>`;
+    return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}" allow="autoplay; fullscreen" allowfullscreen></iframe></section>`;
+  }
+  if (w.type === 'camera') {
+    const resolvedStream = resolveGo2rtcStream(w.stream, w.entity);
+    const resolvedEnt = resolveCamEntity(resolvedStream || w.stream, w.entity);
+    const useGo2 = canUseGo2rtc() && !!resolvedStream;
+    const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
+    const mediaHtml = useGo2
+      ? `<iframe src="${esc(`${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`
+      : (resolvedEnt && camUrl(resolvedEnt, true)
+        ? `<img src="${esc(camUrl(resolvedEnt, true))}" alt="${esc(w.title || 'Kamera')}">`
+        : `<div class="cam-placeholder">${ic('camera', 26)}<span>Kamera nicht erreichbar</span></div>`);
+    return `<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(w.title || 'Kamera')}">
+      <div class="cam-hdr">
+        <span>${esc(w.title || 'Kamera')}</span>
+        <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(w.title || 'Kamera')}">${ic('expand', 14)} Vollbild</button>
+      </div>
+      <div class="cam-wrap">${mediaHtml}</div>
+    </section>`;
   }
   if (w.type === 'buli_table') return buliTableCard(w);
   if (w.type === 'f1_next') return f1NextRaceCard(w);

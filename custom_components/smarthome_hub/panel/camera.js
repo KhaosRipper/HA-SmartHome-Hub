@@ -5,22 +5,24 @@
 
 const go2rtcState = {
   host: '',
-  reachable: false,
-  checked: false,
-  checking: false,
-  lastCheck: 0,
+  reachable: true,
+  checked: true,
   modeOverride: localStorage.getItem('hub_cam_mode') || 'auto' // 'auto' | 'ha' | 'go2rtc'
 };
 
 function isLocalHostname(hn) {
   const h = String(hn || '').toLowerCase();
-  if (!h) return false;
+  if (!h) return true;
   return (
     h === 'localhost' ||
     h === '127.0.0.1' ||
+    h === '::1' ||
+    h === '[::1]' ||
     h.startsWith('192.168.') ||
     h.startsWith('10.') ||
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(h) ||
+    h.startsWith('fe80:') ||
+    h.startsWith('fd') ||
     h.endsWith('.local') ||
     h.endsWith('.lan') ||
     h.endsWith('.home') ||
@@ -49,75 +51,26 @@ function isMixedContentBlocked(go2Host) {
 
 function canUseGo2rtc() {
   if (DEMO) return false;
-  const host = String(CONFIG.go2rtcHost || '').trim();
+  const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
   if (!host) return false;
   if (go2rtcState.modeOverride === 'ha') return false;
   if (isMixedContentBlocked(host)) return false;
   if (go2rtcState.modeOverride === 'go2rtc') return true;
-  return go2rtcState.reachable;
+  // Im Auto-Modus synchron & deterministisch anhand der Netzwerk-URL entscheiden (kein instabiler Cross-Origin-Fetch!)
+  return isLocalHostname(getPageLocation().hostname);
 }
 
-async function probeGo2rtc(force = false) {
+function probeGo2rtc() {
   const rawHost = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
-  if (!rawHost || DEMO) {
-    go2rtcState.host = rawHost;
-    go2rtcState.reachable = false;
-    go2rtcState.checked = true;
-    return false;
-  }
-
-  // Bei HTTPS-Seite (z. B. Nabu Casa / Remote-Domain in Companion App) + HTTP go2rtc-IP
-  // blockiert der Browser das Iframe immer wegen Mixed Content -> sofort auf HA-Proxy schalten!
-  if (isMixedContentBlocked(rawHost)) {
-    const changed = go2rtcState.reachable !== false || !go2rtcState.checked;
-    go2rtcState.host = rawHost;
-    go2rtcState.reachable = false;
-    go2rtcState.checked = true;
-    if (changed) onCamSourceChanged();
-    return false;
-  }
-
-  const now = Date.now();
-  if (!force && go2rtcState.checked && go2rtcState.host === rawHost && now - go2rtcState.lastCheck < 30000) {
-    return go2rtcState.reachable;
-  }
-
-  // Optimistischer Startwert anhand der aufgerufenen URL (LAN-Tablet vs. Remote-Hostname)
-  if (!go2rtcState.checked || go2rtcState.host !== rawHost) {
-    const loc = getPageLocation();
-    go2rtcState.reachable = isLocalHostname(loc.hostname);
-    go2rtcState.host = rawHost;
-  }
-
-  if (go2rtcState.checking) return go2rtcState.reachable;
-  go2rtcState.checking = true;
-
   const prev = go2rtcState.reachable;
-  let ok = false;
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 1600);
-    await fetch(`${rawHost}/`, {
-      method: 'GET',
-      mode: 'no-cors',
-      cache: 'no-store',
-      signal: ctrl.signal
-    });
-    clearTimeout(timer);
-    ok = true;
-  } catch (_) {
-    ok = false;
-  }
-
-  go2rtcState.reachable = ok;
+  const next = canUseGo2rtc();
+  go2rtcState.host = rawHost;
+  go2rtcState.reachable = next;
   go2rtcState.checked = true;
-  go2rtcState.checking = false;
-  go2rtcState.lastCheck = Date.now();
-
-  if (prev !== ok) {
+  if (prev !== next) {
     onCamSourceChanged();
   }
-  return ok;
+  return next;
 }
 
 function onCamSourceChanged() {
@@ -125,11 +78,7 @@ function onCamSourceChanged() {
   if (typeof tick === 'function') tick(true);
 }
 
-// Bei Netzwerkwechsel (z. B. WLAN -> Mobilfunk in der Companion App) automatisch neu prüfen
-window.addEventListener('online', () => probeGo2rtc(true));
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') probeGo2rtc(true);
-});
+/* ---------- Verlustfreier HA-Kamera-Renderer (MJPEG Stream + Snapshot-Polling-Fallback) ---------- */
 
 /* ---------- Smarte Kamera-Entitäts-Auflösung ---------- */
 function resolveCamEntity(streamName, explicitEntity = '', fallbackEntity = '') {
@@ -227,24 +176,54 @@ function dropHeroMedia() {
   heroMediaState.el = null;
 }
 
+function resolveGo2rtcStream(streamName, entityId = '') {
+  const raw = String(streamName || '').trim();
+  const cams = CONFIG.webrtcCameras || [];
+  const rooms = CONFIG.rooms || [];
+
+  if (raw) {
+    // 1. Exakter Treffer (case-insensitive) in webrtcCameras oder rooms
+    const exactCam = cams.find(c => String(c.stream || '').trim().toLowerCase() === raw.toLowerCase());
+    if (exactCam && exactCam.stream) return String(exactCam.stream).trim();
+    const exactRoom = rooms.find(r => String(r.webrtc || '').trim().toLowerCase() === raw.toLowerCase());
+    if (exactRoom && exactRoom.webrtc) return String(exactRoom.webrtc).trim();
+
+    // 2. Falls ohne "-sub" angegeben wurde, aber in webrtcCameras mit "-sub" existiert
+    const subCam = cams.find(c => String(c.stream || '').trim().toLowerCase() === `${raw.toLowerCase()}-sub`);
+    if (subCam && subCam.stream) return String(subCam.stream).trim();
+
+    // 3. Ansonsten exakt den konfigurierten Stream-Namen beibehalten (niemals "-sub" abschneiden!)
+    return raw;
+  }
+
+  // Falls kein Stream-Name übergeben wurde, über die Kamera-Entität in webrtcCameras suchen
+  if (entityId) {
+    const byEnt = cams.find(c => c.entity && c.entity === entityId && c.stream);
+    if (byEnt) return String(byEnt.stream).trim();
+  }
+  return '';
+}
+
 function syncHeroMedia(r) {
   const slot = document.getElementById('hero-bg-slot'), bg = document.getElementById('hero-bg'), banner = document.getElementById('hero-banner');
   if (!slot || !bg || !banner) return;
   banner.style.setProperty('--c', r.color || '#2a2350');
 
-  const useGo2 = canUseGo2rtc() && !!r.webrtc;
-  const resolvedCam = resolveCamEntity(r.webrtc, r.camera);
+  const resolvedStream = resolveGo2rtcStream(r.webrtc, r.camera);
+  const useGo2 = canUseGo2rtc() && !!resolvedStream;
+  const resolvedCam = resolveCamEntity(resolvedStream || r.webrtc, r.camera);
   const useHaCam = !useGo2 && !!resolvedCam && !DEMO && !!S(resolvedCam);
 
   if (useGo2) {
     bg.style.backgroundImage = 'none';
     const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
-    const key = `${host}/${r.webrtc}`;
+    const key = `${host}/${resolvedStream}`;
     if (heroMediaState.type !== 'webrtc' || heroMediaState.key !== key || !slot.contains(heroMediaState.el)) {
       dropHeroMedia();
       const iframe = document.createElement('iframe');
-      iframe.src = `${host}/stream.html?src=${encodeURIComponent(r.webrtc)}&mode=webrtc`;
-      iframe.allow = 'autoplay';
+      iframe.src = `${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`;
+      iframe.allow = 'autoplay; fullscreen';
+      iframe.setAttribute('allowfullscreen', 'true');
       slot.innerHTML = '';
       slot.appendChild(iframe);
       heroMediaState.type = 'webrtc';
@@ -290,13 +269,30 @@ function syncHeroMedia(r) {
 }
 
 /* ---------- Lightbox (Vollbild-Kamera) ---------- */
-const lbs = { timer: null };
+const lbs = { timer: null, stream: '', entity: '', mode: 'stream', title: '', activeSource: '' };
+
+function updateLBSwitchBtn() {
+  const btn = document.getElementById('lb-switch-src');
+  if (!btn) return;
+  const hasBoth = !!(lbs.stream && CONFIG.go2rtcHost && !isMixedContentBlocked(CONFIG.go2rtcHost) && lbs.entity && S(lbs.entity));
+  if (hasBoth) {
+    btn.style.display = '';
+    btn.textContent = lbs.activeSource === 'webrtc' ? '⇄ Auf HA-Stream wechseln' : '⇄ Auf go2rtc wechseln';
+  } else {
+    btn.style.display = 'none';
+  }
+}
 
 function openLB(id, mode, title) {
   const lb = document.getElementById('lb'), body = document.getElementById('lbbody');
-  document.getElementById('lbcap').textContent = title || '';
+  if (!lb || !body) return;
+  const cap = document.getElementById('lbcap');
+  if (cap) cap.textContent = title || '';
   clearInterval(lbs.timer);
-  body.innerHTML = `<img src="" style="max-width:100%;max-height:85vh;border-radius:12px;object-fit:contain;" />`;
+  lbs.activeSource = 'ha';
+  updateLBSwitchBtn();
+
+  body.innerHTML = `<img src="" class="lb-media" alt="${esc(title || 'Kamera')}" />`;
   const img = body.querySelector('img');
   const poll = () => {
     clearInterval(lbs.timer);
@@ -318,37 +314,90 @@ function openLB(id, mode, title) {
 
 function openLBWebRtc(stream, title) {
   const lb = document.getElementById('lb'), body = document.getElementById('lbbody');
-  document.getElementById('lbcap').textContent = title || '';
+  if (!lb || !body) return;
+  const cap = document.getElementById('lbcap');
+  if (cap) cap.textContent = title || '';
   clearInterval(lbs.timer);
-  const hdStream = String(stream || '').replace(/-sub$/i, '');
+  lbs.activeSource = 'webrtc';
+  updateLBSwitchBtn();
+
+  const exactStream = resolveGo2rtcStream(stream, lbs.entity);
   const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
-  const srcUrl = `${host}/stream.html?src=${encodeURIComponent(hdStream)}&mode=webrtc`;
-  body.innerHTML = `<iframe src="${srcUrl}" style="width:90vw;height:85vh;max-width:1280px;border:0;border-radius:12px;" allow="autoplay"></iframe>`;
+  const srcUrl = `${host}/stream.html?src=${encodeURIComponent(exactStream)}&mode=webrtc`;
+  body.innerHTML = `<iframe src="${srcUrl}" class="lb-media lb-iframe" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
   lb.classList.add('show');
 }
 
 function openSmartCamLB(stream, entity, fallbackEntity, mode, title) {
-  if (canUseGo2rtc() && stream) {
-    openLBWebRtc(stream, title);
+  const resolvedEnt = resolveCamEntity(stream, entity, fallbackEntity);
+  const resolvedStream = resolveGo2rtcStream(stream, resolvedEnt);
+
+  lbs.stream = resolvedStream;
+  lbs.entity = resolvedEnt;
+  lbs.mode = mode || 'stream';
+  lbs.title = title || 'Kamera';
+
+  if (canUseGo2rtc() && resolvedStream) {
+    openLBWebRtc(resolvedStream, lbs.title);
     return;
   }
-  const resolved = resolveCamEntity(stream, entity, fallbackEntity);
-  if (resolved && S(resolved)) {
-    openLB(resolved, mode || 'stream', title);
+  if (resolvedEnt && S(resolvedEnt)) {
+    openLB(resolvedEnt, lbs.mode, lbs.title);
     return;
   }
-  if (stream && CONFIG.go2rtcHost && !isMixedContentBlocked(CONFIG.go2rtcHost)) {
-    openLBWebRtc(stream, title);
+  if (resolvedStream && CONFIG.go2rtcHost && !isMixedContentBlocked(CONFIG.go2rtcHost)) {
+    openLBWebRtc(resolvedStream, lbs.title);
     return;
   }
   toast('Keine erreichbare Kamera-Quelle gefunden (Entität prüfen)');
 }
 
+function switchLBSource() {
+  if (lbs.activeSource === 'webrtc' && lbs.entity && S(lbs.entity)) {
+    openLB(lbs.entity, lbs.mode, lbs.title);
+  } else if (lbs.stream && CONFIG.go2rtcHost) {
+    openLBWebRtc(lbs.stream, lbs.title);
+  }
+}
+
+function toggleLBFullscreen() {
+  const lb = document.getElementById('lb');
+  if (!lb) return;
+  lb.classList.toggle('lb-full');
+  try {
+    const fsDoc = document;
+    const parentDoc = (window.parent && window.parent.document) || null;
+    if (fsDoc.fullscreenElement || (parentDoc && parentDoc.fullscreenElement)) {
+      if (fsDoc.exitFullscreen) fsDoc.exitFullscreen().catch(() => {});
+      else if (parentDoc && parentDoc.exitFullscreen) parentDoc.exitFullscreen().catch(() => {});
+    } else {
+      if (lb.requestFullscreen) {
+        lb.requestFullscreen().catch(() => {
+          if (parentDoc && parentDoc.documentElement && parentDoc.documentElement.requestFullscreen) {
+            parentDoc.documentElement.requestFullscreen().catch(() => {});
+          }
+        });
+      } else if (lb.webkitRequestFullscreen) {
+        lb.webkitRequestFullscreen();
+      }
+    }
+  } catch (_) {}
+}
+
 function closeLB() {
   clearInterval(lbs.timer);
   lbs.timer = null;
-  document.getElementById('lbbody').innerHTML = '';
-  document.getElementById('lb').classList.remove('show');
+  const lb = document.getElementById('lb');
+  if (lb) {
+    lb.classList.remove('show', 'lb-full');
+  }
+  const body = document.getElementById('lbbody');
+  if (body) body.innerHTML = '';
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  } catch (_) {}
 }
 
 /* ---------- Kamera-Grid-Ansicht (IntersectionObserver + Auto-Fallback) ---------- */
@@ -387,7 +436,8 @@ function initCamObserver() {
             clearCamWrapTimer(wrap);
             const iframe = document.createElement('iframe');
             iframe.src = streamUrl;
-            iframe.allow = 'autoplay';
+            iframe.allow = 'autoplay; fullscreen';
+            iframe.setAttribute('allowfullscreen', 'true');
             wrap.innerHTML = '';
             wrap.appendChild(iframe);
             if (badge) { badge.className = 'cam-badge live'; badge.textContent = '● LIVE (RTC)'; }
@@ -424,7 +474,7 @@ function initCamObserver() {
         if (badge) { badge.className = 'cam-badge standby'; badge.textContent = 'STANDBY'; }
       }
     });
-  }, { root: rootEl, threshold: 0.25 });
+  }, { root: rootEl, threshold: 0.15 });
   document.querySelectorAll('.cam-wrap').forEach(el => camObserver.observe(el));
 }
 
@@ -439,9 +489,10 @@ function kamerasView() {
 
   const visibleCams = (CONFIG.webrtcCameras || []).map((c, i) => ({ c, i })).filter(({ c }) => c && (c.show !== false || ui.editMode));
   const cards = visibleCams.map(({ c, i }) => {
-    const resolvedEntity = resolveCamEntity(c.stream, c.entity);
-    const srcUrl = (useGo2 && host && c.stream)
-      ? `${host}/stream.html?src=${encodeURIComponent(c.stream)}&mode=webrtc`
+    const resolvedStream = resolveGo2rtcStream(c.stream, c.entity);
+    const resolvedEntity = resolveCamEntity(resolvedStream || c.stream, c.entity);
+    const srcUrl = (useGo2 && host && resolvedStream)
+      ? `${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`
       : '';
     const qeBar = ui.editMode ? `<div class="qe-bar">
       <span class="qe-title">📹 ${esc(c.name || 'Kamera')}</span>
@@ -452,12 +503,12 @@ function kamerasView() {
         <button class="qe-btn" data-act="cfgOpenTab" data-tab="sec" title="Im Editor öffnen">⚙️</button>
       </div>
     </div>` : '';
-    return `<div class="qe-wrap ${c.show === false ? 'qe-hidden' : ''}">${qeBar}<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(c.stream || '')}" data-cam="${esc(resolvedEntity)}" data-title="${esc(c.name || 'Kamera')}">
+    return `<div class="qe-wrap ${c.show === false ? 'qe-hidden' : ''}">${qeBar}<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(c.name || 'Kamera')}">
       <div class="cam-hdr">
         <span>${esc(c.name)}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="cam-badge standby">STANDBY</span>
-          <span class="mut sm" title="Antippen zum Vergrößern">${ic('expand', 14)}</span>
+          <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(c.name || 'Kamera')}" title="Vollbild öffnen">${ic('expand', 14)} Vollbild</button>
         </div>
       </div>
       <div class="cam-wrap" data-src="${esc(srcUrl)}" data-entity="${esc(resolvedEntity)}">

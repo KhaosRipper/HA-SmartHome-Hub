@@ -93,10 +93,19 @@ function render() {
         ${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
     } else {
       const sideWrap = document.getElementById('side-wrap');
-      if (sideWrap) sideWrap.innerHTML = sidebar();
+      const nextSide = sidebar();
+      if (sideWrap && sideWrap._lastHtml !== nextSide) {
+        sideWrap._lastHtml = nextSide;
+        sideWrap.innerHTML = nextSide;
+      }
     }
 
-    document.getElementById('mtabs-slot').innerHTML = mtabs();
+    const mtabsEl = document.getElementById('mtabs-slot');
+    const nextMtabs = mtabs();
+    if (mtabsEl && mtabsEl._lastHtml !== nextMtabs) {
+      mtabsEl._lastHtml = nextMtabs;
+      mtabsEl.innerHTML = nextMtabs;
+    }
 
     const colsRaw = String(CONFIG.dashboardCols || '2-asym');
     const parsed = parseColsMode(colsRaw, 'asym', 2);
@@ -105,7 +114,7 @@ function render() {
 
     const qeToolbar = document.getElementById('dash-qe-toolbar');
     if (qeToolbar) {
-      qeToolbar.innerHTML = ui.editMode ? `<div class="qe-page-bar">
+      const nextToolbar = ui.editMode ? `<div class="qe-page-bar">
         <span>✏️ <b>Quick-Edit</b> · Startseiten-Spalten:</span>
         <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qeDashCols" data-cols="2-asym">2 Spalten (Links breit / Rechts kompakt)</button>
         ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeDashCols" data-cols="${n}-col">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
@@ -117,19 +126,27 @@ function render() {
         <button class="chip" data-act="cfgOpenTab" data-tab="layout">📐 Layout-Tab</button>
         <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
       </div>` : '';
+      if (qeToolbar._lastHtml !== nextToolbar) {
+        qeToolbar._lastHtml = nextToolbar;
+        qeToolbar.innerHTML = nextToolbar;
+      }
     }
-
-    // Park hero-qe-wrap before rebuilding column slots so #hero-banner and its live stream stay intact in DOM!
-    const heroWrap = document.getElementById('hero-qe-wrap');
-    const heroParking = document.getElementById('hero-parking');
-    if (heroWrap && heroParking) heroParking.appendChild(heroWrap);
 
     const layout = Array.isArray(CONFIG.dashboardLayout) && CONFIG.dashboardLayout.length
       ? CONFIG.dashboardLayout
       : DEFAULT_DASHBOARD_LAYOUT();
 
+    const heroWrap = document.getElementById('hero-qe-wrap');
+    const heroParking = document.getElementById('hero-parking');
     const dashGrid = document.getElementById('dash-grid');
-    if (dashGrid) {
+    const colSig = `${parsed.mode}:${numCols}`;
+
+    // Spalten-Container im Grid NUR dann neu aufbauen, wenn sich Spaltenanzahl/Modus geändert hat!
+    // Dadurch wird ein laufendes Kamera-Iframe im Hero-Banner niemals unnötig im DOM verschoben!
+    if (dashGrid && dashGrid.dataset.colSig !== colSig) {
+      if (heroWrap && heroParking && dashGrid.contains(heroWrap)) {
+        heroParking.appendChild(heroWrap);
+      }
       if (parsed.mode === 'asym') {
         dashGrid.className = 'grid';
         dashGrid.style.removeProperty('--custom-cols');
@@ -137,18 +154,19 @@ function render() {
         dashGrid.className = 'grid cols-custom';
         dashGrid.style.setProperty('--custom-cols', String(numCols));
       }
-      // Stelle sicher, dass genau numCols Spalten-Container existieren
       let colsHtml = '';
       for (let c = 1; c <= numCols; c++) {
         colsHtml += `<div class="col" id="dash-col-${c}"></div>`;
       }
       dashGrid.innerHTML = colsHtml;
+      dashGrid.dataset.colSig = colSig;
     }
 
     const fullTopEl = document.getElementById('dash-full-top');
     const buckets = { full: [] };
     for (let c = 1; c <= numCols; c++) buckets[c] = [];
     let heroVisible = false;
+    let heroTargetKey = null;
 
     layout.forEach((item, idx) => {
       if (!item || !item.id) return;
@@ -164,10 +182,15 @@ function render() {
 
       if (item.id === 'hero') {
         heroVisible = isShown && inScope;
+        heroTargetKey = targetCol;
         const heroQeSlot = document.getElementById('hero-qe-slot');
-        if (heroQeSlot) heroQeSlot.innerHTML = qeBar;
+        if (heroQeSlot && heroQeSlot._lastHtml !== qeBar) {
+          heroQeSlot._lastHtml = qeBar;
+          heroQeSlot.innerHTML = qeBar;
+        }
         if (heroWrap) {
-          heroWrap.className = `qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}`;
+          const nextCls = `qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}`.trim();
+          if (heroWrap.className !== nextCls) heroWrap.className = nextCls;
         }
         buckets[targetCol].push('__HERO_PLACEHOLDER__');
       } else {
@@ -178,15 +201,58 @@ function render() {
       }
     });
 
+    // Falls Hero ausgeblendet ist, in hero-parking parken, bevor die Spalten geleert werden
+    if (heroTargetKey === null && heroWrap && heroParking && !heroParking.contains(heroWrap)) {
+      heroParking.appendChild(heroWrap);
+    }
+
     const mountBucket = (el, arr) => {
       if (!el) return;
-      const hasHero = arr.includes('__HERO_PLACEHOLDER__');
-      if (!hasHero) {
-        el.innerHTML = arr.join('');
+      const heroIdx = arr.indexOf('__HERO_PLACEHOLDER__');
+      if (heroIdx === -1) {
+        if (heroWrap && el.contains(heroWrap) && heroParking) {
+          heroParking.appendChild(heroWrap);
+        }
+        const joined = arr.join('');
+        if (el._lastHtml !== joined) {
+          el._lastHtml = joined;
+          el.innerHTML = joined;
+        }
       } else {
-        el.innerHTML = arr.map(x => x === '__HERO_PLACEHOLDER__' ? '<div id="hero-mount-point"></div>' : x).join('');
-        const mp = document.getElementById('hero-mount-point');
-        if (mp && heroWrap) mp.replaceWith(heroWrap);
+        const beforeHtml = arr.slice(0, heroIdx).join('');
+        const afterHtml = arr.slice(heroIdx + 1).join('');
+        let beforeSlot = document.getElementById('hero-before-slot');
+        let afterSlot = document.getElementById('hero-after-slot');
+        const alreadyMountedHere = !!(
+          heroWrap &&
+          heroWrap.parentElement === el &&
+          beforeSlot &&
+          beforeSlot.parentElement === el &&
+          afterSlot &&
+          afterSlot.parentElement === el
+        );
+
+        if (!alreadyMountedHere) {
+          // Nur beim allerersten Laden oder wenn der Nutzer die Spalte des Hero-Banners wechselt:
+          if (heroWrap && heroParking && el.contains(heroWrap)) {
+            heroParking.appendChild(heroWrap);
+          }
+          el._lastHtml = null;
+          el.innerHTML = '<div class="col-part" id="hero-before-slot"></div><div id="hero-mount-point"></div><div class="col-part" id="hero-after-slot"></div>';
+          const mp = document.getElementById('hero-mount-point');
+          if (mp && heroWrap) mp.replaceWith(heroWrap);
+          beforeSlot = document.getElementById('hero-before-slot');
+          afterSlot = document.getElementById('hero-after-slot');
+        }
+        // In 99.9% aller Ticks bleibt heroWrap (samt Live-Kamera-Iframe) exakt an Ort und Stelle!
+        if (beforeSlot && beforeSlot._lastHtml !== beforeHtml) {
+          beforeSlot._lastHtml = beforeHtml;
+          beforeSlot.innerHTML = beforeHtml;
+        }
+        if (afterSlot && afterSlot._lastHtml !== afterHtml) {
+          afterSlot._lastHtml = afterHtml;
+          afterSlot.innerHTML = afterHtml;
+        }
       }
     };
 
@@ -207,25 +273,82 @@ function render() {
         banner.dataset.mode = r.cameraMode || 'stream';
       }
       const overlaySlot = document.getElementById('hero-overlay-slot');
-      if (overlaySlot) overlaySlot.innerHTML = heroOverlayContent();
+      if (overlaySlot) {
+        const nextOv = heroOverlayContent();
+        const nextSig = nextOv.replace(/<span id="hub-time">[^<]*<\/span>/, '');
+        if (overlaySlot._lastSig !== nextSig) {
+          overlaySlot._lastSig = nextSig;
+          overlaySlot.innerHTML = nextOv;
+        }
+      }
       syncHeroMedia(r);
     } else {
       dropHeroMedia();
     }
+  } else if (ui.view === 'kameras') {
+    const camSig = `${canUseGo2rtc()}|${go2rtcState.modeOverride}|${CONFIG.go2rtcHost || ''}|${CONFIG.camCols || 'auto'}|${ui.editMode}|${JSON.stringify(CONFIG.webrtcCameras || [])}`;
+    const existingCamRoot = document.getElementById('kameras-root');
+    if (existingCamRoot && existingCamRoot.dataset.camSig === camSig) {
+      // Kamera-Seite ist bereits gerendert und unverändert -> laufende Kamera-Streams nicht neu laden!
+      const sideWrap = document.getElementById('side-wrap');
+      if (sideWrap) sideWrap.innerHTML = sidebar();
+      const mtabsSlot = document.getElementById('mtabs-slot');
+      if (mtabsSlot) mtabsSlot.innerHTML = mtabs();
+    } else {
+      document.getElementById('app').innerHTML = `
+        <div id="side-wrap" style="display:contents">${sidebar()}</div>
+        <main class="main" id="kameras-root" data-cam-sig="${esc(camSig)}">
+          <div id="mtabs-slot">${mtabs()}</div>
+          ${kamerasView()}
+        </main>
+        ${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
+      initCamObserver();
+    }
   } else {
     let pageHtml = '';
     if (ui.view === 'klima') pageHtml = klimaView();
-    else if (ui.view === 'kameras') pageHtml = kamerasView();
     else if (ui.view.startsWith('page:')) pageHtml = customPageView(ui.view.slice(5));
     else pageHtml = klimaView();
 
-    document.getElementById('app').innerHTML = `${sidebar()}<main class="main">${mtabs()}${pageHtml}</main>${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
+    const subRoot = document.getElementById('subpage-root');
+    if (subRoot && subRoot.dataset.view === ui.view) {
+      const sideWrap = document.getElementById('side-wrap');
+      const nextSide = sidebar();
+      if (sideWrap && sideWrap._lastHtml !== nextSide) {
+        sideWrap._lastHtml = nextSide;
+        sideWrap.innerHTML = nextSide;
+      }
+      const mtabsSlot = document.getElementById('mtabs-slot');
+      const nextMtabs = mtabs();
+      if (mtabsSlot && mtabsSlot._lastHtml !== nextMtabs) {
+        mtabsSlot._lastHtml = nextMtabs;
+        mtabsSlot.innerHTML = nextMtabs;
+      }
+      const subContent = document.getElementById('subpage-content');
+      if (subContent && subContent._lastHtml !== pageHtml) {
+        // Falls auf einer eigenen Seite ein Kamera-/Iframe-Widget aktiv läuft, dieses beim Tick nicht zerstören
+        const hasLiveIframe = !!subContent.querySelector('iframe') && !ui.editMode;
+        if (!hasLiveIframe) {
+          subContent._lastHtml = pageHtml;
+          subContent.innerHTML = pageHtml;
+        }
+      }
+    } else {
+      document.getElementById('app').innerHTML = `
+        <div id="side-wrap" style="display:contents">${sidebar()}</div>
+        <main class="main" id="subpage-root" data-view="${esc(ui.view)}">
+          <div id="mtabs-slot">${mtabs()}</div>
+          <div id="subpage-content">${pageHtml}</div>
+        </main>
+        ${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
+      const subContent = document.getElementById('subpage-content');
+      if (subContent) subContent._lastHtml = pageHtml;
+    }
   }
 
   const newMain = document.querySelector('.main'), newSide = document.querySelector('.side');
   if (newMain) newMain.scrollTop = mainScroll;
   if (newSide) newSide.scrollTop = sideScroll;
-  if (ui.view === 'kameras') initCamObserver();
   mountPFC();
 
   // Falls ein Geräte-Detail-Modal offen ist, live aktualisieren (sofern kein Slider gezogen wird)
@@ -521,6 +644,8 @@ document.addEventListener('click', ev => {
   }
   if (act === 'noop' || act === 'cPos') return;
   if (act === 'lbClose') { closeLB(); return; }
+  if (act === 'lbFullscreen') { toggleLBFullscreen(); return; }
+  if (act === 'lbSwitchSource') { switchLBSource(); return; }
   if (act === 'pinClose') { document.getElementById('pinmodal').classList.remove('show'); return; }
   if (act === 'pinkey') { handlePinKey(el.dataset.k); return; }
 
@@ -1160,15 +1285,16 @@ document.addEventListener('click', ev => {
   /* Smarte Kamera-Steuerung (Zuhause go2rtc / Unterwegs HA-Stream) */
   if (act === 'camBig') {
     const hr = el.closest('.hero-banner');
-    if (hr) {
-      const btnStream = el.dataset.webrtc || hr.dataset.webrtc || '';
-      const btnCam = el.dataset.cam || '';
-      const roomCam = hr.dataset.cam || '';
-      const title = (el.dataset.title && el.dataset.title !== 'Vergrößern')
-        ? `${hr.dataset.name} · ${el.dataset.title}`
-        : hr.dataset.name;
-      openSmartCamLB(btnStream, btnCam, roomCam, hr.dataset.mode || 'stream', title);
-    }
+    const curRoom = (CONFIG.rooms || [])[ui.room] || (CONFIG.rooms || [])[0] || {};
+    const roomName = (hr && hr.dataset.name) || curRoom.name || 'Kamera';
+    const btnStream = el.dataset.webrtc || (hr && hr.dataset.webrtc) || curRoom.webrtc || '';
+    const btnCam = el.dataset.cam || '';
+    const roomCam = (hr && hr.dataset.cam) || curRoom.camera || '';
+    const camMode = (hr && hr.dataset.mode) || curRoom.cameraMode || 'stream';
+    const title = (el.dataset.title && el.dataset.title !== 'Vergrößern')
+      ? `${roomName} · ${el.dataset.title}`
+      : roomName;
+    openSmartCamLB(btnStream, btnCam, roomCam, camMode, title);
     return;
   }
   if (act === 'camCardBig') {
