@@ -1333,6 +1333,10 @@ document.addEventListener('click', ev => {
     refreshAllSportsHubs(true);
     return;
   }
+  if (act === 'sportsOpenExt') {
+    openSportsExternalUrl(el.dataset.url || '');
+    return;
+  }
   if (act === 'sportsMatchDetail') {
     openSportsMatchModal(el.dataset.sport, el.dataset.league, el.dataset.event, el.dataset.home, el.dataset.away, el.dataset.date);
     return;

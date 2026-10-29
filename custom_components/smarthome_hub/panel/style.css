@@ -1646,7 +1646,7 @@ html, body {
   object-fit: contain;
   flex: none;
 }
-.gsp-up-trow span.me {
+.gsp-up-trow span.gsp-me {
   font-weight: 700;
   color: #fff;
 }
@@ -1710,7 +1710,7 @@ html, body {
   font-weight: 600;
   padding-bottom: 6px;
 }
-.gsp-trow.me {
+.gsp-trow.gsp-me {
   background: color-mix(in srgb, var(--acc) 22%, rgba(255,255,255,.04));
   border-radius: 10px;
   font-weight: 700;
@@ -1819,7 +1819,7 @@ html, body {
   justify-content: flex-end;
   text-align: right;
 }
-.gsp-mrow-team.me {
+.gsp-mrow-team.gsp-me {
   font-weight: 700;
   color: #fff;
 }
@@ -2024,3 +2024,7 @@ html, body {
 .gsp-lineup-p b, .gsp-lineup-p span {
   flex: 1;
 }
+
+/* Sport-Center: Buttons statt Links & Klick-Feedback */
+button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
+.gsp-focus-actions button, .gsp-mrow-acts button { font-family: inherit; }

@@ -806,9 +806,9 @@ function renderFocusMatchBlock(ev, focusSummary, sport, isHighlightShown = true)
 
       <div class="gsp-focus-actions" data-act="noop">
         ${isHighlightShown && (isPost || isLive) ? `
-          <a class="gsp-pill-btn yt" href="${esc(ytUrl)}" target="_blank" rel="noopener noreferrer" title="Zusammenfassung & Highlights auf YouTube öffnen">
+          <button type="button" class="gsp-pill-btn yt" data-act="sportsOpenExt" data-url="${esc(ytUrl)}" title="Zusammenfassung & Highlights auf YouTube öffnen">
             ▶ Zusammenfassung
-          </a>
+          </button>
         ` : ''}
         <button type="button" class="gsp-pill-btn" data-act="sportsMatchDetail" data-sport="${esc(sport)}" data-league="${esc(ev.leagueSlug || 'all')}" data-event="${esc(ev.id)}" data-home="${esc(ev.home.name)}" data-away="${esc(ev.away.name)}" data-date="${ev.dateMs}">
           ℹ️ Spiel-Details &amp; Aufstellung
@@ -843,11 +843,11 @@ function renderGoogleOverviewTab(w, entry, widgetKey) {
               ${isNonDefaultLeague ? `<div class="gsp-up-comp">${esc(ev.leagueName)}</div>` : ''}
               <div class="gsp-up-trow">
                 ${ev.home.logo ? `<img src="${esc(ev.home.logo)}" alt="">` : `<span class="gsp-up-dot"></span>`}
-                <span class="${ev.home.id === teamId ? 'me' : ''}">${esc(ev.home.shortName)}</span>
+                <span class="${ev.home.id === teamId ? 'gsp-me' : ''}">${esc(ev.home.shortName)}</span>
               </div>
               <div class="gsp-up-trow">
                 ${ev.away.logo ? `<img src="${esc(ev.away.logo)}" alt="">` : `<span class="gsp-up-dot"></span>`}
-                <span class="${ev.away.id === teamId ? 'me' : ''}">${esc(ev.away.shortName)}</span>
+                <span class="${ev.away.id === teamId ? 'gsp-me' : ''}">${esc(ev.away.shortName)}</span>
               </div>
             </div>
             <div class="gsp-up-time">
@@ -913,7 +913,7 @@ function renderGoogleOverviewTab(w, entry, widgetKey) {
         ${visibleRows.map(r => {
           const isMe = teamId && r.id === teamId;
           return `
-            <div class="gsp-trow ${isMe ? 'me' : ''}">
+            <div class="gsp-trow ${isMe ? 'gsp-me' : ''}">
               <div class="c-rk">${r.rank}</div>
               <div class="c-tm">
                 ${r.logo ? `<img src="${esc(r.logo)}" alt="">` : ''}
@@ -984,21 +984,21 @@ function renderGoogleMatchesTab(w, entry, widgetKey, uiSt) {
           <span class="gsp-mrow-date ${isLive ? 'live' : ''}">${esc(statusStr)}</span>
         </div>
         <div class="gsp-mrow-main">
-          <div class="gsp-mrow-team home ${ev.home.id === teamId ? 'me' : ''}">
+          <div class="gsp-mrow-team home ${ev.home.id === teamId ? 'gsp-me' : ''}">
             <span>${esc(ev.home.name)}</span>
             ${ev.home.logo ? `<img src="${esc(ev.home.logo)}" alt="">` : ''}
           </div>
           <div class="gsp-mrow-score ${isLive ? 'live' : ''}">
             ${(isLive || isPost) ? `${esc(ev.home.score || '0')} : ${esc(ev.away.score || '0')}` : 'vs'}
           </div>
-          <div class="gsp-mrow-team away ${ev.away.id === teamId ? 'me' : ''}">
+          <div class="gsp-mrow-team away ${ev.away.id === teamId ? 'gsp-me' : ''}">
             ${ev.away.logo ? `<img src="${esc(ev.away.logo)}" alt="">` : ''}
             <span>${esc(ev.away.name)}</span>
           </div>
         </div>
         ${(isPost || isLive) ? `
           <div class="gsp-mrow-acts" data-act="noop">
-            <a class="gsp-mini-btn" href="${esc(ytUrl)}" target="_blank" rel="noopener noreferrer">▶ Highlights</a>
+            <button type="button" class="gsp-mini-btn" data-act="sportsOpenExt" data-url="${esc(ytUrl)}">▶ Highlights</button>
             <button type="button" class="gsp-mini-btn" data-act="sportsMatchDetail" data-sport="${esc(sport)}" data-league="${esc(ev.leagueSlug || 'all')}" data-event="${esc(ev.id)}" data-home="${esc(ev.home.name)}" data-away="${esc(ev.away.name)}" data-date="${ev.dateMs}">Details ›</button>
           </div>
         ` : ''}
@@ -1045,7 +1045,7 @@ function renderGoogleFullTableTab(w, entry, teamId) {
         ${rows.map(r => {
           const isMe = teamId && r.id === teamId;
           return `
-            <div class="gsp-trow ${isMe ? 'me' : ''}">
+            <div class="gsp-trow ${isMe ? 'gsp-me' : ''}">
               <div class="c-rk" style="border-left:3px solid ${r.noteColor || 'transparent'}">${r.rank}</div>
               <div class="c-tm">
                 ${r.logo ? `<img src="${esc(r.logo)}" alt="">` : ''}
@@ -1112,7 +1112,8 @@ async function openSportsMatchModal(sport, league, eventId, homeName, awayName, 
     summary: null,
     fallback: { homeName, awayName, dateMs: Number(dateMs) || 0 }
   };
-  document.getElementById('sm').classList.add('on');
+  document.getElementById('smsheet').classList.add('wfc-wide');
+  document.getElementById('sm').classList.add('show');
   renderSportsMatchModal();
 
   const sumLeague = (sport === 'soccer') ? 'all' : (league || 'all');
@@ -1131,7 +1132,7 @@ function renderSportsMatchModal() {
 
   if (m.loading) {
     sheet.innerHTML = `
-      <div class="sm-hdr">
+      <div class="smh" style="margin-bottom:14px">
         <div><b>Spiel-Details</b><div class="mut sm">${esc(m.fallback?.homeName || '')} vs ${esc(m.fallback?.awayName || '')}</div></div>
         <button class="x2" data-act="smClose">✕</button>
       </div>
@@ -1152,16 +1153,49 @@ function renderSportsMatchModal() {
   const aName = cleanSportsTeamName(aTeam.displayName || aTeam.name || m.fallback?.awayName || 'Gast', false);
   const hLogo = hTeam.logos?.[0]?.href || hTeam.logo || '';
   const aLogo = aTeam.logos?.[0]?.href || aTeam.logo || '';
-  const hScore = home.score ?? '–';
-  const aScore = away.score ?? '–';
-  const statusText = comp.status?.type?.shortDetail || comp.status?.type?.detail || '';
+  const matchState = comp.status?.type?.state || 'pre';
+  const isPreMatch = matchState === 'pre';
+  const hScore = isPreMatch ? '' : (home.score ?? '–');
+  const aScore = isPreMatch ? '' : (away.score ?? '–');
+  const matchDateMs = comp.date ? new Date(comp.date).getTime() : (m.fallback?.dateMs || 0);
+  const statusText = formatSportsMatchDate(matchDateMs, matchState, comp.status?.type?.shortDetail || '', comp.status?.displayClock || '');
   const leagueName = translateLeagueNameDe(raw?.header?.league?.name || '');
 
   const parsed = parseSummaryDetails(raw);
   const ytUrl = buildYoutubeHighlightsUrl(hName, aName, leagueName, m.fallback?.dateMs);
 
+  // Form der letzten 5 Spiele (für Vorschau auf kommende Spiele)
+  const formHtml = (raw?.lastFiveGames || []).map(tf => {
+    const tName = cleanSportsTeamName(tf.team?.displayName || '', false);
+    const tLogo = tf.team?.logo || tf.team?.logos?.[0]?.href || '';
+    const games = (tf.events || []).slice(0, 5).map(g => {
+      const res = g.gameResult || '';
+      const col = res === 'W' ? 'var(--ok)' : res === 'L' ? '#f87171' : 'var(--mut)';
+      const resDe = res === 'W' ? 'S' : res === 'L' ? 'N' : res === 'D' ? 'U' : '–';
+      const dStr = g.gameDate ? new Date(g.gameDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
+      return `<div class="gsp-ev-row">
+        <span class="gsp-ev-min" style="color:${col}">${resDe}</span>
+        ${g.opponentLogo ? `<img src="${esc(g.opponentLogo)}" style="width:18px;height:18px;object-fit:contain" alt="">` : ''}
+        <span style="flex:1">${esc(g.atVs === '@' ? '@ ' : 'vs ')}${esc(cleanSportsTeamName(g.opponent?.displayName || '', false))}</span>
+        <b>${esc(g.score || '')}</b>
+        <small class="mut">${esc(translateLeagueNameDe(g.leagueName || ''))} · ${esc(dStr)}</small>
+      </div>`;
+    }).join('');
+    return `<div class="gsp-lineup-col">
+      <div class="gsp-lineup-hdr">${tLogo ? `<img src="${esc(tLogo)}" alt="">` : ''}<b>${esc(tName)}</b></div>
+      <div class="gsp-ev-list">${games || '<div class="mut sm">Keine Daten</div>'}</div>
+    </div>`;
+  }).join('');
+
   let tabBody = '';
-  if (m.tab === 'events') {
+  if (m.tab === 'events' && isPreMatch) {
+    tabBody = `
+      <div class="gsp-modal-sec">
+        <div class="gsp-modal-stitle">📅 Spiel noch nicht gestartet · Form der letzten 5 Spiele</div>
+        ${formHtml ? `<div class="gsp-lineups-grid">${formHtml}</div>` : '<div class="mut sm">Für dieses Spiel liegen noch keine Vorschau-Daten vor.</div>'}
+      </div>
+    `;
+  } else if (m.tab === 'events') {
     const scorersHtml = parsed.scorers.length ? parsed.scorers.map(s => {
       const isHome = s.teamId === String(hTeam.id || '');
       return `<div class="gsp-ev-row ${isHome ? 'home' : 'away'}">
@@ -1219,7 +1253,7 @@ function renderSportsMatchModal() {
   }
 
   sheet.innerHTML = `
-    <div class="sm-hdr">
+    <div class="smh" style="margin-bottom:14px">
       <div>
         <b>${esc(leagueName || 'Spiel-Details')}</b>
         <div class="mut sm">${esc([parsed.venue, parsed.attendance ? `${parsed.attendance.toLocaleString('de-DE')} Zuschauer` : ''].filter(Boolean).join(' · '))}</div>
@@ -1234,22 +1268,25 @@ function renderSportsMatchModal() {
           <span class="gsp-focus-tname">${esc(hName)}</span>
         </div>
         <div class="gsp-focus-center">
-          <div class="gsp-focus-score"><span>${esc(String(hScore))}</span><span class="gsp-score-sep">–</span><span>${esc(String(aScore))}</span></div>
-          <div class="gsp-focus-status">${esc(statusText)}</div>
+          ${isPreMatch
+            ? `<div class="gsp-focus-vs">vs</div>`
+            : `<div class="gsp-focus-score ${matchState === 'in' ? 'live' : ''}"><span>${esc(String(hScore))}</span><span class="gsp-score-sep">–</span><span>${esc(String(aScore))}</span></div>`}
+          <div class="gsp-focus-status ${matchState === 'in' ? 'live' : ''}">${esc(statusText)}</div>
         </div>
         <div class="gsp-focus-team">
           ${aLogo ? `<img src="${esc(aLogo)}" alt="">` : ''}
           <span class="gsp-focus-tname">${esc(aName)}</span>
         </div>
       </div>
+      ${!isPreMatch ? `
       <div class="gsp-focus-actions" style="justify-content:center;margin-top:12px">
-        <a class="gsp-pill-btn yt" href="${esc(ytUrl)}" target="_blank" rel="noopener noreferrer">▶ Zusammenfassung / Highlights auf YouTube ansehen</a>
-        ${parsed.videos.map(v => `<a class="gsp-pill-btn" href="${esc(v.url)}" target="_blank" rel="noopener noreferrer">🎬 ${esc(v.title)}</a>`).join('')}
-      </div>
+        <button type="button" class="gsp-pill-btn yt" data-act="sportsOpenExt" data-url="${esc(ytUrl)}">▶ Zusammenfassung / Highlights auf YouTube ansehen</button>
+        ${parsed.videos.map(v => `<button type="button" class="gsp-pill-btn" data-act="sportsOpenExt" data-url="${esc(v.url)}">🎬 ${esc(v.title)}</button>`).join('')}
+      </div>` : ''}
     </div>
 
     <div class="gsp-tabs" style="margin-bottom:12px">
-      <button type="button" class="gsp-tab ${m.tab === 'events' ? 'on' : ''}" data-act="sportsModalTab" data-tab="events">⚽ Tore &amp; Karten (${parsed.scorers.length})</button>
+      <button type="button" class="gsp-tab ${m.tab === 'events' ? 'on' : ''}" data-act="sportsModalTab" data-tab="events">${isPreMatch ? '📅 Vorschau & Form' : `⚽ Tore &amp; Karten (${parsed.scorers.length})`}</button>
       <button type="button" class="gsp-tab ${m.tab === 'stats' ? 'on' : ''}" data-act="sportsModalTab" data-tab="stats">📊 Statistik (${parsed.stats.length})</button>
       <button type="button" class="gsp-tab ${m.tab === 'lineups' ? 'on' : ''}" data-act="sportsModalTab" data-tab="lineups">👕 Aufstellungen</button>
     </div>
@@ -1288,4 +1325,32 @@ function refreshAllSportsHubs(force = false) {
       }
     });
   });
+}
+
+
+/* Externe Links (YouTube, ESPN) aus dem HA-iframe heraus im echten Browser-Tab öffnen.
+   Home Assistant lädt das Panel in einem sandboxed iframe – direkte target=_blank-Links
+   erben die Sandbox und werden von YouTube mit ERR_BLOCKED_BY_RESPONSE abgelehnt. */
+function openSportsExternalUrl(url) {
+  if (!url) return;
+  try {
+    const topDoc = window.top && window.top !== window ? window.top.document : null;
+    if (topDoc && topDoc.body) {
+      const a = topDoc.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      topDoc.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 500);
+      return;
+    }
+  } catch (e) { /* Fallback unten */ }
+  try {
+    const w = window.open(url, '_blank', 'noopener');
+    if (!w && typeof toast === 'function') toast('Popup blockiert – bitte Popups für Home Assistant erlauben');
+  } catch (e) {
+    window.location.href = url;
+  }
 }
