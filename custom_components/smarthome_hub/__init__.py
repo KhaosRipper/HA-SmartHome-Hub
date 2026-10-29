@@ -1,4 +1,4 @@
-# Datei: custom_components/smarthome_hub/__init__.py
+﻿# Datei: custom_components/smarthome_hub/__init__.py
 from __future__ import annotations
 
 import base64
@@ -28,7 +28,7 @@ def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
         sidebar_title=title or "Smart Home Hub",
         sidebar_icon=icon or "mdi:home-automation",
         frontend_url_path=DOMAIN,
-        config={"url": f"{STATIC_URL}/index.html?v=2.0.7"},
+        config={"url": f"{STATIC_URL}/index.html?v=2.0.8"},
         require_admin=False,
         update=True,
     )
@@ -80,7 +80,7 @@ async def ws_get_config(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Lädt die gespeicherte Dashboard-Konfiguration aus .storage."""
+    """LÃ¤dt die gespeicherte Dashboard-Konfiguration aus .storage."""
     store: Store = hass.data[DOMAIN]["store"]
     data = await store.async_load()
     connection.send_result(msg["id"], {"config": data})
@@ -136,7 +136,7 @@ async def ws_upload_image(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Nimmt einen Base64-Bildupload entgegen und gibt die lokale URL zurück."""
+    """Nimmt einen Base64-Bildupload entgegen und gibt die lokale URL zurÃ¼ck."""
     upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
     url_path = await hass.async_add_executor_job(
         _save_uploaded_file, upload_dir, msg["filename"], msg["data"]
