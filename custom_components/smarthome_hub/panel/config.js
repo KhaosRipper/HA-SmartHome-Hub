@@ -476,9 +476,10 @@ const TIMO_PRESET_CONFIG = {
       eyebrow: "Fußball", title: "Bundesliga",
       intro: "Informationen zum Verein und Spieltag.",
       widgets: [
-        { type: "buli_team", entity: "sensor.sc_freiburg", title: "Mein Verein" },
-        { type: "buli_table", entity: "sensor.bund_scoreboard2", title: "1. Bundesliga Tabelle" },
-        { type: "buli_matchday", title: "Spieltag Übersicht" }
+        { type: "sports_hub", title: "SC Freiburg", sport: "soccer", league: "ger.1", teamId: "126", teamName: "SC Freiburg", viewMode: "google", col: "full", show: true, showHeader: true, showFocusMatch: true, showUpcoming: true, upcomingCount: 4, showTable: true, tableRows: 6, crossComp: true },
+        { type: "buli_team", entity: "sensor.sc_freiburg", title: "Mein Verein (HA-Sensor)", show: false },
+        { type: "buli_table", entity: "sensor.bund_scoreboard2", title: "1. Bundesliga Tabelle (HA-Sensor)", show: false },
+        { type: "buli_matchday", title: "Spieltag Übersicht (HA-Sensor)", show: false }
       ]
     }
   ]

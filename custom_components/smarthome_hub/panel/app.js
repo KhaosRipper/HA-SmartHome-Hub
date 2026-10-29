@@ -1309,6 +1309,65 @@ document.addEventListener('click', ev => {
     return;
   }
 
+  /* Universal Sport-Center (Google-Style) Aktionen */
+  if (act === 'sportsTab') {
+    const st = getSportsUiState(el.dataset.wkey || 'sh_default');
+    st.tab = el.dataset.tab || 'overview';
+    tick(true);
+    return;
+  }
+  if (act === 'sportsCompFilter') {
+    const st = getSportsUiState(el.dataset.wkey || 'sh_default');
+    st.compFilter = el.dataset.comp || 'all';
+    tick(true);
+    return;
+  }
+  if (act === 'sportsSubTab') {
+    const st = getSportsUiState(el.dataset.wkey || 'sh_default');
+    st.matchSubTab = el.dataset.sub || 'upcoming';
+    tick(true);
+    return;
+  }
+  if (act === 'sportsRefresh') {
+    toast('Sportdaten werden aktualisiert…');
+    refreshAllSportsHubs(true);
+    return;
+  }
+  if (act === 'sportsMatchDetail') {
+    openSportsMatchModal(el.dataset.sport, el.dataset.league, el.dataset.event, el.dataset.home, el.dataset.away, el.dataset.date);
+    return;
+  }
+  if (act === 'sportsModalTab') {
+    sportsHubState.modal.tab = el.dataset.tab || 'events';
+    renderSportsMatchModal();
+    return;
+  }
+  if (act === 'sportsSearchBtn') {
+    const pi = +el.dataset.pi, wi = +el.dataset.wi;
+    const inp = document.getElementById(`sp-search-${pi}-${wi}`);
+    if (inp && inp.value.trim()) {
+      searchSportsTeamsInEditor(inp.value.trim(), pi, wi);
+    } else {
+      toast('Bitte Vereins- oder Liganamen eingeben');
+    }
+    return;
+  }
+  if (act === 'sportsPickResult') {
+    const pi = +el.dataset.pi, wi = +el.dataset.wi;
+    const w = cfgDraft.customPages[pi] && cfgDraft.customPages[pi].widgets[wi];
+    if (w) {
+      w.sport = el.dataset.sport || 'soccer';
+      w.league = el.dataset.league || 'ger.1';
+      w.teamId = el.dataset.tid || '';
+      w.teamName = el.dataset.tname || '';
+      w.teamLogo = el.dataset.tlogo || '';
+      w.title = el.dataset.tname || w.title || 'Sport-Center';
+      renderCfgModal(true);
+      toast(`Ausgewählt: ${w.teamName}`);
+    }
+    return;
+  }
+
   if (act === 'wfcOpen') { openWeatherModal(); return; }
   if (act === 'wfcOpenDay') { weatherForecastState.selectedDay = +el.dataset.i; openWeatherModal(); return; }
   if (act === 'wfcTab') { weatherForecastState.tab = el.dataset.tab; renderWeatherModal(); return; }
@@ -1431,9 +1490,11 @@ document.addEventListener('click', ev => {
   refreshSeries();
   refreshWeatherForecast(true);
   refreshHomeCalendars(true);
+  if (typeof refreshAllSportsHubs === 'function') refreshAllSportsHubs(false);
   setInterval(tick, 1500);
   setInterval(updatePFC, 1500);
   setInterval(runtimeTick, 1000);
   setInterval(refreshSeries, 5 * 60 * 1000);
   setInterval(() => refreshWeatherForecast(true), 30 * 60 * 1000);
+  setInterval(() => { if (typeof refreshAllSportsHubs === 'function') refreshAllSportsHubs(false); }, 2 * 60 * 1000);
 })();

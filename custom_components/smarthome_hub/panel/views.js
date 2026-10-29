@@ -890,7 +890,8 @@ function taskmateChildCard(entity, child) {
     ${taskRows ? `<div class="match-list">${taskRows}</div>` : `<div class="page-note">Keine offenen Aufgaben gefunden.</div>`}</section>`;
 }
 
-function renderCustomWidget(w) {
+function renderCustomWidget(w, widgetKey = 'sh_default') {
+  if (w.type === 'sports_hub') return sportsHubCard(w, widgetKey);
   if (w.type === 'entity_info') {
     const fields = String(w.fields || '').split(',').map(x => x.trim()).filter(Boolean).map(pair => pair.includes(':') ? pair.split(':') : pair);
     return entityInfoCard(w.entity, w.title || w.entity, fields);
@@ -1299,7 +1300,7 @@ function customPageView(pageId) {
   const colChoices = ['auto', ...Array.from({ length: btnColsCount }, (_, i) => String(i + 1)), 'full'];
 
   const wrapWidget = ({ w, wi }) => {
-    const inner = renderCustomWidget(w);
+    const inner = renderCustomWidget(w, `sh_${pIdx}_${wi}`);
     if (!inner && !ui.editMode) return '';
     const colVal = String(w.col || 'auto');
     const qeBar = ui.editMode ? `<div class="qe-bar">

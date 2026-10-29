@@ -249,9 +249,49 @@ function ensureConfigDefaults(cfg) {
   cfg.customPages.forEach(p => {
     if (!p.layout) p.layout = 'grid';
     if (!Array.isArray(p.widgets)) p.widgets = [];
+    // Automatische Migration der bestehenden Bundesliga-Seite auf das neue Google-Style Sport-Center (SC Freiburg)
+    if (p.id === 'bundesliga' && !p._sportsHubMigrated) {
+      p._sportsHubMigrated = true;
+      const hasSportsHub = p.widgets.some(w => w && w.type === 'sports_hub');
+      if (!hasSportsHub) {
+        p.widgets.forEach(w => {
+          if (w && ['buli_team', 'buli_table', 'buli_matchday'].includes(w.type)) w.show = false;
+        });
+        p.widgets.unshift({
+          type: 'sports_hub',
+          title: 'SC Freiburg',
+          sport: 'soccer',
+          league: 'ger.1',
+          teamId: '126',
+          teamName: 'SC Freiburg',
+          viewMode: 'google',
+          col: 'full',
+          show: true,
+          showHeader: true,
+          showFocusMatch: true,
+          showUpcoming: true,
+          upcomingCount: 4,
+          showTable: true,
+          tableRows: 6,
+          crossComp: true
+        });
+      }
+    }
     p.widgets.forEach(w => {
       if (w.show === undefined) w.show = true;
-      if (!w.col) w.col = 'auto';
+      if (!w.col) w.col = w.type === 'sports_hub' ? 'full' : 'auto';
+      if (w.type === 'sports_hub') {
+        if (!w.sport) w.sport = 'soccer';
+        if (!w.league) w.league = 'ger.1';
+        if (!w.viewMode) w.viewMode = 'google';
+        if (w.showHeader === undefined) w.showHeader = true;
+        if (w.showFocusMatch === undefined) w.showFocusMatch = true;
+        if (w.showUpcoming === undefined) w.showUpcoming = true;
+        if (!w.upcomingCount) w.upcomingCount = 4;
+        if (w.showTable === undefined) w.showTable = true;
+        if (!w.tableRows) w.tableRows = 6;
+        if (w.crossComp === undefined) w.crossComp = true;
+      }
     });
   });
 

@@ -694,6 +694,64 @@ function renderCfgModal(preserveScroll = true) {
             extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
               ${fld('Zeitraum in Tagen (z.B. 7 oder 14)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="daysCount" value="${w.daysCount || 7}"`)}
             </div>`;
+          } else if (w.type === 'sports_hub') {
+            const curPresetKey = `${w.sport || 'soccer'}|${w.league || 'ger.1'}|${w.teamId || ''}`;
+            const presetGroupsHtml = `<option value="">— Eigene Auswahl / Über Live-Suche gewählt —</option>` +
+              (typeof SPORTS_QUICK_PRESETS !== 'undefined' ? SPORTS_QUICK_PRESETS : []).map(grp =>
+                `<optgroup label="${esc(grp.group)}">${grp.items.map(it => `<option value="${esc(it.id)}" ${curPresetKey === it.id ? 'selected' : ''}>${esc(it.label)}</option>`).join('')}</optgroup>`
+              ).join('');
+
+            const sState = (typeof sportsHubState !== 'undefined' && sportsHubState.editorSearch) || {};
+            const isMySearch = sState.targetPi === pi && sState.targetWi === wi;
+            const searchResHtml = isMySearch ? (
+              sState.loading
+                ? `<div class="mut sm" style="margin-top:6px">Suche nach „${esc(sState.query)}“…</div>`
+                : (sState.results && sState.results.length
+                  ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${sState.results.map(r => `
+                      <button type="button" class="chip" data-act="sportsPickResult" data-pi="${pi}" data-wi="${wi}" data-sport="${esc(r.sport)}" data-league="${esc(r.league)}" data-tid="${esc(r.id)}" data-tname="${esc(r.name)}" data-tlogo="${esc(r.logo || '')}">
+                        ${r.logo ? `<img src="${esc(r.logo)}" style="width:16px;height:16px;object-fit:contain" alt="">` : '🏆'}
+                        <b>${esc(r.name)}</b>
+                        <small class="mut">(${esc(r.sport)} · ${esc(r.league)})</small>
+                      </button>`).join('')}</div>`
+                  : `<div class="mut sm" style="margin-top:6px">Keine Treffer für „${esc(sState.query)}“ gefunden.</div>`)
+            ) : '';
+
+            extraWidgetCfg = `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px">
+              <span class="cfg-desc">🏆 <b>Universal Sport-Center (Google-Sports-Style)</b> – Keine Home Assistant Integration nötig! Wähle direkt deinen Verein oder deine Liga oder suche weltweit nach jedem Team:</span>
+              <div class="cfg-row">
+                ${sel('Verein oder Liga (Schnellauswahl)', presetGroupsHtml, `data-act="sportsPresetSelect" data-pi="${pi}" data-wi="${wi}"`)}
+                <div class="cfg-field float" style="flex:1.2;min-width:220px">
+                  <div style="display:flex;gap:6px">
+                    <input type="text" class="cfg-in" id="sp-search-${pi}-${wi}" placeholder="z.B. SC Freiburg, Arsenal, Real Madrid, Lakers, 49ers…" value="${esc(isMySearch ? sState.query : '')}">
+                    <button type="button" class="btn-pri" data-act="sportsSearchBtn" data-pi="${pi}" data-wi="${wi}" style="white-space:nowrap;padding:0 14px">🔍 Suchen</button>
+                  </div>
+                  <label>Freie Live-Suche (Weltweit alle Vereine &amp; Sportarten)</label>
+                </div>
+              </div>
+              ${searchResHtml}
+              <div class="cfg-row">
+                ${sel('Darstellungs-Modus', [
+                  ['google', 'Komplettes Google-Sport-Center (2-Spalten Übersicht + Tabs: Spiele, Tabelle, Team)'],
+                  ['matches_only', 'Nur Spielplan & Ergebnisse-Karte'],
+                  ['table_only', 'Nur Liga-Tabelle'],
+                  ['roster_only', 'Nur Team-Kader']
+                ].map(([v, l]) => `<option value="${v}" ${(w.viewMode || 'google') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="viewMode"`)}
+                ${fld('Kommende Spiele (Anzahl)', `type="number" min="1" max="10" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="upcomingCount" value="${w.upcomingCount || 4}"`)}
+                ${fld('Tabellen-Zeilen (Übersicht)', `type="number" min="3" max="20" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="tableRows" value="${w.tableRows || 6}"`)}
+              </div>
+              <div class="cfg-row" style="gap:16px">
+                <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="showHeader" ${w.showHeader !== false ? 'checked' : ''}> Vereins-/Liga-Kopfzeile &amp; Tabs anzeigen</label>
+                <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="showFocusMatch" ${w.showFocusMatch !== false ? 'checked' : ''}> Großes Fokus-Spiel (Live / Letztes Spiel) anzeigen</label>
+                <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="showUpcoming" ${w.showUpcoming !== false ? 'checked' : ''}> Nächste Spiele Kacheln anzeigen</label>
+                <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="showTable" ${w.showTable !== false ? 'checked' : ''}> Tabelle rechts daneben anzeigen</label>
+                <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="crossComp" ${w.crossComp !== false ? 'checked' : ''}> Wettbewerbsübergreifend (Liga + DFB-Pokal + Europapokal)</label>
+              </div>
+              <div class="cfg-row" style="opacity:.75">
+                ${fld('Sportart-Code (z.B. soccer, football, basketball, tennis)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="sport" value="${esc(w.sport || 'soccer')}"`)}
+                ${fld('Liga-Code (z.B. ger.1, ger.2, uefa.champions, nfl)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="league" value="${esc(w.league || 'ger.1')}"`)}
+                ${fld('Team-ID (leer = ganze Liga)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="teamId" value="${esc(w.teamId || '')}"`)}
+              </div>
+            </div>`;
           } else if (w.type === 'trash') {
             extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
               ${fld('Vorschau in Tagen (z.B. 14 oder 30)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="maxDays" value="${w.maxDays || 14}"`)}
@@ -705,10 +763,10 @@ function renderCfgModal(preserveScroll = true) {
           return `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
             <div class="cfg-row">
               <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="show" ${w.show !== false ? 'checked' : ''}> Sichtbar</label>
-              ${sel('Widget-Typ', [['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+              ${sel('Widget-Typ', [['sports_hub', '🏆 Universal Sport-Center (Google-Style: Fußball, NFL, Tennis & mehr)'], ['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
               ${sel('Spalten-Zuweisung', wColOpts.map(([v, l]) => `<option value="${v}" ${String(w.col || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="col"`)}
               ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
-              ${fld('Haupt-Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`)}
+              ${w.type !== 'sports_hub' ? fld('Haupt-Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`) : ''}
               <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi === p.widgets.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
             </div>
             ${extraWidgetCfg}
@@ -961,12 +1019,38 @@ document.addEventListener('input', e => {
   if (t.dataset.pgI != null && t.dataset.wI == null) {
     cfgDraft.customPages[+t.dataset.pgI][t.dataset.pgK] = t.value;
   }
+  if (t.dataset.act === 'sportsPresetSelect') {
+    const w = cfgDraft.customPages[+t.dataset.pi].widgets[+t.dataset.wi];
+    const val = t.value;
+    if (w && val) {
+      let found = null;
+      (typeof SPORTS_QUICK_PRESETS !== 'undefined' ? SPORTS_QUICK_PRESETS : []).forEach(grp => {
+        grp.items.forEach(it => { if (it.id === val) found = it; });
+      });
+      if (found) {
+        w.sport = found.sport;
+        w.league = found.league;
+        w.teamId = found.teamId;
+        w.teamName = found.teamName;
+        w.title = found.teamName;
+      } else {
+        const [sp, lg, tid] = val.split('|');
+        w.sport = sp || 'soccer';
+        w.league = lg || 'ger.1';
+        w.teamId = tid || '';
+      }
+      renderCfgModal(true);
+    }
+    return;
+  }
   if (t.dataset.pgI != null && t.dataset.wI != null) {
     const w = cfgDraft.customPages[+t.dataset.pgI].widgets[+t.dataset.wI];
     const k = t.dataset.wK;
-    if (k === 'show') w.show = t.checked;
-    else if (k === 'daysCount' || k === 'maxDays' || k === 'maxItems') w[k] = parseInt(t.value, 10) || 7;
-    else if (k === 'entity') {
+    if (['show', 'showHeader', 'showFocusMatch', 'showUpcoming', 'showTable', 'crossComp'].includes(k)) {
+      w[k] = t.checked;
+    } else if (['daysCount', 'maxDays', 'maxItems', 'upcomingCount', 'tableRows'].includes(k)) {
+      w[k] = parseInt(t.value, 10) || 4;
+    } else if (k === 'entity') {
       if (w.type === 'iframe') w.url = t.value;
       else if (w.type === 'devices') w.room = t.value;
       else w.entity = t.value;
@@ -974,7 +1058,23 @@ document.addEventListener('input', e => {
       try { w.cardConfig = t.value.trim() ? JSON.parse(t.value) : null; } catch (_) {}
     } else {
       w[k] = t.value;
-      if (k === 'type') renderCfgModal(true);
+      if (k === 'type') {
+        if (w.type === 'sports_hub') {
+          if (!w.sport) w.sport = 'soccer';
+          if (!w.league) w.league = 'ger.1';
+          if (w.teamId === undefined) { w.teamId = '126'; w.teamName = 'SC Freiburg'; w.title = 'SC Freiburg'; }
+          if (!w.viewMode) w.viewMode = 'google';
+          w.col = 'full';
+          if (w.showHeader === undefined) w.showHeader = true;
+          if (w.showFocusMatch === undefined) w.showFocusMatch = true;
+          if (w.showUpcoming === undefined) w.showUpcoming = true;
+          if (!w.upcomingCount) w.upcomingCount = 4;
+          if (w.showTable === undefined) w.showTable = true;
+          if (!w.tableRows) w.tableRows = 6;
+          if (w.crossComp === undefined) w.crossComp = true;
+        }
+        renderCfgModal(true);
+      }
     }
   }
   if (t.dataset.wsiPi != null) {

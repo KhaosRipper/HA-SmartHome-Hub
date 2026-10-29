@@ -1297,3 +1297,730 @@ html, body {
   max-height: 100vh;
   border-radius: 0;
 }
+
+/* --- Universal Sport-Center (Google-Sports-Style) --- */
+.gsp-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.gsp-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 16px;
+  color: var(--mut);
+  font-size: 13.5px;
+}
+.gsp-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.15);
+  border-top-color: var(--acc2);
+  animation: gspSpin .8s linear infinite;
+}
+@keyframes gspSpin {
+  to { transform: rotate(360deg); }
+}
+
+.gsp-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.gsp-hdr-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gsp-club-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+}
+.gsp-club-fallback {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  display: grid;
+  place-items: center;
+  color: var(--acc2);
+}
+.gsp-club-name {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+}
+.gsp-club-sub {
+  font-size: 13px;
+  color: var(--mut);
+  margin-top: 3px;
+}
+.gsp-hdr-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gsp-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gsp-tab {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--txt);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.gsp-tab:hover {
+  background: rgba(255,255,255,.1);
+}
+.gsp-tab.on {
+  background: color-mix(in srgb, var(--acc) 26%, rgba(255,255,255,.08));
+  border-color: var(--acc2);
+  color: #fff;
+}
+.gsp-refresh-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--line);
+  color: var(--mut);
+  font-size: 16px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .15s, color .15s;
+}
+.gsp-refresh-btn:hover {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+}
+
+/* 2-Spalten Google-Sports Layout (Spiele links, Tabelle rechts) */
+.gsp-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .gsp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gsp-panel {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.gsp-panel-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding-bottom: 4px;
+}
+.gsp-panel-hdr b {
+  font-size: 16px;
+}
+.gsp-chevron {
+  font-size: 20px;
+  color: var(--mut);
+  line-height: 1;
+}
+
+/* Großes Fokus-Spiel (wie im Google Screenshot) */
+.gsp-focus {
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.gsp-focus:hover {
+  background: rgba(255,255,255,.045);
+  border-color: rgba(255,255,255,.16);
+}
+.gsp-focus-meta {
+  font-size: 12px;
+  color: var(--mut);
+  margin-bottom: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gsp-focus-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+}
+.gsp-focus-team {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gsp-focus-team img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.4));
+}
+.gsp-focus-tname {
+  font-size: 14.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.gsp-focus-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+}
+.gsp-focus-score {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.gsp-focus-score.live {
+  color: #f87171;
+}
+.gsp-score-sep {
+  color: var(--mut);
+  font-weight: 400;
+  font-size: 26px;
+}
+.gsp-focus-vs {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mut);
+}
+.gsp-focus-status {
+  font-size: 12.5px;
+  color: var(--mut);
+  font-weight: 500;
+  text-align: center;
+}
+.gsp-focus-status.live {
+  color: #f87171;
+  font-weight: 700;
+}
+.gsp-focus-scorers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  font-size: 11.5px;
+  color: var(--mut);
+}
+.gsp-scorer-col.right {
+  text-align: right;
+}
+.gsp-scorer-col b {
+  color: var(--txt);
+}
+.gsp-focus-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.gsp-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  color: var(--txt);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.gsp-pill-btn:hover {
+  background: rgba(255,255,255,.13);
+  border-color: rgba(255,255,255,.25);
+}
+.gsp-pill-btn.yt {
+  background: color-mix(in srgb, var(--acc) 20%, rgba(255,255,255,.05));
+  border-color: color-mix(in srgb, var(--acc) 45%, transparent);
+}
+
+/* 2-Spalten Raster für die nächsten Spiele unter dem Fokus-Spiel */
+.gsp-upcoming-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+@media (max-width: 600px) {
+  .gsp-upcoming-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.gsp-up-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.06);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.gsp-up-tile:hover {
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.15);
+}
+.gsp-up-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.gsp-up-comp {
+  font-size: 10.5px;
+  color: var(--acc2);
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+.gsp-up-trow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gsp-up-trow img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: none;
+}
+.gsp-up-trow span.me {
+  font-weight: 700;
+  color: #fff;
+}
+.gsp-up-time {
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--mut);
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  flex: none;
+}
+.gsp-up-time b {
+  display: block;
+  color: var(--txt);
+  margin-top: 2px;
+}
+
+.gsp-panel-ftr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.gsp-more-pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 22%, rgba(255,255,255,.06));
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gsp-more-pill:hover {
+  background: var(--acc);
+}
+
+/* Google-Sports Tabelle */
+.gsp-table-wrap {
+  display: flex;
+  flex-direction: column;
+}
+.gsp-trow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.gsp-trow:last-child {
+  border-bottom: none;
+}
+.gsp-trow.hdr {
+  font-size: 11.5px;
+  color: var(--mut);
+  font-weight: 600;
+  padding-bottom: 6px;
+}
+.gsp-trow.me {
+  background: color-mix(in srgb, var(--acc) 22%, rgba(255,255,255,.04));
+  border-radius: 10px;
+  font-weight: 700;
+}
+.gsp-trow .c-rk {
+  width: 24px;
+  text-align: center;
+  color: var(--mut);
+  font-weight: 600;
+}
+.gsp-trow .c-tm {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gsp-trow .c-tm img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+}
+.gsp-trow .c-tm span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gsp-trow .c-num {
+  width: 24px;
+  text-align: center;
+  color: var(--mut);
+}
+.gsp-trow .c-goals {
+  width: 42px;
+  text-align: center;
+}
+.gsp-trow .c-pts {
+  width: 32px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--txt);
+}
+
+/* Spielplan-Liste (Tab: Spiele) */
+.gsp-subtabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gsp-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gsp-filter-row .chip {
+  cursor: pointer;
+}
+.gsp-filter-row .chip.on {
+  background: var(--acc);
+  border-color: transparent;
+  color: #fff;
+}
+.gsp-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gsp-match-row {
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.gsp-match-row:hover {
+  background: rgba(255,255,255,.055);
+}
+.gsp-mrow-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--mut);
+  margin-bottom: 6px;
+}
+.gsp-mrow-date.live {
+  color: #f87171;
+  font-weight: 700;
+}
+.gsp-mrow-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gsp-mrow-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  min-width: 0;
+}
+.gsp-mrow-team.home {
+  justify-content: flex-end;
+  text-align: right;
+}
+.gsp-mrow-team.me {
+  font-weight: 700;
+  color: #fff;
+}
+.gsp-mrow-team img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: none;
+}
+.gsp-mrow-score {
+  min-width: 64px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.05);
+}
+.gsp-mrow-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255,255,255,.06);
+}
+.gsp-mini-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--txt);
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Team-Kader (Tab: Team) */
+.gsp-roster-sec {
+  margin-bottom: 12px;
+}
+.gsp-roster-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+.gsp-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.gsp-player-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.06);
+}
+.gsp-jersey {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.07);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--acc2);
+  flex: none;
+}
+.gsp-pinfo {
+  flex: 1;
+  min-width: 0;
+}
+.gsp-pinfo b {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gsp-pinfo small {
+  color: var(--mut);
+  font-size: 11px;
+}
+.gsp-pstats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 11px;
+  color: var(--mut);
+}
+
+/* Match-Detail-Modal (Tore, Statistik-Balken, Aufstellungen) */
+.gsp-modal-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gsp-modal-stitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 4px;
+}
+.gsp-ev-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gsp-ev-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  font-size: 13px;
+}
+.gsp-ev-row.away {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.gsp-ev-min {
+  font-weight: 700;
+  color: var(--acc2);
+  min-width: 34px;
+}
+.gsp-stat-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 0;
+}
+.gsp-stat-vals {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+.gsp-stat-vals span {
+  color: var(--mut);
+}
+.gsp-stat-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  overflow: hidden;
+}
+.gsp-stat-fill {
+  height: 100%;
+  background: var(--acc);
+  border-radius: 999px;
+}
+.gsp-lineups-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .gsp-lineups-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.gsp-lineup-col {
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.gsp-lineup-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.gsp-lineup-hdr img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.gsp-lineup-p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+.gsp-lineup-p .num {
+  width: 22px;
+  color: var(--acc2);
+  font-weight: 700;
+}
+.gsp-lineup-p b, .gsp-lineup-p span {
+  flex: 1;
+}
