@@ -378,15 +378,12 @@ async function fetchJsonSafe(url) {
   }
 }
 
-async function ensureSportsHubData(w, force = false) {
+function ensureSportsHubData(w, force = false) {
   const key = getSportsWidgetConfigKey(w);
   let entry = sportsHubState.cache[key];
   const now = Date.now();
   const hasLive = entry && entry.events && entry.events.some(ev => ev.state === 'in');
   const ttl = hasLive ? 60 * 1000 : 5 * 60 * 1000;
-
-  if (entry && entry.loading) return entry;
-  if (!force && entry && entry.loadedAt && (now - entry.loadedAt < ttl)) return entry;
 
   if (!entry) {
     entry = {
@@ -402,10 +399,19 @@ async function ensureSportsHubData(w, force = false) {
       roster: []
     };
     sportsHubState.cache[key] = entry;
-  } else {
-    entry.loading = true;
+    fetchSportsHubDataAsync(w, entry);
+    return entry;
   }
 
+  if (entry.loading) return entry;
+  if (force || !entry.loadedAt || (now - entry.loadedAt >= ttl)) {
+    entry.loading = true;
+    fetchSportsHubDataAsync(w, entry);
+  }
+  return entry;
+}
+
+async function fetchSportsHubDataAsync(w, entry) {
   const sport = w.sport || 'soccer';
   const league = w.league || 'ger.1';
   const teamId = String(w.teamId || '').trim();
@@ -446,15 +452,14 @@ async function ensureSportsHubData(w, force = false) {
       normEvents.sort((a, b) => a.dateMs - b.dateMs);
       entry.events = normEvents;
 
-      // Fokus-Spiel bestimmen (1. LIVE-Spiel, 2. Heute anstehendes Spiel innerhalb 12h, 3. Zuletzt beendetes Spiel, 4. Nächstes Spiel)
+      // Fokus-Spiel bestimmen (1. LIVE-Spiel, 2. Zuletzt beendetes Spiel, 3. Nächstes Spiel)
       const liveEv = normEvents.find(e => e.state === 'in');
       const finishedEvs = normEvents.filter(e => e.state === 'post' || e.completed);
       const upcomingEvs = normEvents.filter(e => e.state === 'pre' && !e.completed);
       const lastFinished = finishedEvs.length ? finishedEvs[finishedEvs.length - 1] : null;
       const nextUpcoming = upcomingEvs.length ? upcomingEvs[0] : null;
 
-      let focusEv = liveEv || lastFinished || nextUpcoming || null;
-      // Falls das letzte Spiel schon mehr als 6 Tage her ist und innerhalb der nächsten 36h ein neues Spiel ansteht, zeige trotzdem das letzte Ergebnis im Fokus (wie Google), außer es ist gar kein vergangenes Spiel da
+      const focusEv = liveEv || lastFinished || nextUpcoming || null;
       entry.focusEvent = focusEv;
 
       // Für das Fokus-Spiel direkt die Summary (Torschützen, Stadion) laden
@@ -466,9 +471,10 @@ async function ensureSportsHubData(w, force = false) {
         entry.focusSummary = null;
       }
 
-      // Tabelle parsen
-      entry.standings = parseStandingsEntries(standJson);
-      entry.standLeagueName = translateLeagueNameDe(standJson?.name || standJson?.shortName || league);
+      // Tabelle parsen (inkl. Conference-Erkennung für NFL/NBA/NHL)
+      const parsedStand = parseStandingsEntries(standJson, teamId);
+      entry.standings = parsedStand.rows;
+      entry.standLeagueName = parsedStand.leagueName || translateLeagueNameDe(standJson?.name || standJson?.shortName || league);
 
       // Kader parsen
       entry.roster = parseRosterEntries(rosterJson);
@@ -499,8 +505,9 @@ async function ensureSportsHubData(w, force = false) {
         entry.focusSummary = parseSummaryDetails(sumJson);
       }
 
-      entry.standings = parseStandingsEntries(standJson);
-      entry.standLeagueName = translateLeagueNameDe(standJson?.name || lgInfo.name || league);
+      const parsedStand = parseStandingsEntries(standJson, '');
+      entry.standings = parsedStand.rows;
+      entry.standLeagueName = parsedStand.leagueName || translateLeagueNameDe(standJson?.name || lgInfo.name || league);
       entry.roster = [];
     }
 
@@ -510,21 +517,44 @@ async function ensureSportsHubData(w, force = false) {
     entry.error = 'Sportdaten konnten nicht geladen werden.';
   } finally {
     entry.loading = false;
+    const subContent = typeof document !== 'undefined' ? document.getElementById('subpage-content') : null;
+    if (subContent) subContent._lastHtml = null;
     if (typeof tick === 'function') tick(true);
   }
-  return entry;
 }
 
-function parseStandingsEntries(standJson) {
-  if (!standJson) return [];
-  let rawEntries = standJson.children?.[0]?.standings?.entries || standJson.standings?.entries || [];
-  // Falls mehrere Gruppen/Conferences (z.B. NFL/NBA), zusammenführen
-  if (!rawEntries.length && Array.isArray(standJson.children)) {
-    rawEntries = standJson.children.flatMap(ch => ch.standings?.entries || ch.children?.flatMap(sub => sub.standings?.entries || []) || []);
+function parseStandingsEntries(standJson, teamId = '') {
+  if (!standJson) return { rows: [], leagueName: '' };
+  let rawEntries = [];
+  let groupName = translateLeagueNameDe(standJson.name || standJson.shortName || '');
+
+  if (Array.isArray(standJson.children) && standJson.children.length > 0) {
+    // Prüfen ob das gesuchte Team in einer bestimmten Conference/Gruppe steckt (z.B. NFC bei 49ers)
+    let matchedChild = null;
+    if (teamId) {
+      for (const ch of standJson.children) {
+        const chEntries = ch.standings?.entries || ch.children?.flatMap(s => s.standings?.entries || []) || [];
+        if (chEntries.some(e => String(e.team?.id || '') === String(teamId))) {
+          matchedChild = { name: ch.name || ch.abbreviation || '', entries: chEntries };
+          break;
+        }
+      }
+    }
+    if (matchedChild) {
+      rawEntries = matchedChild.entries;
+      if (matchedChild.name) groupName = translateLeagueNameDe(matchedChild.name);
+    } else {
+      rawEntries = standJson.children[0]?.standings?.entries
+        || standJson.children.flatMap(ch => ch.standings?.entries || ch.children?.flatMap(sub => sub.standings?.entries || []) || []);
+    }
+  } else if (standJson.standings?.entries) {
+    rawEntries = standJson.standings.entries;
   }
-  return rawEntries.map((ent, idx) => {
+
+  const rows = rawEntries.map((ent, idx) => {
     const tm = ent.team || ent.athlete || {};
     const stats = ent.stats || [];
+    const hasStat = name => stats.some(x => x.name === name);
     const getStatVal = (name, fallback = 0) => {
       const s = stats.find(x => x.name === name);
       return s ? (s.value ?? s.displayValue ?? fallback) : fallback;
@@ -533,20 +563,29 @@ function parseStandingsEntries(standJson) {
       const s = stats.find(x => x.name === name);
       return s ? String(s.displayValue ?? s.value ?? fallback) : fallback;
     };
-    const rank = parseInt(getStatVal('rank', idx + 1), 10) || (idx + 1);
-    const gp = getStatDisp('gamesPlayed', '0');
+
+    const rawRank = hasStat('rank') ? getStatVal('rank', idx + 1) : (hasStat('playoffSeed') ? getStatVal('playoffSeed', idx + 1) : (idx + 1));
+    const rank = parseInt(rawRank, 10) || (idx + 1);
     const w = getStatDisp('wins', '0');
     const d = getStatDisp('ties', '0');
     const l = getStatDisp('losses', '0');
+    const gp = hasStat('gamesPlayed')
+      ? getStatDisp('gamesPlayed', '0')
+      : String((parseInt(w, 10) || 0) + (parseInt(d, 10) || 0) + (parseInt(l, 10) || 0));
     const gf = getStatDisp('pointsFor', '0');
     const ga = getStatDisp('pointsAgainst', '0');
-    const diffNum = parseFloat(getStatVal('pointDifferential', 0)) || 0;
-    const diffDisp = getStatDisp('pointDifferential', String(diffNum));
-    const pts = getStatDisp('points', getStatDisp('winPercent', '0'));
+    const diffNum = parseFloat(getStatVal('pointDifferential', getStatVal('differential', 0))) || 0;
+    const diffDisp = hasStat('pointDifferential') ? getStatDisp('pointDifferential', String(diffNum)) : getStatDisp('differential', String(diffNum));
+    const pts = hasStat('points')
+      ? getStatDisp('points', '0')
+      : (hasStat('overall') ? getStatDisp('overall', '0') : getStatDisp('winPercent', '0'));
+    const winPct = parseFloat(getStatVal('winPercent', 0)) || 0;
 
     return {
       id: String(tm.id || ''),
       rank,
+      hasExplicitRank: hasStat('rank') || hasStat('playoffSeed'),
+      winPct,
       name: cleanSportsTeamName(tm.displayName || tm.name || '', false),
       shortName: cleanSportsTeamName(tm.shortDisplayName || tm.name || tm.displayName || '', true),
       logo: tm.logos?.[0]?.href || tm.logo || '',
@@ -555,6 +594,10 @@ function parseStandingsEntries(standJson) {
       gp, w, d, l, gf, ga, diffNum, diffDisp, pts
     };
   });
+
+  // Sortieren nach Rank (z.B. Playoff-Seed in NFL oder Tabellenplatz in Bundesliga)
+  rows.sort((a, b) => (a.rank - b.rank) || (b.winPct - a.winPct) || (b.diffNum - a.diffNum));
+  return { rows, leagueName: groupName };
 }
 
 function parseRosterEntries(rosterJson) {
