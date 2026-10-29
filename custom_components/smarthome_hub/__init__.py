@@ -28,7 +28,7 @@ def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
         sidebar_title=title or "Smart Home Hub",
         sidebar_icon=icon or "mdi:home-automation",
         frontend_url_path=DOMAIN,
-        config={"url": f"{STATIC_URL}/index.html"},
+        config={"url": f"{STATIC_URL}/index.html?v=2.0.5"},
         require_admin=False,
         update=True,
     )
