@@ -393,7 +393,7 @@ function rebuildEntitiesList() {
     (r.charts || []).forEach(x => ids.push(x.entity));
   });
   (CONFIG.metrics || []).forEach(m => {
-    ids.push(m.entity, m.chart, m.yesterdayEntity);
+    ids.push(m.entity, m.chart, m.yesterdayEntity, m.cmpEntity);
     if (m.subButtons) m.subButtons.forEach(b => (b.entities || []).forEach(e => ids.push(e.entity)));
   });
   if (CONFIG.security) {
@@ -1499,6 +1499,7 @@ document.addEventListener('click', ev => {
   setInterval(updatePFC, 1500);
   setInterval(runtimeTick, 1000);
   setInterval(refreshSeries, 5 * 60 * 1000);
+  setInterval(refreshMetricCompare, 60 * 1000);
   setInterval(() => refreshWeatherForecast(true), 30 * 60 * 1000);
   setInterval(() => { if (typeof refreshAllSportsHubs === 'function') refreshAllSportsHubs(false); }, 2 * 60 * 1000);
 })();

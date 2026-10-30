@@ -516,7 +516,13 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Titel', `data-m-i="${mi}" data-m-k="title" value="${esc(m.title || '')}"`)}
       ${fld('Haupt-Entität (Tageswert)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="entity" value="${esc(m.entity || '')}"`)}
       ${fld('Einheit (z.B. kWh)', `data-m-i="${mi}" data-m-k="unit" value="${esc(m.unit || '')}"`)}
-      ${fld('Vortages-Entität (optional)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="yesterdayEntity" value="${esc(m.yesterdayEntity || '')}"`)}
+      ${fld('Vortages-Entität (optional, nur bei „Ganzer Vortag“)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="yesterdayEntity" value="${esc(m.yesterdayEntity || '')}"`)}
+    </div>
+    <div class="cfg-row">
+      ${sel('Vergleich mit gestern', [['sameTime', 'Bis zur gleichen Uhrzeit (Verbrauch bis jetzt)'], ['fullDay', 'Ganzer Vortag'], ['rolling', 'Wert vor 24 h (gleitend)']].map(([v, l]) => `<option value="${v}" ${(m.cmpPeriod || 'sameTime') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-m-i="${mi}" data-m-k="cmpPeriod"`)}
+      ${sel('Datenquelle des Vergleichs', [['auto', 'Automatisch (W/kW = Leistung, sonst Zähler)'], ['counter', 'Zähler / Tageswert (kWh, m³ …)'], ['power', 'Leistung (W/kW) → in kWh umrechnen']].map(([v, l]) => `<option value="${v}" ${(m.cmpSource || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-m-i="${mi}" data-m-k="cmpSource"`)}
+      ${sel('Anzeige', [['percent', '% (z.B. 8% mehr als gestern)'], ['absolute', 'Absolut (z.B. +0,6 kWh mehr als gestern)'], ['both', 'Beides']].map(([v, l]) => `<option value="${v}" ${(m.cmpDisplay || 'percent') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-m-i="${mi}" data-m-k="cmpDisplay"`)}
+      ${fld('Vergleichs-Entität (optional, sonst Haupt-Entität)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="cmpEntity" value="${esc(m.cmpEntity || '')}"`)}
     </div>
     <div class="cfg-row">
       ${fld('Live-Entität (für 24h-Chart)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="chart" value="${esc(m.chart || '')}"`)}

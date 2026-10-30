@@ -371,20 +371,106 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   return out;
 }
 
-async function loadYesterdayMetric(m) {
-  if (m.yesterdayEntity) {
-    const val = num(m.yesterdayEntity);
-    if (val != null) return val;
+/* Vergleich "heute vs. gestern" je Metrik.
+   Einstellbar pro Metrik:
+   - cmpPeriod: 'sameTime' (Standard: gestern bis zur gleichen Uhrzeit) | 'fullDay' (ganzer Vortag) | 'rolling' (Wert vor 24 h)
+   - cmpSource: 'auto' (Standard) | 'counter' (Tages-/Gesamtzähler) | 'power' (Leistung W/kW -> wird zu kWh integriert)
+   - cmpEntity: optionale andere Entität für den Vergleich (Standard: Haupt-Entität)
+   Rückgabe: { today, yest, unit, tLabel, yLabel } oder null */
+const _cmpStartOfDay = (d, offsetDays = 0) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + offsetDays); return x; };
+const _cmpHM = d => d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+// Energie (kWh) aus Leistungs-Verlauf: Wert wird bis zur nächsten Änderung gehalten.
+function _cmpIntegrate(pts, a, b, factor) {
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const s = Math.max(pts[i].t, a);
+    const e = Math.min(i + 1 < pts.length ? pts[i + 1].t : b, b);
+    if (e > s) sum += pts[i].v * factor * (e - s) / 3600e3;
   }
-  if (DEMO) return m.id === 'energy' ? 13.48 : 171.4;
-  const h = getHass(); if (!h || !m.entity) return null;
-  const end = new Date(Date.now() - 24 * 3600e3);
-  const start = new Date(end.getTime() - 24 * 3600e3);
-  const url = `history/period/${start.toISOString()}?filter_entity_id=${m.entity}&end_time=${encodeURIComponent(end.toISOString())}&minimal_response&no_attributes`;
+  return sum;
+}
+
+// Verbrauch aus Zählerverlauf: summiert Zuwächse, Rücksetzer (z.B. Mitternacht) beginnen wieder bei 0.
+function _cmpCounterUsage(pts, a, b) {
+  let sum = 0;
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].t < a || pts[i].t > b) continue;
+    const d = pts[i].v - pts[i - 1].v;
+    if (d >= 0) sum += d;
+    else if (pts[i].v <= pts[i - 1].v * 0.5) sum += pts[i].v; // Reset
+  }
+  return sum;
+}
+
+function _cmpValueAt(pts, t) {
+  let v = null;
+  for (const p of pts) { if (p.t <= t) v = p.v; else break; }
+  return v;
+}
+
+async function loadMetricCompare(m) {
+  const period = m.cmpPeriod || 'sameTime';
+  const ent = m.cmpEntity || m.entity;
+  if (DEMO) return { today: m.id === 'energy' ? 14.2 : 180, yest: m.id === 'energy' ? 13.1 : 171.4, unit: m.unit || '', tLabel: 'bis jetzt', yLabel: 'gestern' };
+  const h = getHass(); if (!h || !ent) return null;
+
+  const now = new Date();
+  const yNow = new Date(now); yNow.setDate(yNow.getDate() - 1);
+  const todayStart = _cmpStartOfDay(now), yStart = _cmpStartOfDay(now, -1);
+  const st = S(ent), attrs = (st && st.attributes) || {};
+  const nativeUnit = String(attrs.unit_of_measurement || '').trim();
+
+  // Quelle automatisch erkennen: W/kW => Leistung (integrieren), sonst Zähler/Tageswert
+  let source = m.cmpSource || 'auto';
+  if (source === 'auto') source = /^k?w$/i.test(nativeUnit) ? 'power' : 'counter';
+  const powerFactor = /^kw$/i.test(nativeUnit) ? 1 : 0.001; // -> kWh
+
+  // Gestern ganzer Tag aus separater Vortages-Entität (falls gesetzt)
+  const yEntVal = period === 'fullDay' && m.yesterdayEntity ? num(m.yesterdayEntity) : null;
+
+  const startFetch = period === 'rolling' ? new Date(now.getTime() - 25 * 3600e3) : yStart;
+  const url = `history/period/${startFetch.toISOString()}?filter_entity_id=${ent}&end_time=${encodeURIComponent(now.toISOString())}&minimal_response&no_attributes`;
   const res = await h.callApi('GET', url);
-  const arr = (res && res[0]) || [];
-  const pts = arr.map(p => parseFloat(p.state)).filter(v => Number.isFinite(v));
-  return pts.length ? pts[pts.length - 1] : null;
+  const pts = ((res && res[0]) || [])
+    .map(p => ({ t: new Date(p.last_changed || p.last_updated).getTime(), v: parseFloat(p.state) }))
+    .filter(p => Number.isFinite(p.v))
+    .sort((a, b) => a.t - b.t);
+  if (!pts.length) return null;
+  // Startwert auf Beginn des Zeitfensters setzen (History liefert ihn evtl. mit früherem Zeitstempel)
+  if (pts[0].t < startFetch.getTime()) pts[0].t = startFetch.getTime();
+
+  let today, yest, unit = m.unit || nativeUnit, tLabel, yLabel;
+  if (period === 'rolling') {
+    today = num(ent);
+    yest = _cmpValueAt(pts, now.getTime() - 24 * 3600e3);
+    tLabel = 'jetzt'; yLabel = 'vor 24 h';
+  } else {
+    const aT = todayStart.getTime(), bT = now.getTime();
+    const aY = yStart.getTime();
+    const bY = period === 'fullDay' ? todayStart.getTime() : yNow.getTime();
+    if (source === 'power') {
+      today = _cmpIntegrate(pts, aT, bT, powerFactor);
+      yest = _cmpIntegrate(pts, aY, bY, powerFactor);
+      unit = 'kWh';
+    } else {
+      const liveToday = ent === m.entity ? num(m.entity) : null;
+      today = liveToday != null ? liveToday : _cmpCounterUsage(pts, aT, bT);
+      yest = _cmpCounterUsage(pts, aY, bY);
+    }
+    if (yEntVal != null) yest = yEntVal;
+    tLabel = `heute bis ${_cmpHM(now)}`;
+    yLabel = period === 'fullDay' ? 'gestern gesamt' : `gestern bis ${_cmpHM(yNow)}`;
+  }
+  if (today == null || yest == null) return null;
+  return { today, yest, unit, tLabel, yLabel };
+}
+
+async function refreshMetricCompare() {
+  for (const m of CONFIG.metrics || []) {
+    try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
+  }
+  ui.seriesVer++; tick(true);
 }
 
 async function refreshSeries() {
@@ -407,7 +493,7 @@ async function refreshSeries() {
         }
       }
     }
-    try { yesterdayMetricVals[m.id] = await loadYesterdayMetric(m); } catch (e) {}
+    try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
   }
   for (const r of CONFIG.climateRooms || []) for (const c of r.charts || []) {
     const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');

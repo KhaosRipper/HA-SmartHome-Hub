@@ -406,14 +406,24 @@ function climateCard() {
 
 function metricCard(m) {
   const v = num(m.entity);
-  const yVal = m.yesterdayEntity ? num(m.yesterdayEntity) : yesterdayMetricVals[m.id];
+  const cmp = yesterdayMetricVals[m.id];
   let trendHtml = `<div class="m-trend flat">– kein Vergleichswert</div>`;
-  if (v != null && yVal != null && yVal > 0) {
-    const pct = Math.round(((v - yVal) / yVal) * 100), absPct = Math.abs(pct);
-    const text = pct < 0 ? `${absPct}% weniger als gestern` : pct > 0 ? `${absPct}% mehr als gestern` : `Gleich wie gestern`;
+  if (cmp && cmp.today != null && cmp.yest != null && cmp.yest > 0) {
+    const diff = cmp.today - cmp.yest;
+    const pct = Math.round((diff / cmp.yest) * 100), absPct = Math.abs(pct);
+    const dir = pct < 0 ? 'weniger' : 'mehr';
+    const cu = cmp.unit ? ' ' + cmp.unit : '';
+    const absTxt = `${diff < 0 ? '−' : '+'}${fmt(Math.abs(diff), Math.abs(diff) < 10 ? 2 : 1)}${cu}`;
+    const kind = m.cmpDisplay || 'percent';
+    let text;
+    if (pct === 0 && kind === 'percent') text = 'Gleich wie gestern';
+    else if (kind === 'absolute') text = `${absTxt} ${diff < 0 ? 'weniger' : 'mehr'} als gestern`;
+    else if (kind === 'both') text = `${absPct}% (${absTxt}) ${dir} als gestern`;
+    else text = `${absPct}% ${dir} als gestern`;
     const arrow = pct < 0 ? '↓' : pct > 0 ? '↑' : '±';
     const cls = pct < 0 ? 'down' : pct > 0 ? 'up' : 'flat';
-    trendHtml = `<div class="m-trend ${cls}">${arrow} ${text}</div>`;
+    const tip = `${cmp.tLabel}: ${fmt(cmp.today, 2)}${cu} · ${cmp.yLabel}: ${fmt(cmp.yest, 2)}${cu}`;
+    trendHtml = `<div class="m-trend ${cls}" title="${esc(tip)}">${arrow} ${esc(text)}</div>`;
   }
   let headRight = 'Heute', liveText = '', extraHTML = '';
   if (m.subButtons && m.subButtons.length) {
