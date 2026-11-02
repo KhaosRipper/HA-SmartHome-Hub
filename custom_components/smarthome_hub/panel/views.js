@@ -47,7 +47,72 @@ function toggleDevice(e) {
   else call('homeassistant', 'toggle', { entity_id: e });
 }
 
-/* ---------- Statusanzeige Rechts ---------- */
+/* ---------- Türschloss-Akku Helfer & Statusanzeige Rechts ---------- */
+function getLockBatteryVal(l) {
+  if (!l) return null;
+  if (l.battery) {
+    const bs = S(l.battery);
+    if (bs && !['unknown', 'unavailable'].includes(bs.state)) {
+      const v = parseFloat(bs.state);
+      if (Number.isFinite(v)) return Math.round(clamp(v, 0, 100));
+    }
+  }
+  const lk = l.entity ? S(l.entity) : null;
+  const a = (lk && lk.attributes) || {};
+  const attrVal = a.battery_level ?? a.battery;
+  if (attrVal != null) {
+    const v = parseFloat(attrVal);
+    if (Number.isFinite(v)) return Math.round(clamp(v, 0, 100));
+  }
+  return null;
+}
+
+function renderLockBatteryHtml(l, targetLoc, locksCount = 1) {
+  const pos = l.batPos || 'pill';
+  const style = l.batStyle || 'badge';
+  if (pos === 'off') return '';
+
+  const matchLoc =
+    (targetLoc === 'pill' && (pos === 'pill' || pos === 'both')) ||
+    (targetLoc === 'above' && pos === 'above') ||
+    (targetLoc === 'subtext' && pos === 'subtext') ||
+    (targetLoc === 'card' && (pos === 'card' || pos === 'both'));
+  if (!matchLoc) return '';
+
+  // Wenn weder Batterie-Entität gewählt ist noch das Schloss ein Batterie-Attribut liefert -> nichts anzeigen
+  if (!l.battery) {
+    const lk = l.entity ? S(l.entity) : null;
+    const a = (lk && lk.attributes) || {};
+    if (a.battery_level == null && a.battery == null) return '';
+  }
+
+  const val = getLockBatteryVal(l);
+  if (val == null) return '';
+  if (style === 'warn_only' && val > 25) return '';
+
+  const lvlCls = val <= 20 ? 'crit' : val <= 40 ? 'low' : 'ok';
+  const prefix = (locksCount > 1 && targetLoc === 'subtext') ? `${esc(l.name)}: ` : '';
+
+  if (targetLoc === 'subtext') {
+    if (style === 'text') return `<span class="lock-bat-inline ${lvlCls}">${prefix}Akku ${val}%</span>`;
+    if (style === 'minimal') return `<span class="lock-bat-inline ${lvlCls}">${ic('battery', 12)} ${prefix}${val}%</span>`;
+    return `<span class="lock-bat-badge sm ${lvlCls}">${ic('battery', 11)}<span>${prefix}${val}%</span></span>`;
+  }
+
+  if (targetLoc === 'card') {
+    return ` · <span class="lock-bat-inline ${lvlCls}">${ic('battery', 11)} ${val}%</span>`;
+  }
+
+  const posCls = targetLoc === 'above' ? 'above' : 'in-pill';
+  if (style === 'text') {
+    return `<span class="lock-bat-txt ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${val}%</span>`;
+  }
+  if (style === 'minimal') {
+    return `<span class="lock-bat-min ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
+  }
+  return `<span class="lock-bat-badge ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
+}
+
 function rightTopStatus() {
   const sec = CONFIG.security || {}, problems = [];
   const locks = getLocksList(sec);
@@ -58,20 +123,28 @@ function rightTopStatus() {
   const openW = (sec.windows || []).filter(w => { const s = S(w); return s && s.state === 'on'; }).length;
   if (openW) problems.push(`${openW} Fenster offen`);
 
+  const subtextBats = locks.map(l => renderLockBatteryHtml(l, 'subtext', locks.length)).filter(Boolean);
+  const baseSubText = problems.length ? esc(problems.join(' · ')) : 'Alle Systeme normal';
+  const fullSubHtml = subtextBats.length ? `${baseSubText} <span class="sep">·</span> ${subtextBats.join(' ')}` : baseSubText;
+
   const lockPills = locks.map(l => {
     const lk = S(l.entity);
     const locked = !lk || lk.state === 'locked';
     const armed = ui.unlockArmedEntity === l.entity && ui.unlockArmedUntil > Date.now();
-    return `<div class="lockpill" title="${esc(l.name)}">
+    const pillBatHtml = renderLockBatteryHtml(l, 'pill', locks.length);
+    const aboveBatHtml = renderLockBatteryHtml(l, 'above', locks.length);
+
+    return `<div class="lockpill ${aboveBatHtml ? 'has-above' : ''}" title="${esc(l.name)}">
+      ${aboveBatHtml}
       ${locks.length > 1 ? `<span class="mut sm" style="padding:0 6px">${esc(l.name)}</span>` : ''}
       <button class="${locked ? 'on' : ''}" data-act="lockEntity" data-e="${esc(l.entity)}" title="${esc(l.name)} verriegeln">${ic('lock')}</button>
-      <span class="dots">›››</span>
+      ${pillBatHtml || `<span class="dots">›››</span>`}
       <button class="${!locked ? 'open' : ''} ${armed ? 'armed' : ''}" data-act="unlockEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}" title="${esc(l.name)} entriegeln">${ic('unlock')}</button>
     </div>`;
   }).join('');
 
   return `<div class="stat">
-    <div class="t"><b class="${problems.length ? 'warn' : 'ok'}">${problems.length ? 'Achtung' : 'Zuhause ist gesichert'}</b><span class="mut sm">${problems.length ? esc(problems.join(' · ')) : 'Alle Systeme normal'}</span></div>
+    <div class="t"><b class="${problems.length ? 'warn' : 'ok'}">${problems.length ? 'Achtung' : 'Zuhause ist gesichert'}</b><span class="mut sm stat-subline">${fullSubHtml}</span></div>
     ${lockPills}
   </div>`;
 }
@@ -452,7 +525,8 @@ function securityCard() {
   const lockTiles = locks.map(l => {
     const lk = S(l.entity);
     const locked = !lk || lk.state === 'locked';
-    return `<button class="tile ${locked ? '' : 'warn'}" data-act="doorEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}">${ic(locked ? 'lock' : 'unlock', 18)}<span style="min-width:0"><b>${esc(l.name || 'Tür')}</b><small>${locked ? 'Verriegelt' : 'Entriegelt'}</small></span></button>`;
+    const cardBatHtml = renderLockBatteryHtml(l, 'card', locks.length);
+    return `<button class="tile ${locked ? '' : 'warn'}" data-act="doorEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}">${ic(locked ? 'lock' : 'unlock', 18)}<span style="min-width:0"><b>${esc(l.name || 'Tür')}</b><small>${locked ? 'Verriegelt' : 'Entriegelt'}${cardBatHtml}</small></span></button>`;
   }).join('');
 
   return `<section class="card"><div class="ch"><div><b>Sicherheit</b><div class="sm" style="color:${allOk ? 'var(--ok)' : 'var(--warn)'}">${allOk ? 'Alle Systeme aktiv' : 'Bitte prüfen'}</div></div></div>

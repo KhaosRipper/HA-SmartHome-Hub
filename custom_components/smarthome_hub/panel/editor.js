@@ -605,12 +605,31 @@ function renderCfgModal(preserveScroll = true) {
     </div>`);
 
   // ---------- TAB 7: KAMERAS & SICHERHEIT ----------
-  let tKameras = box('Sicherheit & Kameras', 'Türschlösser, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
-    <span class="cfg-desc">Türschlösser (Reihenfolge anpassbar):</span>
-    ${(cfgDraft.security.locks || []).map((lk, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-      ${fld('Bezeichnung', `data-lk-i="${i}" data-lk-k="name" value="${esc(lk.name || '')}"`)}
-      ${fld('Entität (lock.*)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="entity" value="${esc(lk.entity || '')}"`)}
-      <div class="order-btns"><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="1" ${i === cfgDraft.security.locks.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLock" data-i="${i}">✕</button></div>
+  let tKameras = box('Sicherheit & Kameras', 'Türschlösser, Akku-Anzeige, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
+    <span class="cfg-desc">Türschlösser & Akku-Anzeige (Reihenfolge, Position & Stil frei wählbar):</span>
+    ${(cfgDraft.security.locks || []).map((lk, i) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+      <div class="cfg-row">
+        ${fld('Bezeichnung', `data-lk-i="${i}" data-lk-k="name" value="${esc(lk.name || '')}"`)}
+        ${fld('Schloss-Entität (lock.*)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="entity" value="${esc(lk.entity || '')}"`)}
+        ${fld('Akku-Entität (sensor.* optional)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="battery" value="${esc(lk.battery || '')}"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="1" ${i === cfgDraft.security.locks.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLock" data-i="${i}">✕</button></div>
+      </div>
+      <div class="cfg-row" style="margin-top:8px">
+        ${sel('Wo anzeigen? (Position)', [
+          ['pill', 'In der Schloss-Pille (zwischen 🔒 und 🔓)'],
+          ['subtext', 'Links im Status-Text („Alle Systeme normal · 🔋 85%“)'],
+          ['above', 'Als schwebendes Mini-Label oben auf der Schloss-Pille'],
+          ['card', 'Nur unten in der Sicherheits-Kachel'],
+          ['both', 'Oben in der Schloss-Pille + unten in der Sicherheits-Kachel'],
+          ['off', 'Ausblenden']
+        ].map(([v, l]) => `<option value="${v}" ${(lk.batPos || 'pill') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batPos"`)}
+        ${sel('Wie anzeigen? (Darstellungs-Stil)', [
+          ['badge', 'Farbiges Badge (Grün / Gelb / Rot mit Icon & %)'],
+          ['minimal', 'Dezent / Minimal (nur dezentes Icon + %)'],
+          ['text', 'Nur Text (z. B. „85%“ oder „Akku 85%“)'],
+          ['warn_only', 'Nur bei niedrigem Akku anzeigen (≤ 25%)']
+        ].map(([v, l]) => `<option value="${v}" ${(lk.batStyle || 'badge') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batStyle"`)}
+      </div>
     </div>`).join('')}
     <button class="iconbtn" data-act="cfgAddLock" style="margin-bottom:14px">+ Türschloss hinzufügen</button>
 

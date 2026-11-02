@@ -124,8 +124,15 @@ function parseColsMode(val, defaultMode = 'auto', defaultCols = 2) {
 
 function getLocksList(secObj = CONFIG.security) {
   const sec = secObj || {};
-  if (Array.isArray(sec.locks) && sec.locks.length) return sec.locks.filter(l => l && l.entity);
-  if (sec.lock) return [{ name: 'Haustür', entity: sec.lock }];
+  if (Array.isArray(sec.locks) && sec.locks.length) {
+    return sec.locks.filter(l => l && l.entity).map(l => ({
+      ...l,
+      battery: l.battery || '',
+      batPos: l.batPos || 'pill',
+      batStyle: l.batStyle || 'badge'
+    }));
+  }
+  if (sec.lock) return [{ name: 'Haustür', entity: sec.lock, battery: '', batPos: 'pill', batStyle: 'badge' }];
   return [];
 }
 
@@ -190,6 +197,12 @@ function ensureConfigDefaults(cfg) {
   if (!Array.isArray(cfg.security.locks)) {
     cfg.security.locks = cfg.security.lock ? [{ name: 'Haustür', entity: cfg.security.lock }] : [];
   }
+  
+  cfg.security.locks.forEach(l => {
+    if (l.battery === undefined) l.battery = '';
+    if (!l.batPos) l.batPos = 'pill';
+    if (!l.batStyle) l.batStyle = 'badge';
+  });
   if (!Array.isArray(cfg.security.windows)) cfg.security.windows = [];
   if (!Array.isArray(cfg.security.cameras)) cfg.security.cameras = [];
 

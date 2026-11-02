@@ -398,7 +398,7 @@ function rebuildEntitiesList() {
   });
   if (CONFIG.security) {
     ids.push(CONFIG.security.lock, ...(CONFIG.security.windows || []), ...(CONFIG.security.cameras || []));
-    getLocksList(CONFIG.security).forEach(l => ids.push(l.entity));
+    getLocksList(CONFIG.security).forEach(l => ids.push(l.entity, l.battery));
   }
   (CONFIG.lights || []).forEach(g => ids.push(...(g.entities || [])));
   if (CONFIG.lightsMain && CONFIG.lightsMain.mode === 'custom') {
@@ -423,7 +423,7 @@ function tick(force) {
     return;
   }
   if (coverDrag.active) return;
-  const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level].join('|'); }).join(';')
+  const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level, a.battery_level, a.battery].join('|'); }).join(';')
     + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.seriesVer}${homeCalendarState.loadedAt}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
 }
@@ -1155,7 +1155,7 @@ document.addEventListener('click', ev => {
   /* Türschlösser & Kameras */
   if (act === 'cfgAddLock') {
     if (!Array.isArray(cfgDraft.security.locks)) cfgDraft.security.locks = [];
-    cfgDraft.security.locks.push({ name: 'Neues Schloss', entity: '' });
+    cfgDraft.security.locks.push({ name: 'Neues Schloss', entity: '', battery: '', batPos: 'pill', batStyle: 'badge' });
     renderCfgModal(true);
     return;
   }
