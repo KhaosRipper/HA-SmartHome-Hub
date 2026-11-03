@@ -159,6 +159,7 @@ function DEFAULT_DASHBOARD_LAYOUT() {
     { id: 'calendar',   label: 'Familienkalender',                col: 1, show: true, scope: 'home', cfgTab: 'energie' },
     { id: 'status',     label: 'Sicherheits-Status & Türschloss', col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
     { id: 'climate',    label: 'Raumklima & Wetter-Kachel',       col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'favorites',  label: 'Schnellauswahl / Favoriten',      col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
     { id: 'metrics',    label: 'Metriken (Energie / Wasser)',     col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
     { id: 'security',   label: 'Sicherheit (Schlösser/Fenster)',  col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
     { id: 'lights',     label: 'Lichter-Gruppen',                 col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
@@ -227,7 +228,19 @@ function ensureConfigDefaults(cfg) {
       { id: 'covers', name: 'Rolläden' }
     ];
   }
+  if (!Array.isArray(cfg.favorites)) cfg.favorites = [];
+  cfg.favorites.forEach(f => {
+    if (f.show === undefined) f.show = true;
+  });
+
   if (!Array.isArray(cfg.metrics)) cfg.metrics = [];
+  cfg.metrics.forEach(m => {
+    if (m.show === undefined) m.show = true;
+    if (m.showChart === undefined) m.showChart = true;
+    if (m.showCompare === undefined) m.showCompare = true;
+    if (m.showSubButtons === undefined) m.showSubButtons = true;
+    if (m.showLive === undefined) m.showLive = true;
+  });
   if (!Array.isArray(cfg.rooms) || !cfg.rooms.length) cfg.rooms = [{ name: 'Home', image: '', color: '#2a2370', chips: [] }];
   cfg.rooms.forEach(r => {
     if (!Array.isArray(r.chips)) r.chips = [];

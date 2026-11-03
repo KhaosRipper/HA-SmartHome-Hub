@@ -109,6 +109,7 @@ const EMPTY_CONFIG = {
     windows: [],
     cameras: []
   },
+  favorites: [],
   lights: [],
 
   customPages: [
@@ -398,6 +399,8 @@ const TIMO_PRESET_CONFIG = {
     windows: ["binary_sensor.fenster_wohnzimmer", "binary_sensor.fenster_kueche"],
     cameras: ["camera.eingang", "camera.garten", "camera.hintereingang", "camera.hof", "camera.parkplatz", "camera.werkstatt"]
   },
+
+  favorites: [],
 
   lights: [
     { name: "Living", entities: ["switch.wohnzimmer_licht_vorne", "switch.wohnzimmer_licht_hinten"] },

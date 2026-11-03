@@ -14,6 +14,7 @@ const DASH_CARD_EDITOR_TAB = {
   calendar: 'energie',
   status: 'kameras',
   climate: 'allgemein',
+  favorites: 'geraete',
   metrics: 'energie',
   security: 'kameras',
   lights: 'geraete',
@@ -28,6 +29,7 @@ function renderDashCardHtml(id) {
     case 'calendar': return homeCalendarCard();
     case 'status': return rightTopStatus();
     case 'climate': return climateCard();
+    case 'favorites': return favoritesCard();
     case 'metrics': return (CONFIG.metrics || []).map(metricCard).join('');
     case 'security': return securityCard();
     case 'lights': return lightsCard();
@@ -193,6 +195,32 @@ function render() {
           if (heroWrap.className !== nextCls) heroWrap.className = nextCls;
         }
         buckets[targetCol].push('__HERO_PLACEHOLDER__');
+      } else if (item.id === 'metrics') {
+        const activeMetrics = (CONFIG.metrics || []).filter(m => m.show !== false);
+        if (!activeMetrics.length && !ui.editMode) return;
+        if (!activeMetrics.length) {
+          buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${qeBar}<section class="card"><div class="mut sm">Keine Metriken aktiv</div></section></div>`);
+        } else {
+          activeMetrics.forEach((m, mIdx) => {
+            const mHtml = metricCard(m);
+            if (!mHtml) return;
+            const bar = mIdx === 0 ? qeBar : (ui.editMode ? `<div class="qe-bar"><span class="qe-title">${esc(m.title || 'Metrik')}</span></div>` : '');
+            buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${bar}${mHtml}</div>`);
+          });
+        }
+      } else if (item.id === 'extra_tabs') {
+        const extraTabs = (CONFIG.deviceTabs || []).filter(t => t.id !== 'geraete' && t.id !== 'covers');
+        if (!extraTabs.length && !ui.editMode) return;
+        if (!extraTabs.length) {
+          buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${qeBar}<section class="card"><div class="mut sm">Keine zusätzlichen Geräte-Reiter</div></section></div>`);
+        } else {
+          extraTabs.forEach((t, tIdx) => {
+            const card = devicesCard(null, t.name, t.id);
+            if (!card && !ui.editMode) return;
+            const bar = tIdx === 0 ? qeBar : (ui.editMode ? `<div class="qe-bar"><span class="qe-title">${esc(t.name)}</span></div>` : '');
+            buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${bar}${card}</div>`);
+          });
+        }
       } else {
         const cardHtml = renderDashCardHtml(item.id);
         if (!cardHtml && !ui.editMode) return;
@@ -377,6 +405,7 @@ function rebuildEntitiesList() {
   });
   (CONFIG.devices || []).forEach(d => ids.push(d.entity, d.power, d.energy));
   (CONFIG.covers || []).forEach(c => ids.push(c.entity));
+  (CONFIG.favorites || []).forEach(f => { if (f && f.entity) ids.push(f.entity); });
   if (CONFIG.climate) {
     ids.push(CONFIG.climate.entity);
     (CONFIG.climate.tiles || []).forEach(t => ids.push(t.entity));
@@ -1122,6 +1151,24 @@ document.addEventListener('click', ev => {
   if (act === 'cfgDelCov') { cfgDraft.covers.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveCov') { moveItem(cfgDraft.covers, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
 
+  /* Favoriten / Schnellauswahl */
+  if (act === 'cfgAddFav') {
+    if (!Array.isArray(cfgDraft.favorites)) cfgDraft.favorites = [];
+    cfgDraft.favorites.push({ name: '', entity: '', icon: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelFav') {
+    cfgDraft.favorites.splice(+el.dataset.i, 1);
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgMoveFav') {
+    moveItem(cfgDraft.favorites, +el.dataset.i, +el.dataset.dir);
+    renderCfgModal(true);
+    return;
+  }
+
   /* Metriken (Energie / Wasser / Eigene Kacheln) + SubButtons + PowerFlow */
   if (act === 'cfgAddMetric') {
     if (!Array.isArray(cfgDraft.metrics)) cfgDraft.metrics = [];
@@ -1511,6 +1558,31 @@ document.addEventListener('click', ev => {
         call('homeassistant', gi.toggleOn ? 'turn_off' : 'turn_on', { entity_id: gi.toggleEnts });
       }
       setTimeout(() => { if (sm.open && sm.mode === 'lgrpDetail') renderLightGroupModal(); tick(true); }, 250);
+    }
+  }
+  else if (act === 'favTileClick') {
+    const ent = el.dataset.e;
+    if (ent) {
+      const dm = dom(ent);
+      const s = S(ent);
+      if (dm === 'cover') {
+        const pos = s && s.attributes && s.attributes.current_position != null ? s.attributes.current_position : null;
+        const isOpen = s && !['closed', 'unavailable', 'unknown'].includes(s.state) && (pos == null || pos > 0);
+        call('cover', isOpen ? 'close_cover' : 'open_cover', { entity_id: ent });
+      } else if (dm === 'scene') {
+        call('scene', 'turn_on', { entity_id: ent });
+        toast(`Szene aktiviert: ${el.dataset.name || ent}`);
+      } else if (dm === 'script') {
+        call('script', 'turn_on', { entity_id: ent });
+        toast(`Skript gestartet: ${el.dataset.name || ent}`);
+      } else if (dm === 'lock') {
+        const locked = !s || s.state === 'locked';
+        if (locked) requirePin('doorUnlock', () => call('lock', 'unlock', { entity_id: ent }), `${el.dataset.name || 'Tür'} entriegeln`);
+        else call('lock', 'lock', { entity_id: ent });
+      } else {
+        call('homeassistant', 'toggle', { entity_id: ent });
+      }
+      setTimeout(() => tick(true), 250);
     }
   }
   tick(true);

@@ -478,39 +478,114 @@ function climateCard() {
 }
 
 function metricCard(m) {
+  if (m.show === false) return '';
   const v = num(m.entity);
   const cmp = yesterdayMetricVals[m.id];
-  let trendHtml = `<div class="m-trend flat">– kein Vergleichswert</div>`;
-  if (cmp && cmp.today != null && cmp.yest != null && cmp.yest > 0) {
-    const diff = cmp.today - cmp.yest;
-    const pct = Math.round((diff / cmp.yest) * 100), absPct = Math.abs(pct);
-    const dir = pct < 0 ? 'weniger' : 'mehr';
-    const cu = cmp.unit ? ' ' + cmp.unit : '';
-    const absTxt = `${diff < 0 ? '−' : '+'}${fmt(Math.abs(diff), Math.abs(diff) < 10 ? 2 : 1)}${cu}`;
-    const kind = m.cmpDisplay || 'percent';
-    let text;
-    if (pct === 0 && kind === 'percent') text = 'Gleich wie gestern';
-    else if (kind === 'absolute') text = `${absTxt} ${diff < 0 ? 'weniger' : 'mehr'} als gestern`;
-    else if (kind === 'both') text = `${absPct}% (${absTxt}) ${dir} als gestern`;
-    else text = `${absPct}% ${dir} als gestern`;
-    const arrow = pct < 0 ? '↓' : pct > 0 ? '↑' : '±';
-    const cls = pct < 0 ? 'down' : pct > 0 ? 'up' : 'flat';
-    const tip = `${cmp.tLabel}: ${fmt(cmp.today, 2)}${cu} · ${cmp.yLabel}: ${fmt(cmp.yest, 2)}${cu}`;
-    trendHtml = `<div class="m-trend ${cls}" title="${esc(tip)}">${arrow} ${esc(text)}</div>`;
+  let trendHtml = '';
+  if (m.showCompare !== false) {
+    trendHtml = `<div class="m-trend flat">– kein Vergleichswert</div>`;
+    if (cmp && cmp.today != null && cmp.yest != null && cmp.yest > 0) {
+      const diff = cmp.today - cmp.yest;
+      const pct = Math.round((diff / cmp.yest) * 100), absPct = Math.abs(pct);
+      const dir = pct < 0 ? 'weniger' : 'mehr';
+      const cu = cmp.unit ? ' ' + cmp.unit : '';
+      const absTxt = `${diff < 0 ? '−' : '+'}${fmt(Math.abs(diff), Math.abs(diff) < 10 ? 2 : 1)}${cu}`;
+      const kind = m.cmpDisplay || 'percent';
+      let text;
+      if (pct === 0 && kind === 'percent') text = 'Gleich wie gestern';
+      else if (kind === 'absolute') text = `${absTxt} ${diff < 0 ? 'weniger' : 'mehr'} als gestern`;
+      else if (kind === 'both') text = `${absPct}% (${absTxt}) ${dir} als gestern`;
+      else text = `${absPct}% ${dir} als gestern`;
+      const arrow = pct < 0 ? '↓' : pct > 0 ? '↑' : '±';
+      const cls = pct < 0 ? 'down' : pct > 0 ? 'up' : 'flat';
+      const tip = `${cmp.tLabel}: ${fmt(cmp.today, 2)}${cu} · ${cmp.yLabel}: ${fmt(cmp.yest, 2)}${cu}`;
+      trendHtml = `<div class="m-trend ${cls}" title="${esc(tip)}">${arrow} ${esc(text)}</div>`;
+    }
   }
+
   let headRight = 'Heute', liveText = '', extraHTML = '';
-  if (m.subButtons && m.subButtons.length) {
-    const cv = num(m.chart);
-    if (m.chart) liveText = `<div class="mut sm" style="margin-top:6px">Aktuell: ${cv != null ? fmt(cv, 0) + ' ' + (m.chartUnit || 'W') : '—'}</div>`;
+  const cv = num(m.chart);
+  if (m.showLive !== false && m.chart) {
+    if (m.subButtons && m.subButtons.length) {
+      liveText = `<div class="mut sm" style="margin-top:6px">Aktuell: ${cv != null ? fmt(cv, 0) + ' ' + (m.chartUnit || 'W') : '—'}</div>`;
+    } else if (m.mode !== 'last' && m.chartUnit && cv != null) {
+      headRight = `Heute · ${fmt(cv, 0)} ${esc(m.chartUnit)}`;
+    }
+  }
+
+  if (m.showSubButtons !== false && m.subButtons && m.subButtons.length) {
     const btns = m.subButtons.map(b => `<button class="iconbtn" style="flex:1;justify-content:center;border-color:transparent;background:rgba(255,255,255,.04);color:var(--${b.color || 'acc2'})" data-act="energymodal" data-mid="${esc(m.id)}" data-bid="${esc(b.id)}">${ic(b.icon, 15)} <span style="color:var(--txt)">${esc(b.name)}</span></button>`).join('');
     extraHTML = `<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${btns}</div>`;
-  } else if (m.mode !== 'last' && m.chart && m.chartUnit) {
-    const cv = num(m.chart);
-    if (cv != null) headRight = `Heute · ${fmt(cv, 0)} ${esc(m.chartUnit)}`;
   }
+
+  const chartHtml = (m.showChart !== false && m.chart)
+    ? `<div class="chart clickable" data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht">${spark(series[m.chart], m.id, { unit: m.chartUnit || m.unit || '', dec: m.decimals ?? 1 }, series[m.chart + '_yest'])}</div>`
+    : '';
+
   return `<section class="card"><div class="ch"><b>${esc(m.title)}</b><span class="mut sm">${headRight}</span></div>
     <div class="mv"><div><span class="big">${fmt(v, m.decimals ?? 1)}</span><span class="unit">${esc(m.unit)}</span><div class="m-sub">${trendHtml}${liveText}</div></div>
-    <div class="chart${m.chart ? ' clickable' : ''}" ${m.chart ? `data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht"` : ''}>${spark(series[m.chart], m.id, { unit: m.chartUnit || m.unit || '', dec: m.decimals ?? 1 }, series[m.chart + '_yest'])}</div></div>${extraHTML}</section>`;
+    ${chartHtml}</div>${extraHTML}</section>`;
+}
+
+function favoritesCard() {
+  const list = (CONFIG.favorites || []).filter(f => f.show !== false);
+  if (!list.length) {
+    return ui.editMode
+      ? `<section class="card"><div class="ch"><b>Schnellauswahl / Favoriten</b></div><div class="page-note">Noch keine Favoriten hinzugefügt. Öffne den Konfigurator (⚙️) → Geräte → Favoriten.</div></section>`
+      : '';
+  }
+  const tiles = list.map((f, i) => {
+    const e = f.entity;
+    const s = e ? S(e) : null;
+    const d = dom(e);
+    const name = f.name || (s && s.attributes && s.attributes.friendly_name) || e || 'Favorit';
+    const icon = f.icon || (d === 'light' ? 'bulb' : d === 'cover' ? 'blinds' : d === 'scene' ? 'scenes' : d === 'script' ? 'cal' : 'plug');
+
+    let isOn = false;
+    let statusText = '—';
+    let canToggle = true;
+
+    if (s) {
+      if (d === 'cover') {
+        const pos = s.attributes && s.attributes.current_position != null ? s.attributes.current_position : null;
+        isOn = !['closed', 'unavailable', 'unknown'].includes(s.state) && (pos == null || pos > 0);
+        statusText = pos != null ? `${pos}%` : (isOn ? 'Offen' : 'Zu');
+      } else if (d === 'scene' || d === 'script') {
+        isOn = false;
+        statusText = d === 'scene' ? 'Szene ausführen' : 'Skript starten';
+      } else if (d === 'lock') {
+        isOn = s.state !== 'locked';
+        statusText = isOn ? 'Entriegelt' : 'Verriegelt';
+      } else {
+        isOn = s.state === 'on';
+        statusText = isOn ? 'An' : 'Aus';
+      }
+    } else {
+      statusText = 'Nicht gefunden';
+      canToggle = false;
+    }
+
+    const hasDetails = ['light', 'cover', 'media_player', 'climate'].includes(d);
+
+    return `<div class="tile tile-fav ${isOn ? 'on' : ''} ${canToggle ? '' : 'dis'}" data-act="favTileClick" data-e="${esc(e)}" data-name="${esc(name)}" title="${esc(name)} · ${esc(statusText)}">
+      ${ic(icon, 18)}
+      <span style="min-width:0;flex:1;text-align:left">
+        <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(name)}</b>
+        <small>${esc(statusText)}</small>
+      </span>
+      ${hasDetails ? `<button type="button" class="tile-dots-btn" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(name)}" title="Details & Feineinstellung">⋯</button>` : ''}
+    </div>`;
+  }).join('');
+
+  const activeCount = list.filter(f => {
+    const s = S(f.entity);
+    const d = dom(f.entity);
+    if (!s) return false;
+    if (d === 'cover') return !['closed', 'unavailable', 'unknown'].includes(s.state);
+    return s.state === 'on';
+  }).length;
+
+  return `<section class="card"><div class="ch"><div><b>Schnellauswahl</b><span class="mut sm" style="color:var(--acc2)">&nbsp;${activeCount} aktiv</span></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function securityCard() {

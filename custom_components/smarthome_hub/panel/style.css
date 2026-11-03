@@ -900,6 +900,7 @@ html, body {
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: var(--gap, 16px);
 }
 .qe-wrap.qe-hidden {
   opacity: 0.48;
@@ -1168,6 +1169,7 @@ html, body {
   transition: opacity .15s, background .15s, color .15s;
 }
 .tile.tile-light:hover .tile-dots-btn,
+.tile.tile-fav:hover .tile-dots-btn,
 .tile-dots-btn:hover {
   opacity: 1;
 }
@@ -1177,6 +1179,19 @@ html, body {
 }
 .tile.on .tile-dots-btn {
   color: var(--acc2);
+}
+
+.tile.tile-fav {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.tile.tile-fav:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.tile.tile-fav.dis {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* --- Ausnahmen-Schalter pro Lampe (im Gruppen-Popup & im Editor) --- */

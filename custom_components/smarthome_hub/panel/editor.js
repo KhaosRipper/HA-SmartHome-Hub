@@ -58,6 +58,7 @@ const DASHBOARD_CARD_LABELS = {
   calendar: '📅 Familienkalender (7 Tage)',
   status: '🛡️ Sicherheits-Status & Türschloss-Pills',
   climate: '🌡️ Raumklima / Wetter-Kachel',
+  favorites: '⭐ Schnellauswahl / Favoriten',
   metrics: '⚡ Energie- & Verbrauchs-Metriken',
   security: '🔒 Sicherheits-Kachel (Schlösser/Fenster/Kameras)',
   lights: '💡 Lichter-Gruppen & Hauptschalter',
@@ -424,9 +425,10 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 4: GERÄTE, LICHT & ROLLÄDEN ----------
   const dTabs = cfgDraft.deviceTabs || [];
-  if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter') cfgDevSubTab = dTabs[0] ? dTabs[0].id : 'geraete';
+  if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter' && cfgDevSubTab !== 'favorites') cfgDevSubTab = 'favorites';
 
   let tGeraete = `<div class="cfg-subtabs">
+    <button class="pill ${cfgDevSubTab === 'favorites' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="favorites">⭐ Schnellauswahl / Favoriten</button>
     ${dTabs.map((t, ti) => `<div style="display:inline-flex;align-items:center;gap:3px">
       <button class="pill ${cfgDevSubTab === t.id ? 'on' : ''}" data-act="cfgDevTab" data-id="${esc(t.id)}">${esc(t.name)}</button>
       ${dTabs.length > 2 ? `<button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="-1" ${ti === 0 ? 'disabled' : ''}>◀</button><button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="1" ${ti === dTabs.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
@@ -435,7 +437,19 @@ function renderCfgModal(preserveScroll = true) {
     <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Reiter erstellen</button>
   </div>`;
 
-  if (cfgDevSubTab === 'covers') {
+  if (cfgDevSubTab === 'favorites') {
+    const favRows = (cfgDraft.favorites || []).map((f, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+      <label><input type="checkbox" data-fav-i="${i}" data-fav-k="show" ${f.show !== false ? 'checked' : ''}> Sichtbar</label>
+      ${fld('Name / Bezeichnung', `data-fav-i="${i}" data-fav-k="name" value="${esc(f.name || '')}"`)}
+      ${fld('Entität (Licht, Schalter, Rollo, Szene, Skript)', `list="ha-entities-list" data-fav-i="${i}" data-fav-k="entity" value="${esc(f.entity || '')}"`)}
+      ${sel('Icon', `<option value="">Automatisch nach Typ</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${f.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-fav-i="${i}" data-fav-k="icon"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="1" ${i === (cfgDraft.favorites || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelFav" data-i="${i}">✕</button></div>
+    </div>`).join('');
+    tGeraete += box('Schnellauswahl / Favoriten', 'Wähle deine meistgenutzten Rolläden, Lichter, Schalter, Szenen oder Skripte aus. Sie erscheinen als Schnell-Kacheln direkt auf der Startseite (1-Klick schalten & Rollo auf/ab).', `
+      ${favRows || '<div class="mut sm" style="margin-bottom:8px">Noch keine Favoriten hinzugefügt. Klicke unten auf „+ Favorit hinzufügen“.</div>'}
+      <button class="iconbtn" data-act="cfgAddFav" style="margin-top:6px">+ Favorit hinzufügen</button>
+    `, true, '', 'dev_favorites');
+  } else if (cfgDevSubTab === 'covers') {
     const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px">
         ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
         ${fld('Entität (cover.*)', `list="ha-entities-list" data-cv-i="${i}" data-cv-k="entity" value="${esc(c.entity)}"`)}
@@ -552,6 +566,13 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 6: ENERGIE & KALENDER ----------
   let tEnergie = (cfgDraft.metrics || []).map((m, mi) => box(`Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
+    <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:10px">
+      <label style="font-weight:600;cursor:pointer"><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="show" ${m.show !== false ? 'checked' : ''}> Kachel auf Dashboard anzeigen</label>
+      <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showChart" ${m.showChart !== false ? 'checked' : ''}> 24h-Diagramm (Sparkline)</label>
+      <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showCompare" ${m.showCompare !== false ? 'checked' : ''}> Gestern-Vergleich / Trend</label>
+      <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showSubButtons" ${m.showSubButtons !== false ? 'checked' : ''}> Popup-Unterbuttons</label>
+      <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showLive" ${m.showLive !== false ? 'checked' : ''}> Aktueller Live-Wert</label>
+    </div>
     <div class="cfg-row">
       ${fld('Titel', `data-m-i="${mi}" data-m-k="title" value="${esc(m.title || '')}"`)}
       ${fld('Haupt-Entität (Tageswert)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="entity" value="${esc(m.entity || '')}"`)}
@@ -1028,6 +1049,19 @@ document.addEventListener('input', e => {
     const m = cfgDraft.metrics[+t.dataset.mI];
     const k = t.dataset.mK;
     m[k] = k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value;
+  }
+  if (t.dataset.mBoolI != null) {
+    const m = cfgDraft.metrics[+t.dataset.mBoolI];
+    if (m) m[t.dataset.mBoolK] = t.checked;
+  }
+  if (t.dataset.favI != null) {
+    if (!Array.isArray(cfgDraft.favorites)) cfgDraft.favorites = [];
+    const f = cfgDraft.favorites[+t.dataset.favI];
+    if (f) {
+      const k = t.dataset.favK;
+      if (k === 'show') f.show = t.checked;
+      else f[k] = t.value;
+    }
   }
   if (t.dataset.hbI != null) {
     const b = cfgDraft.headerBadgeItems[+t.dataset.hbI];
