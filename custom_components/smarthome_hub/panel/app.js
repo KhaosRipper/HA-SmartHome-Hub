@@ -928,10 +928,17 @@ document.addEventListener('click', ev => {
       cfgDraft.theme = {
         ...(cfgDraft.theme || {}),
         preset: key,
-        bg: p.bg, acc: p.acc, acc2: p.acc2, ok: p.ok, warn: p.warn, cool: p.cool
+        bg: p.bg, acc: p.acc, acc2: p.acc2, ok: p.ok, warn: p.warn, cool: p.cool,
+        radius: p.radius || (cfgDraft.theme && cfgDraft.theme.radius) || '22px'
       };
       renderCfgModal(true);
     }
+    return;
+  }
+  if (act === 'cfgQuickAcc') {
+    if (!cfgDraft.theme) cfgDraft.theme = {};
+    cfgDraft.theme.acc = el.dataset.color;
+    renderCfgModal(true);
     return;
   }
   if (act === 'cfgMoveDL') {
@@ -1060,7 +1067,12 @@ document.addEventListener('click', ev => {
   if (act === 'cfgMoveWItem') { moveItem(cfgDraft.weather.items, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
 
   /* Räume, Kamera-Buttons & Raum-Chips (Badges) */
-  if (act === 'cfgAddRoom') { cfgDraft.rooms.push({ name: 'Neuer Raum', image: '', color: '#2a2350', showLiveBadge: true, camButtons: [], chips: [] }); renderCfgModal(true); return; }
+  if (act === 'cfgAddRoom') {
+    cfgDraft.rooms.push({ name: 'Neuer Raum', image: '', color: '#2a2350', showLiveBadge: true, camButtons: [], chips: [] });
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`room_${cfgDraft.rooms.length - 1}`);
+    renderCfgModal(true);
+    return;
+  }
   if (act === 'cfgDelRoom') { cfgDraft.rooms.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveRoom') { moveItem(cfgDraft.rooms, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
   if (act === 'cfgAddChip') {
@@ -1114,6 +1126,7 @@ document.addEventListener('click', ev => {
   if (act === 'cfgAddMetric') {
     if (!Array.isArray(cfgDraft.metrics)) cfgDraft.metrics = [];
     cfgDraft.metrics.push({ id: 'm_' + Date.now(), title: 'Neue Metrik', entity: '', unit: 'kWh', decimals: 1, chart: '', chartUnit: 'W', mode: 'avg', subButtons: [] });
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`metric_${cfgDraft.metrics.length - 1}`);
     renderCfgModal(true);
     return;
   }
@@ -1176,7 +1189,12 @@ document.addEventListener('click', ev => {
   if (act === 'cfgMoveCam') { moveItem(cfgDraft.webrtcCameras, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
 
   /* Klima-Räume + Unterelemente & Eigene Seiten + Sortierung */
-  if (act === 'cfgAddCRoom') { cfgDraft.climateRooms.push({ name: 'Raum', icon: 'radiator', show: true, sensors: [], devices: [], charts: [] }); renderCfgModal(true); return; }
+  if (act === 'cfgAddCRoom') {
+    cfgDraft.climateRooms.push({ name: 'Raum', icon: 'radiator', show: true, sensors: [], devices: [], charts: [] });
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`climate_room_${cfgDraft.climateRooms.length - 1}`);
+    renderCfgModal(true);
+    return;
+  }
   if (act === 'cfgDelCRoom') { cfgDraft.climateRooms.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveCRoom') { moveItem(cfgDraft.climateRooms, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
   if (act === 'cfgAddCRDev') {
@@ -1221,7 +1239,7 @@ document.addEventListener('click', ev => {
   if (act === 'cfgAddPage') {
     const newId = 'p_' + Date.now();
     cfgDraft.customPages.push({ id: newId, label: 'Neue Seite', icon: 'chart', title: 'Neue Seite', layout: 'grid', widgets: [] });
-    lastOpenedBoxKey = `page_${newId}`;
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`page_${newId}`);
     renderCfgModal(true);
     setTimeout(() => {
       const body = document.querySelector('#cfgsheet .cfg-body');
@@ -1234,7 +1252,7 @@ document.addEventListener('click', ev => {
   if (act === 'cfgAddWidget') {
     const pi = +el.dataset.pi;
     const page = cfgDraft.customPages[pi];
-    lastOpenedBoxKey = `page_${page.id || pi}`;
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`page_${page.id || pi}`);
     page.widgets.push({ type: 'entity_info', title: 'Kachel', entity: '', col: 'auto', show: true });
     renderCfgModal(true);
     return;

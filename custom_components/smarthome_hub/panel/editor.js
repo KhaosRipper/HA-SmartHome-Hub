@@ -6,7 +6,8 @@
 let cfgDraft = null;
 let cfgTab = 'allgemein';
 let cfgDevSubTab = 'geraete';
-let lastOpenedBoxKey = null;
+const cfgOpenBoxes = new Set();
+let cfgOpenBoxesInit = false;
 
 const CHIP_ICON_OPTIONS = [
   ['expand', '⛶ Vergrößern (expand)'],
@@ -150,6 +151,8 @@ function openCfgEditor(initialTab = null) {
   requirePin('editor', () => {
     cfgDraft = ensureConfigDefaults(JSON.parse(JSON.stringify(CONFIG)));
     if (!cfgDraft.deviceTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = cfgDraft.deviceTabs[0].id;
+    cfgOpenBoxes.clear();
+    cfgOpenBoxesInit = false;
     renderCfgModal(false);
     document.getElementById('cfgmodal').classList.add('show');
   }, 'Dashboard-Editor entsperren');
@@ -160,6 +163,13 @@ function renderCfgModal(preserveScroll = true) {
   const prevScroll = (preserveScroll && prevBody) ? prevBody.scrollTop : 0;
   const searchEl = document.getElementById('cfgSearch');
   const searchVal = searchEl ? searchEl.value : '';
+
+  if (preserveScroll) {
+    document.querySelectorAll('#cfgsheet details.cfg-box[data-box-key]').forEach(el => {
+      if (el.open) cfgOpenBoxes.add(el.dataset.boxKey);
+      else cfgOpenBoxes.delete(el.dataset.boxKey);
+    });
+  }
 
   const tabs = [
     ['allgemein', '🎨 Allgemein & Design'],
@@ -177,7 +187,14 @@ function renderCfgModal(preserveScroll = true) {
   const fld = (lbl, attrs, type = 'text') => `<div class="cfg-field float"><input type="${type}" class="cfg-in" placeholder=" " ${attrs}><label>${esc(lbl)}</label></div>`;
   const sel = (lbl, opts, attrs) => `<div class="cfg-field float"><select class="cfg-in" style="padding-top:16px" ${attrs}>${opts}</select><label style="top:4px;font-size:9px;color:var(--acc2)">${esc(lbl)}</label></div>`;
   const txt = (lbl, attrs, val) => `<div class="cfg-field float"><textarea class="cfg-in" placeholder=" " ${attrs}>${esc(val)}</textarea><label>${esc(lbl)}</label></div>`;
-  const box = (title, desc, content, open = false, headRight = '') => `<details class="cfg-box" ${open ? 'open' : ''}><summary><div style="display:flex;flex-direction:column;gap:3px;margin-right:auto"><b>${title}</b><span class="cfg-desc">${desc}</span></div>${headRight}</summary><div class="cfg-box-body">${content}</div></details>`;
+  const box = (title, desc, content, defaultOpen = false, headRight = '', boxKey = '') => {
+    const key = boxKey || safeId(title);
+    if (!cfgOpenBoxesInit && defaultOpen) {
+      cfgOpenBoxes.add(key);
+    }
+    const isOpen = cfgOpenBoxes.has(key);
+    return `<details class="cfg-box" data-box-key="${esc(key)}" ${isOpen ? 'open' : ''}><summary><div style="display:flex;flex-direction:column;gap:3px;margin-right:auto"><b>${title}</b><span class="cfg-desc">${desc}</span></div>${headRight}</summary><div class="cfg-box-body">${content}</div></details>`;
+  };
 
   const th = cfgDraft.theme || {};
   const pp = cfgDraft.pinProtect || {};
@@ -194,7 +211,56 @@ function renderCfgModal(preserveScroll = true) {
       <span>${esc(p.name)}</span>
     </button>`).join('');
 
-  let tAllgemein = box('Seitenleiste & Dashboard-Infos', 'Grundlegende Texte, Begrüßung und Zeitanzeige.', `
+  const ACCENT_SWATCHES = [
+    ['#7c6cf0', 'Violett (Standard)'],
+    ['#0284c7', 'Ozeanblau'],
+    ['#059669', 'Smaragdgrün'],
+    ['#ea580c', 'Warmer Bernstein'],
+    ['#6366f1', 'Indigo Slate'],
+    ['#0ea5e9', 'Nordisch Eiscyan'],
+    ['#ec4899', 'Neon Cyber Pink'],
+    ['#a855f7', 'Dracula Glow'],
+    ['#4f46e5', 'Titanium'],
+    ['#f43f5e', 'Rosé Velvet'],
+    ['#c2410c', 'Kupfer Espresso'],
+    ['#94a3b8', 'Schiefer Minimal']
+  ];
+  const quickColorsHtml = ACCENT_SWATCHES.map(([c, n]) => `<button type="button" class="quick-color-dot" style="background:${c}" data-act="cfgQuickAcc" data-color="${c}" title="${n} (${c})"></button>`).join('');
+
+  let tAllgemein = box('Design-Vorlagen, Farben & Form', 'Wähle ein fertiges Farbschema per 1-Klick oder passe Farben, Rundungen und Abstände frei an.', `
+    <div style="margin-bottom:14px">
+      <span class="cfg-desc" style="display:block;margin-bottom:8px;font-weight:600">✨ 1-Klick Farb- & Design-Presets:</span>
+      <div class="theme-presets-grid">${presetBtns}</div>
+    </div>
+    <div style="margin-bottom:12px;padding:10px 12px;background:rgba(255,255,255,.025);border-radius:10px;border:1px solid var(--line)">
+      <span class="cfg-desc" style="display:block;margin-bottom:6px">⚡ Schnellauswahl Primär-/Akzentfarbe:</span>
+      <div class="quick-colors-row">${quickColorsHtml}</div>
+    </div>
+    <div class="cfg-row">
+      ${fld('Hintergrund', `data-cpath="theme.bg" value="${esc(th.bg || '#080912')}"`, 'color')}
+      ${fld('Primärfarbe', `data-cpath="theme.acc" value="${esc(th.acc || '#7c6cf0')}"`, 'color')}
+      ${fld('Akzent hell', `data-cpath="theme.acc2" value="${esc(th.acc2 || '#a99bff')}"`, 'color')}
+      ${fld('Grün / OK', `data-cpath="theme.ok" value="${esc(th.ok || '#34d399')}"`, 'color')}
+      ${fld('Warnung', `data-cpath="theme.warn" value="${esc(th.warn || '#f59e0b')}"`, 'color')}
+      ${fld('Blau / Kühl', `data-cpath="theme.cool" value="${esc(th.cool || '#38bdf8')}"`, 'color')}
+    </div>
+    <div class="cfg-row" style="margin-top:10px">
+      ${sel('Karten-Rundung (Form)', [
+        ['0px', 'Scharfkantig (0px)'],
+        ['8px', 'Subtil kantig (8px)'],
+        ['14px', 'Modern dezent (14px)'],
+        ['20px', 'Abgerundet (20px)'],
+        ['26px', 'Sanft rund – Standard (26px)'],
+        ['32px', 'Kompakt-Rund (32px)'],
+        ['40px', 'Pill-Style / Organisch (40px)']
+      ].map(([v, l]) => `<option value="${v}" ${(th.radius || '22px') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="theme.radius"`)}
+      ${sel('Abstands-Dichte (Layout)', [
+        ['compact', 'Kompakt (mehr Inhalt auf Wandtablets)'],
+        ['normal', 'Standard (ausgewogen)'],
+        ['relaxed', 'Luftig (großzügige Abstände & Polster)']
+      ].map(([v, l]) => `<option value="${v}" ${(th.density || 'normal') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="theme.density"`)}
+    </div>`, true, '', 'allgemein_design') +
+    box('Seitenleiste & Dashboard-Infos', 'Grundlegende Texte, Begrüßung und Zeitanzeige.', `
     <div class="cfg-row">
       ${fld('HA-Seitenleisten-Titel', `data-cpath="sidebarTitle" value="${esc(cfgDraft.sidebarTitle)}"`)}
       ${fld('HA-Seitenleisten-Icon', `data-cpath="sidebarIcon" value="${esc(cfgDraft.sidebarIcon)}"`)}
@@ -208,33 +274,7 @@ function renderCfgModal(preserveScroll = true) {
     </div>
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="showDateTime" ${cfgDraft.showDateTime !== false ? 'checked' : ''}> Datum & Live-Uhrzeit im Raum-Banner anzeigen</label>
-    </div>`, true) +
-    box('Design-Vorlagen, Farben & Form', 'Wähle ein fertiges Farbschema per Klick oder passe Farben, Rundungen und Abstände frei an.', `
-    <div style="margin-bottom:12px">
-      <span class="cfg-desc" style="display:block;margin-bottom:6px">1-Klick Design-Presets:</span>
-      <div class="theme-presets-grid">${presetBtns}</div>
-    </div>
-    <div class="cfg-row">
-      ${fld('Hintergrund', `data-cpath="theme.bg" value="${esc(th.bg || '#080912')}"`, 'color')}
-      ${fld('Primärfarbe', `data-cpath="theme.acc" value="${esc(th.acc || '#7c6cf0')}"`, 'color')}
-      ${fld('Akzent hell', `data-cpath="theme.acc2" value="${esc(th.acc2 || '#a99bff')}"`, 'color')}
-      ${fld('Grün / OK', `data-cpath="theme.ok" value="${esc(th.ok || '#34d399')}"`, 'color')}
-      ${fld('Warnung', `data-cpath="theme.warn" value="${esc(th.warn || '#f59e0b')}"`, 'color')}
-      ${fld('Blau / Kühl', `data-cpath="theme.cool" value="${esc(th.cool || '#38bdf8')}"`, 'color')}
-    </div>
-    <div class="cfg-row" style="margin-top:8px">
-      ${sel('Karten-Rundung (Form)', [
-        ['12px', 'Kantig-Modern (12px)'],
-        ['16px', 'Klassisch (16px)'],
-        ['22px', 'Sanft abgerundet – Standard (22px)'],
-        ['28px', 'Stark abgerundet (28px)']
-      ].map(([v, l]) => `<option value="${v}" ${(th.radius || '22px') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="theme.radius"`)}
-      ${sel('Abstands-Dichte (Layout)', [
-        ['compact', 'Kompakt (mehr Inhalt auf Wandtablets)'],
-        ['normal', 'Standard (ausgewogen)'],
-        ['relaxed', 'Luftig (großzügige Abstände)']
-      ].map(([v, l]) => `<option value="${v}" ${(th.density || 'normal') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="theme.density"`)}
-    </div>`, true) +
+    </div>`, true, '', 'allgemein_sidebar') +
     box('Wetter-Kachel & Vorhersage', 'Steuert die Wetter-Anzeige und die 7-Tage-Vorhersage.', `
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="weather.showCard" ${w.showCard !== false ? 'checked' : ''}> Aktuelle Wetter-Kachel anzeigen</label>
@@ -258,7 +298,7 @@ function renderCfgModal(preserveScroll = true) {
         <div class="order-btns"><button class="btn-danger" data-act="cfgDelWItem" data-i="${wi}">✕</button></div>
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddWItem" style="margin-top:8px">+ Detailwert hinzufügen</button>
-    </div>`) +
+    </div>`, false, '', 'allgemein_weather') +
     box('Sicherheit & Kiosk-Modus', 'PIN-Schutz und Vollbild-Einstellungen für Wandtablets.', `
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="kioskMode" ${cfgDraft.kioskMode ? 'checked' : ''}> Kiosk-Vollbildmodus (HA-Sidebar ausblenden)</label>
@@ -270,7 +310,7 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-cbool="pinProtect.systemLinks" ${pp.systemLinks ? 'checked' : ''}> PIN für Systemlinks</label>
       <label><input type="checkbox" data-cbool="pinProtect.kioskExit" ${pp.kioskExit ? 'checked' : ''}> PIN für Kiosk-Exit</label>
       <label><input type="checkbox" data-cbool="pinProtect.doorUnlock" ${pp.doorUnlock ? 'checked' : ''}> PIN für Türschlösser</label>
-    </div>`);
+    </div>`, false, '', 'allgemein_security');
 
   // ---------- TAB 2: LAYOUT & SPALTEN ----------
   const dLayout = cfgDraft.dashboardLayout || DEFAULT_DASHBOARD_LAYOUT();
@@ -340,7 +380,7 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Kameras: Freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="camCols" value="${parseColsMode(cfgDraft.camCols, 'auto', 2).mode === 'cols' ? parseColsMode(cfgDraft.camCols, 'auto', 2).cols : ''}"`)}
     </div>
     <span class="cfg-desc" style="margin-top:6px;display:block">Hinweis: Die Spalten und Zuordnungen für „Eigene Seiten“ findest du im Reiter „📄 Eigene Seiten“ oder direkt per Klick auf ✏️ im Quick-Edit-Modus.</span>
-  `, true);
+  `, true, '', 'layout_cam_klima');
 
   // ---------- TAB 3: RÄUME & BADGES ----------
   let tRaeume = (cfgDraft.rooms || []).map((r, i) => box(`Raum #${i + 1}: ${esc(r.name)}`, 'Hintergrundbild, Kamera-Stream, Raumklima und Temperatur-Badges.', `
@@ -380,7 +420,7 @@ function renderCfgModal(preserveScroll = true) {
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddCamBtn" data-ri="${i}" style="margin-top:6px">+ Kamera-Button hinzufügen</button>
     </div>
-    `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="1" ${i === (cfgDraft.rooms.length - 1) ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoom" data-i="${i}">Löschen</button></div>`)).join('') + `<button class="btn-pri" data-act="cfgAddRoom" style="align-self:flex-start">+ Neuen Raum hinzufügen</button>`;
+    `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="1" ${i === (cfgDraft.rooms.length - 1) ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoom" data-i="${i}">Löschen</button></div>`, `room_${i}`)).join('') + `<button class="btn-pri" data-act="cfgAddRoom" style="align-self:flex-start">+ Neuen Raum hinzufügen</button>`;
 
   // ---------- TAB 4: GERÄTE, LICHT & ROLLÄDEN ----------
   const dTabs = cfgDraft.deviceTabs || [];
@@ -401,7 +441,7 @@ function renderCfgModal(preserveScroll = true) {
         ${fld('Entität (cover.*)', `list="ha-entities-list" data-cv-i="${i}" data-cv-k="entity" value="${esc(c.entity)}"`)}
         <div class="order-btns"><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="1" ${i === cfgDraft.covers.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCov" data-i="${i}">✕</button></div>
       </div>`).join('');
-    tGeraete += box('Rolläden', 'Zentrale Liste aller Rolläden für das Dashboard.', covs + `<button class="iconbtn" data-act="cfgAddCov" style="margin-top:8px">+ Rolladen hinzufügen</button>`, true);
+    tGeraete += box('Rolläden', 'Zentrale Liste aller Rolläden für das Dashboard.', covs + `<button class="iconbtn" data-act="cfgAddCov" style="margin-top:8px">+ Rolladen hinzufügen</button>`, true, '', 'dev_covers');
   } else if (cfgDevSubTab === 'lichter') {
     const lm = cfgDraft.lightsMain || { mode: 'group', group: 0, entities: [] };
     const lmGroupOpts = (cfgDraft.lights || []).map((g, idx) => `<option value="${idx}" ${lm.group == idx ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
@@ -413,16 +453,16 @@ function renderCfgModal(preserveScroll = true) {
       <div style="margin-top:8px">
         <span class="cfg-desc">Zugeordnete Lampen / Schalter <small class="mut">(Klick auf <b>💡 Gruppe</b> / <b>⚡ Haupt</b> schließt einzelne Lampen vom Gruppen- bzw. Hauptschalter aus)</small>:</span>
         ${entityChipsHtml(g.entities || [], 'lightGrp', i, 'light.* oder switch.* auswählen…')}
-      </div>`, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === cfgDraft.lights.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLight" data-i="${i}">Löschen</button></div>`)).join('');
+      </div>`, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === cfgDraft.lights.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLight" data-i="${i}">Löschen</button></div>`, `dev_light_${i}`)).join('');
 
     tGeraete += box('Hauptschalter-Verhalten', 'Konfiguriere den Master-Switch oben rechts auf der Lichter-Karte.', `
       <div class="cfg-row">
         ${sel('Modus', `<option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle synchronisierten Gruppen steuern</option><option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option><option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene Entitäten-Auswahl steuern</option>`, `data-lm-k="mode"`)}
         ${lm.mode === 'group' ? sel('Welche Gruppe?', lmGroupOpts, `data-lm-k="group"`) : ''}
       </div>
-      ${lm.mode === 'custom' ? `<div style="margin-top:8px"><span class="cfg-desc">Eigene Hauptschalter-Entitäten:</span>${entityChipsHtml(lm.entities || [], 'lightsMain', '', 'light.* oder switch.* auswählen…')}</div>` : ''}`, true) + lightsHtml + `<button class="btn-pri" data-act="cfgAddLight" style="margin-top:10px">+ Neue Licht-Gruppe</button>`;
+      ${lm.mode === 'custom' ? `<div style="margin-top:8px"><span class="cfg-desc">Eigene Hauptschalter-Entitäten:</span>${entityChipsHtml(lm.entities || [], 'lightsMain', '', 'light.* oder switch.* auswählen…')}</div>` : ''}`, true, '', 'dev_lights_master') + lightsHtml + `<button class="btn-pri" data-act="cfgAddLight" style="margin-top:10px">+ Neue Licht-Gruppe</button>`;
   } else {
-    const activeTabObj = dTabs.find(t => t.id === cfgDevSubTab);
+    const activeTabObj = dTabs.find(t => t.id === cfgDevSubTab) || dTabs[0] || { id: 'geraete', name: 'Geräte' };
     const roomOpts = `<option value="">— Kein fester Raum —</option>` + (cfgDraft.rooms || []).map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
     const tabIndices = (cfgDraft.devices || []).map((d, idx) => ((d.tab || 'geraete') === activeTabObj.id ? idx : -1)).filter(idx => idx !== -1);
     const devRows = tabIndices.map((idx, pos) => {
@@ -446,7 +486,7 @@ function renderCfgModal(preserveScroll = true) {
       </div>
       ${devRows || '<div class="mut sm">Keine Geräte in diesem Reiter.</div>'}
       <button class="iconbtn" data-act="cfgAddDev" data-tab="${esc(activeTabObj.id)}" style="margin-top:8px">+ Gerät hinzufügen</button>
-    `, true);
+    `, true, '', `devtab_${activeTabObj.id}`);
   }
 
   // ---------- TAB 5: KLIMA-BAUKASTEN ----------
@@ -506,12 +546,12 @@ function renderCfgModal(preserveScroll = true) {
         </div>`).join('')}
         <button class="iconbtn" data-act="cfgAddCRHelper" data-ri="${i}" style="margin-top:6px">+ Einstellungs-Helfer hinzufügen</button>
       </div>
-      `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="1" ${i === cfgDraft.climateRooms.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCRoom" data-i="${i}">Löschen</button></div>`);
+      `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="1" ${i === cfgDraft.climateRooms.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCRoom" data-i="${i}">Löschen</button></div>`, `climate_room_${i}`);
     }).join('') +
     `<button class="btn-pri" data-act="cfgAddCRoom" style="align-self:flex-start">+ Klima-Raum hinzufügen</button>`;
 
   // ---------- TAB 6: ENERGIE & KALENDER ----------
-  let tEnergie = (cfgDraft.metrics || []).map((m, mi) => box(`Metrik: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
+  let tEnergie = (cfgDraft.metrics || []).map((m, mi) => box(`Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
     <div class="cfg-row">
       ${fld('Titel', `data-m-i="${mi}" data-m-k="title" value="${esc(m.title || '')}"`)}
       ${fld('Haupt-Entität (Tageswert)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="entity" value="${esc(m.entity || '')}"`)}
@@ -552,7 +592,7 @@ function renderCfgModal(preserveScroll = true) {
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddSubBtn" data-mi="${mi}" style="margin-top:8px">+ Popup-Button hinzufügen</button>
     </div>
-    `, mi === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="-1" ${mi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="1" ${mi === cfgDraft.metrics.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelMetric" data-i="${mi}">Löschen</button></div>`)).join('') +
+    `, mi === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="-1" ${mi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="1" ${mi === cfgDraft.metrics.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelMetric" data-i="${mi}">Löschen</button></div>`, `metric_${mi}`)).join('') +
     `<button class="btn-pri" data-act="cfgAddMetric" style="align-self:flex-start">+ Neue Metrik-Kachel</button>` +
     box('Header-Badges (Startseiten-Banner)', 'Dynamische Anzeigen (z.B. PV/Akku, Waschmaschine, Müll) mit visueller Bedingungs-Logik.', `
     ${(cfgDraft.headerBadgeItems || []).map((b, bi) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
@@ -582,7 +622,7 @@ function renderCfgModal(preserveScroll = true) {
       </div>` : ''}
     </div>`).join('')}
     <button class="iconbtn" data-act="cfgAddHB" style="margin-top:6px">+ Header-Badge hinzufügen</button>
-    `) +
+    `, true, '', 'energie_badges') +
     box('Kalender & Power-Flow Kacheln', 'Wähle Kalender-Entitäten und Energiefluss-Sensoren bequem per Klick aus.', `
     <div style="margin-bottom:12px">
       <span class="cfg-desc">Familienkalender (calendar.*):</span>
@@ -602,7 +642,7 @@ function renderCfgModal(preserveScroll = true) {
         <button class="btn-danger" data-act="cfgDelPF" data-i="${pfi}">✕</button>
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddPF" style="margin-top:6px">+ Power-Flow Sensor hinzufügen</button>
-    </div>`);
+    </div>`, false, '', 'energie_cal_pf');
 
   // ---------- TAB 7: KAMERAS & SICHERHEIT ----------
   let tKameras = box('Sicherheit & Kameras', 'Türschlösser, Akku-Anzeige, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
@@ -650,12 +690,11 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('go2rtc Stream-Name (für lokales LAN)', `data-cam-i="${i}" data-cam-k="stream" value="${esc(c.stream || '')}"`)}
       <div class="order-btns"><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="1" ${i === cfgDraft.webrtcCameras.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCam" data-i="${i}">✕</button></div>
     </div>`).join('')}
-    <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true);
+    <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true, '', 'security_all');
 
   // ---------- TAB 8: EIGENE SEITEN ----------
   let tSeiten = (cfgDraft.customPages || []).map((p, pi) => {
     const boxKey = `page_${p.id || pi}`;
-    const isOpen = lastOpenedBoxKey ? lastOpenedBoxKey === boxKey : pi === 0;
     const pgParsed = parseColsMode(p.layout || 'grid', 'auto', 2);
     const maxWCol = clamp(Math.max(pgParsed.cols || 2, 6), 4, 12);
     const wColOpts = [
@@ -798,7 +837,7 @@ function renderCfgModal(preserveScroll = true) {
           </div>`;
         }).join('')}
         <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget hinzufügen</button>
-      </div>`, isOpen, `<div class="order-btns"><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi === cfgDraft.customPages.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`);
+      </div>`, pi === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi === cfgDraft.customPages.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`, boxKey);
   }).join('') +
   `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue Unterseite anlegen</button>`;
 
@@ -808,14 +847,14 @@ function renderCfgModal(preserveScroll = true) {
       <button class="btn-pri" data-act="cfgAutoDiscover">🔍 HA-Räume & Geräte automatisch einlesen</button>
       <button class="iconbtn" data-act="cfgLoadTimoPreset">📦 Timo-Preset laden</button>
       <button class="iconbtn" data-act="cfgLoadEmpty">🧹 Leeres Start-Gerüst laden</button>
-    </div>`, true) + box('JSON Export / Import (Backup)', 'Sichere deine komplette Konfiguration als Datei oder spiele ein Backup ein.', `
+    </div>`, true, '', 'backup_quick') + box('JSON Export / Import (Backup)', 'Sichere deine komplette Konfiguration als Datei oder spiele ein Backup ein.', `
     <div style="margin-top:10px">
       ${txt('JSON-Code', `id="cfg-json-area" style="font-family:monospace;font-size:12px" rows="12"`, JSON.stringify(cfgDraft, null, 2))}
     </div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="iconbtn" data-act="cfgApplyJson">JSON anwenden</button>
       <button class="iconbtn" data-act="cfgDownloadJson">Als .json speichern</button>
-    </div>`, true);
+    </div>`, true, '', 'backup_json');
 
   const tabData = {
     'allgemein': tAllgemein,
@@ -847,8 +886,14 @@ function renderCfgModal(preserveScroll = true) {
       </div>
     </div>`;
 
+  cfgOpenBoxesInit = true;
   const newBody = document.querySelector('#cfgsheet .cfg-body');
-  if (newBody && preserveScroll) newBody.scrollTop = prevScroll;
+  if (newBody && preserveScroll) {
+    newBody.scrollTop = prevScroll;
+    requestAnimationFrame(() => {
+      if (newBody) newBody.scrollTop = prevScroll;
+    });
+  }
 
   if (searchVal) {
     const searchInput = document.getElementById('cfgSearch');
@@ -1147,3 +1192,11 @@ document.addEventListener('change', async e => {
     else call('input_datetime', 'set_datetime', { entity_id: ent, datetime: t.value.replace('T', ' ') + (t.value.length === 16 ? ':00' : '') });
   }
 });
+
+document.addEventListener('toggle', e => {
+  const b = e.target && e.target.closest && e.target.closest('details.cfg-box');
+  if (b && b.dataset && b.dataset.boxKey) {
+    if (b.open) cfgOpenBoxes.add(b.dataset.boxKey);
+    else cfgOpenBoxes.delete(b.dataset.boxKey);
+  }
+}, true);

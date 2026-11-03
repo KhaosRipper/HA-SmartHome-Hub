@@ -93,11 +93,18 @@ const WEATHER_SYMBOLS = {
 };
 
 const THEME_PRESETS = {
-  midnight: { name: 'Midnight Purple (Standard)', bg: '#080912', acc: '#7c6cf0', acc2: '#a99bff', ok: '#34d399', warn: '#f59e0b', cool: '#38bdf8' },
-  ocean:    { name: 'Ocean Blue',                 bg: '#060c17', acc: '#0ea5e9', acc2: '#7dd3fc', ok: '#10b981', warn: '#f59e0b', cool: '#38bdf8' },
-  emerald:  { name: 'Emerald Forest',             bg: '#06110e', acc: '#10b981', acc2: '#6ee7b7', ok: '#34d399', warn: '#f59e0b', cool: '#38bdf8' },
-  amber:    { name: 'Warm Sunset',                bg: '#110b08', acc: '#f97316', acc2: '#fdba74', ok: '#34d399', warn: '#eab308', cool: '#38bdf8' },
-  slate:    { name: 'Pure Slate Pro',             bg: '#090d16', acc: '#6366f1', acc2: '#a5b4fc', ok: '#22c55e', warn: '#f59e0b', cool: '#06b6d4' }
+  midnight:   { name: 'Midnight Purple',         bg: '#080912', acc: '#7c6cf0', acc2: '#a99bff', ok: '#34d399', warn: '#f59e0b', cool: '#38bdf8', radius: '22px' },
+  ocean:      { name: 'Ocean Deep Blue',         bg: '#060c18', acc: '#0284c7', acc2: '#38bdf8', ok: '#10b981', warn: '#f59e0b', cool: '#06b6d4', radius: '20px' },
+  emerald:    { name: 'Emerald Forest',          bg: '#05120d', acc: '#059669', acc2: '#34d399', ok: '#10b981', warn: '#f59e0b', cool: '#2dd4bf', radius: '20px' },
+  amber:      { name: 'Warm Sunset & Bronze',    bg: '#120a06', acc: '#ea580c', acc2: '#fb923c', ok: '#10b981', warn: '#f59e0b', cool: '#38bdf8', radius: '18px' },
+  slate:      { name: 'Pure Slate Pro',          bg: '#090d16', acc: '#6366f1', acc2: '#a5b4fc', ok: '#22c55e', warn: '#f59e0b', cool: '#06b6d4', radius: '18px' },
+  nordic:     { name: 'Nordic Frost (Ice Cyan)', bg: '#080f14', acc: '#0ea5e9', acc2: '#7dd3fc', ok: '#2dd4bf', warn: '#fbbf24', cool: '#38bdf8', radius: '16px' },
+  cyberpunk:  { name: 'Cyber Neon (Synthwave)',  bg: '#0d0614', acc: '#ec4899', acc2: '#f472b6', ok: '#10b981', warn: '#fbbf24', cool: '#06b6d4', radius: '14px' },
+  dracula:    { name: 'Dracula Glow',            bg: '#10111a', acc: '#a855f7', acc2: '#c084fc', ok: '#4ade80', warn: '#facc15', cool: '#22d3ee', radius: '18px' },
+  oled:       { name: 'OLED Pure Black',         bg: '#000000', acc: '#4f46e5', acc2: '#818cf8', ok: '#16a34a', warn: '#eab308', cool: '#0284c7', radius: '26px' },
+  rose:       { name: 'Rose Gold & Velvet',      bg: '#14080c', acc: '#f43f5e', acc2: '#fb7185', ok: '#10b981', warn: '#f59e0b', cool: '#38bdf8', radius: '22px' },
+  coffee:     { name: 'Espresso & Kupfer',       bg: '#110c08', acc: '#c2410c', acc2: '#f97316', ok: '#84cc16', warn: '#eab308', cool: '#38bdf8', radius: '16px' },
+  monochrome: { name: 'Monochrome Minimalist',   bg: '#0d0f12', acc: '#94a3b8', acc2: '#cbd5e1', ok: '#22c55e', warn: '#f59e0b', cool: '#38bdf8', radius: '12px' }
 };
 
 function moveItem(arr, idx, dir) {
