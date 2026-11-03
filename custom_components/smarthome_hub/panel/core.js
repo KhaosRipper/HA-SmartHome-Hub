@@ -197,6 +197,14 @@ function ensureConfigDefaults(cfg) {
   if (!Array.isArray(cfg.security.locks)) {
     cfg.security.locks = cfg.security.lock ? [{ name: 'Haustür', entity: cfg.security.lock }] : [];
   }
+  if (!cfg.pinProtect || typeof cfg.pinProtect !== 'object') {
+    cfg.pinProtect = { editor: true, systemLinks: true, kioskExit: true, doorUnlock: false };
+  } else {
+    if (cfg.pinProtect.editor === undefined) cfg.pinProtect.editor = true;
+    if (cfg.pinProtect.systemLinks === undefined) cfg.pinProtect.systemLinks = true;
+    if (cfg.pinProtect.kioskExit === undefined) cfg.pinProtect.kioskExit = true;
+    if (cfg.pinProtect.doorUnlock === undefined) cfg.pinProtect.doorUnlock = false;
+  }
   
   cfg.security.locks.forEach(l => {
     if (l.battery === undefined) l.battery = '';
@@ -593,8 +601,19 @@ function call(domain, service, data, refresh = true) {
 }
 
 function navigate(path) {
-  try { window.parent.history.pushState(null, '', path); window.parent.dispatchEvent(new CustomEvent('location-changed')); }
-  catch (e) { window.open(path, '_blank'); }
+  if (!path) return;
+  const p = String(path).trim();
+  if (/^javascript:/i.test(p)) return;
+  try {
+    if (p.startsWith('/')) {
+      window.parent.history.pushState(null, '', p);
+      window.parent.dispatchEvent(new CustomEvent('location-changed'));
+      return;
+    }
+  } catch (e) {}
+  if (/^https?:\/\//i.test(p) || p.startsWith('/')) {
+    window.open(p, '_blank', 'noopener,noreferrer');
+  }
 }
 
 let toastT;

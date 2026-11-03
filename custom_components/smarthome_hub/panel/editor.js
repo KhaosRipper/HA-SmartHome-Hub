@@ -857,10 +857,12 @@ function renderCfgModal(preserveScroll = true) {
 }
 
 function setByPath(obj, path, val) {
+  if (!obj || typeof obj !== 'object' || !path) return;
   const parts = path.split('.');
+  if (parts.some(p => p === '__proto__' || p === 'constructor' || p === 'prototype')) return;
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (!cur[parts[i]]) cur[parts[i]] = {};
+    if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
     cur = cur[parts[i]];
   }
   cur[parts[parts.length - 1]] = val;

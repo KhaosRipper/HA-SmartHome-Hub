@@ -1333,11 +1333,13 @@ function refreshAllSportsHubs(force = false) {
    erben die Sandbox und werden von YouTube mit ERR_BLOCKED_BY_RESPONSE abgelehnt. */
 function openSportsExternalUrl(url) {
   if (!url) return;
+  const target = String(url).trim();
+  if (!/^https?:\/\//i.test(target)) return;
   try {
     const topDoc = window.top && window.top !== window ? window.top.document : null;
     if (topDoc && topDoc.body) {
       const a = topDoc.createElement('a');
-      a.href = url;
+      a.href = target;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.style.display = 'none';
@@ -1348,9 +1350,9 @@ function openSportsExternalUrl(url) {
     }
   } catch (e) { /* Fallback unten */ }
   try {
-    const w = window.open(url, '_blank', 'noopener');
+    const w = window.open(target, '_blank', 'noopener');
     if (!w && typeof toast === 'function') toast('Popup blockiert – bitte Popups für Home Assistant erlauben');
   } catch (e) {
-    window.location.href = url;
+    window.location.href = target;
   }
 }

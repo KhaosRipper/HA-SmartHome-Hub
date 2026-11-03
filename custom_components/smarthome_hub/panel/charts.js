@@ -348,23 +348,44 @@ async function loadSeries(id, mode, hours, attr, offsetDays = 0) {
   }
 
   const h = getHass(); if (!h) return null;
-  const url = `history/period/${start.toISOString()}?filter_entity_id=${id}&end_time=${encodeURIComponent(now.toISOString())}${attr ? '' : '&minimal_response&no_attributes'}`;
+  const url = `history/period/${start.toISOString()}?filter_entity_id=${encodeURIComponent(id)}&end_time=${encodeURIComponent(now.toISOString())}${attr ? '' : '&minimal_response&no_attributes'}`;
   const res = await h.callApi('GET', url);
   const arr = (res && res[0]) || [];
   const pts = arr.map(p => ({
     t: new Date(p.last_changed || p.last_updated).getTime(),
     v: parseFloat(attr ? (p.attributes && p.attributes[attr]) : p.state)
-  })).filter(p => !isNaN(p.v));
+  })).filter(p => Number.isFinite(p.v)).sort((a, b) => a.t - b.t);
   if (!pts.length) return null;
 
-  const out = []; let prev = null;
+  const out = [];
+  let prev = null;
+  let pIdx = 0;
+  const startTime = start.getTime();
+
+  while (pIdx < pts.length && pts[pIdx].t < startTime) {
+    prev = pts[pIdx].v;
+    pIdx++;
+  }
+
   for (let i = 0; i < n; i++) {
-    const a = start.getTime() + i * stepMs, b = a + stepMs;
-    const inB = pts.filter(p => p.t >= a && p.t < b);
-    const before = pts.filter(p => p.t < a).pop();
-    if (before) prev = before.v;
+    const a = startTime + i * stepMs, b = a + stepMs;
+    let sum = 0, count = 0, lastVal = null;
+
+    while (pIdx < pts.length && pts[pIdx].t < b) {
+      if (pts[pIdx].t >= a) {
+        sum += pts[pIdx].v;
+        count++;
+        lastVal = pts[pIdx].v;
+      } else {
+        prev = pts[pIdx].v;
+      }
+      pIdx++;
+    }
+
     let val = prev;
-    if (inB.length) val = mode === 'last' ? inB[inB.length - 1].v : inB.reduce((s, p) => s + p.v, 0) / inB.length;
+    if (count > 0) {
+      val = mode === 'last' ? lastVal : sum / count;
+    }
     if (val != null) prev = val;
     out.push(val != null ? +val.toFixed(2) : null);
   }
@@ -474,31 +495,38 @@ async function refreshMetricCompare() {
 }
 
 async function refreshSeries() {
-  for (const m of CONFIG.metrics || []) {
+  const metricTasks = (CONFIG.metrics || []).map(async m => {
     if (m.chart) {
       try {
-        series[m.chart] = await loadSeries(m.chart, m.mode || 'avg');
-        series[m.chart + '_yest'] = await loadSeries(m.chart, m.mode || 'avg', 0, null, 1);
+        const [todaySer, yestSer] = await Promise.all([
+          loadSeries(m.chart, m.mode || 'avg'),
+          loadSeries(m.chart, m.mode || 'avg', 0, null, 1)
+        ]);
+        series[m.chart] = todaySer;
+        series[m.chart + '_yest'] = yestSer;
       } catch (e) {}
     }
     if (m.subButtons) {
-      for (const btn of m.subButtons) {
-        for (const ent of btn.entities || []) {
-          if (ent.chart && ent.entity) {
-            try {
-              series['sub:' + ent.entity] = await loadSeries(ent.entity, 'avg');
-              series['sub:' + ent.entity + '_yest'] = await loadSeries(ent.entity, 'avg', 0, null, 1);
-            } catch (e) {}
-          }
-        }
-      }
+      await Promise.all(m.subButtons.flatMap(btn => (btn.entities || []).filter(ent => ent.chart && ent.entity).map(async ent => {
+        try {
+          const [tSer, ySer] = await Promise.all([
+            loadSeries(ent.entity, 'avg'),
+            loadSeries(ent.entity, 'avg', 0, null, 1)
+          ]);
+          series['sub:' + ent.entity] = tSer;
+          series['sub:' + ent.entity + '_yest'] = ySer;
+        } catch (e) {}
+      })));
     }
     try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
-  }
-  for (const r of CONFIG.climateRooms || []) for (const c of r.charts || []) {
+  });
+
+  const climateTasks = (CONFIG.climateRooms || []).flatMap(r => (r.charts || []).map(async c => {
     const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');
     try { series[key] = await loadSeries(c.entity, 'avg', 24, c.attr); } catch (e) {}
-  }
+  }));
+
+  await Promise.all([...metricTasks, ...climateTasks]);
   await refreshCustomPageSeries(false);
   ui.seriesVer++;
   if (sm.open && sm.mode === 'metric') renderChartModal();

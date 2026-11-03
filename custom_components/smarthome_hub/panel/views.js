@@ -999,7 +999,9 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return entityInfoCard(w.entity, w.title || 'To-Do Liste');
   }
   if (w.type === 'iframe') {
-    return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div><iframe class="iframe-widget" src="${esc(w.url || '')}" allow="autoplay; fullscreen" allowfullscreen></iframe></section>`;
+    const rawUrl = String(w.url || '').trim();
+    const safeUrl = (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('/')) ? rawUrl : '';
+    return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div>${safeUrl ? `<iframe class="iframe-widget" src="${esc(safeUrl)}" allow="autoplay; fullscreen" allowfullscreen></iframe>` : '<div class="page-note">Ungültige oder unsichere Einbettungs-URL (nur http/https erlaubt).</div>'}</section>`;
   }
   if (w.type === 'camera') {
     const resolvedStream = resolveGo2rtcStream(w.stream, w.entity);
@@ -1092,7 +1094,7 @@ function buliTeamCard(w) {
       <div style="border-bottom:${borderBottom};">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;text-align:center">
           <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
-            <img src="${a.team_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+            <img src="${esc(a.team_logo || '')}" style="width:48px;height:48px;object-fit:contain" alt="">
             <span style="font-weight:600;font-size:14px">${esc(home)}</span>
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:4px">
@@ -1100,7 +1102,7 @@ function buliTeamCard(w) {
             <div style="color:var(--mut);font-size:12px;font-weight:500">${isPost ? 'FT - ' : ''}${dateStr}</div>
           </div>
           <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
-            <img src="${a.opponent_logo || ''}" style="width:48px;height:48px;object-fit:contain" alt="">
+            <img src="${esc(a.opponent_logo || '')}" style="width:48px;height:48px;object-fit:contain" alt="">
             <span style="font-weight:600;font-size:14px">${esc(away)}</span>
           </div>
         </div>
@@ -1194,9 +1196,9 @@ function buliTableCard(w) {
     const col = ent.note?.color || 'transparent';
 
     return `<div class="buli-row ${bg}">
-      <div class="buli-c" style="background:${col}"></div>
+      <div class="buli-c" style="background:${esc(col)}"></div>
       <div class="text-center font-bold" style="width:20px">${gs('rank')}</div>
-      <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0"><img src="${logo}" style="width:18px;height:18px;object-fit:contain" alt=""><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(clean(tm.displayName))}</b></div>
+      <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0"><img src="${esc(logo)}" style="width:18px;height:18px;object-fit:contain" alt=""><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(clean(tm.displayName))}</b></div>
       <div class="text-center" style="width:18px">${gs('gamesPlayed')}</div>
       <div class="text-center" style="width:18px">${gs('wins')}</div>
       <div class="text-center" style="width:18px">${gs('ties')}</div>
@@ -1295,7 +1297,7 @@ function f1NextRaceCard(w) {
   return `<section class="f1-card">
     <div class="f1-header">
       <div style="display:flex;align-items:center;gap:10px">
-        ${flagUrl ? `<img src="${flagUrl}" style="width:26px;height:18px;object-fit:cover;border-radius:3px" alt="">` : ''}
+        ${flagUrl ? `<img src="${esc(flagUrl)}" style="width:26px;height:18px;object-fit:cover;border-radius:3px" alt="">` : ''}
         <div>
           <div class="f1-title">${esc(raceName)}</div>
           <div class="mut sm" style="text-transform:uppercase;letter-spacing:1px">${esc(circuit)}${loc ? ' · ' + esc(loc) : ''}</div>
@@ -1311,7 +1313,7 @@ function f1NextRaceCard(w) {
 
     ${mapUrl ? `<div class="f1-map">
       <div class="mut sm" style="text-align:left;letter-spacing:1px;margin-bottom:8px">CIRCUIT MAP</div>
-      <img src="${mapUrl}" alt="Track Map">
+      <img src="${esc(mapUrl)}" alt="Track Map">
       <div class="mut sm" style="margin-top:8px">${esc(circuit)} ${round ? '· ' + esc(round) : ''}</div>
     </div>` : ''}
 
@@ -1346,13 +1348,13 @@ function f1StandingsCard(w) {
     const pts = d.points || 0;
 
     return `<div class="f1-driver-row">
-      <div class="f1-pos">${pos}</div>
+      <div class="f1-pos">${esc(pos)}</div>
       <div class="f1-bar" style="background:${color}"></div>
       <div style="flex:1;min-width:0">
         <div class="f1-code" style="color:${color}">${esc(code)}</div>
         <div class="f1-team">${esc(teamName)}</div>
       </div>
-      <div class="f1-pts">${pts}</div>
+      <div class="f1-pts">${esc(pts)}</div>
     </div>`;
   }).join('');
 

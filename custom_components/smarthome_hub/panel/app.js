@@ -1378,7 +1378,11 @@ document.addEventListener('click', ev => {
   if (act === 'wfcDay') { weatherForecastState.selectedDay = +el.dataset.i; renderWeatherModal(); return; }
   if (act === 'smOpen') { openSM(+el.dataset.i); return; }
   if (act === 'energymodal') { openEnergyModal(el.dataset.mid, el.dataset.bid); return; }
-  if (act === 'ctile') { runClimateTile((c.tiles || [])[+el.dataset.i], c); return; }
+  if (act === 'ctile') {
+    const c = activeClimate();
+    if (c) runClimateTile((c.tiles || [])[+el.dataset.i], c);
+    return;
+  }
   if (act === 'chartScrubClick') {
     if (scrubMoved) { scrubMoved = false; return; }
     const parentModal = el.closest('[data-act="chartModal"]');
@@ -1430,10 +1434,18 @@ document.addEventListener('click', ev => {
   if (act === 'room') { ui.room = +el.dataset.i; }
   else if (act === 'all') ui.showAll = !ui.showAll;
   else if (act === 'dev') toggleDevice(el.dataset.e);
-  else if ((act === 'tmin' || act === 'tplus') && cs) {
-    const step = c.step || 0.5, cur = cs.attributes.temperature ?? cs.attributes.current_temperature ?? 21;
-    const nv = clamp(Math.round((cur + (act === 'tplus' ? step : -step)) / step) * step, c.min ?? 16, c.max ?? 30);
-    call('climate', 'set_temperature', { entity_id: c.entity, temperature: nv });
+  else if (act === 'tmin' || act === 'tplus') {
+    const c = activeClimate();
+    const cs = c && c.entity ? S(c.entity) : null;
+    if (c && cs) {
+      const a = cs.attributes || {};
+      const step = c.step || a.target_temp_step || 0.5;
+      const cur = a.temperature ?? a.current_temperature ?? 21;
+      const min = c.min ?? a.min_temp ?? 16;
+      const max = c.max ?? a.max_temp ?? 30;
+      const nv = clamp(Math.round((cur + (act === 'tplus' ? step : -step)) / step) * step, min, max);
+      call('climate', 'set_temperature', { entity_id: c.entity, temperature: nv });
+    }
   }
   else if (act === 'lockEntity') {
     call('lock', 'lock', { entity_id: el.dataset.e });
@@ -1441,18 +1453,27 @@ document.addEventListener('click', ev => {
   else if (act === 'unlockEntity' || (act === 'doorEntity' && (S(el.dataset.e) || {}).state === 'locked')) {
     const lockEnt = el.dataset.e;
     const lockName = el.dataset.name || 'Tür';
-    requirePin('doorUnlock', () => {
+    const pin = String(CONFIG.pinCode || '').trim();
+    const pinNeeded = !!(pin && (CONFIG.pinProtect || {}).doorUnlock);
+
+    const doUnlock = () => {
+      ui.unlockArmedEntity = null;
+      ui.unlockArmedUntil = 0;
+      call('lock', 'unlock', { entity_id: lockEnt });
+    };
+
+    if (pinNeeded) {
+      requirePin('doorUnlock', doUnlock, `${lockName} entriegeln`);
+    } else {
       if (ui.unlockArmedEntity === lockEnt && ui.unlockArmedUntil > Date.now()) {
-        ui.unlockArmedEntity = null;
-        ui.unlockArmedUntil = 0;
-        call('lock', 'unlock', { entity_id: lockEnt });
+        doUnlock();
       } else {
         ui.unlockArmedEntity = lockEnt;
         ui.unlockArmedUntil = Date.now() + 4000;
         toast(`Nochmal tippen zum Entriegeln (${lockName})`);
         setTimeout(() => tick(true), 4100);
       }
-    }, `${lockName} entriegeln`);
+    }
   }
   else if (act === 'doorEntity') {
     call('lock', 'lock', { entity_id: el.dataset.e });
