@@ -424,7 +424,12 @@ function renderCfgModal(preserveScroll = true) {
     </div>
     <label style="margin-top:6px;display:block"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="showLiveBadge" ${r.showLiveBadge !== false ? 'checked' : ''}> Rotes „● LIVE“-Badge anzeigen (bei Kamera-Hintergrund)</label>
     <div class="cfg-row" style="margin-top:8px;padding:8px 12px;background:rgba(255,255,255,.025);border-radius:10px;border:1px solid var(--line)">
-      <label style="cursor:pointer"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="dynamicMotion" ${r.dynamicMotion ? 'checked' : ''}> 🎯 Dynamischer Stream (Frigate / AI): Standbild im Ruhezustand, Live-Stream nur bei Erkennung</label>
+      <label style="cursor:pointer"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="dynamicMotion" ${r.dynamicMotion ? 'checked' : ''}> 🎯 Dynamischer Stream (Frigate / AI): Ruhemodus aktiv, Live-Stream nur bei Erkennung</label>
+      ${r.dynamicMotion ? sel('Ruhezustand-Anzeige', [
+        ['snapshot', '📷 Kamera-Standbild (aktualisiert sich periodisch)'],
+        ['image', '🖼️ Eigenes Bild (Raum-Foto / Hintergrundbild)']
+      ].map(([v, l]) => `<option value="${v}" ${(r.dynamicIdleMode || 'snapshot') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-r-i="${i}" data-r-k="dynamicIdleMode"`) : ''}
+      ${r.dynamicMotion && r.dynamicIdleMode === 'image' ? fld('Eigenes Bild URL (leer = Raum-Hintergrundbild)', `data-r-i="${i}" data-r-k="dynamicImage" value="${esc(r.dynamicImage || '')}"`) : ''}
       ${r.dynamicMotion ? fld('Erkennungs-Entität (binary_sensor.*)', `list="ha-entities-list" data-r-i="${i}" data-r-k="motionEntity" value="${esc(r.motionEntity || '')}"`) : ''}
       ${r.dynamicMotion ? fld('Erkennungs-Text (z.B. Person erkannt, Hund Lucy)', `data-r-i="${i}" data-r-k="motionLabel" value="${esc(r.motionLabel || 'Erkennung')}"`) : ''}
     </div>
@@ -1117,9 +1122,13 @@ document.addEventListener('input', e => {
     const k = t.dataset.wiK;
     item[k] = k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value;
   }
-  if (t.dataset.rI != null) cfgDraft.rooms[+t.dataset.rI][t.dataset.rK] = t.value;
+  if (t.dataset.rI != null) {
+    cfgDraft.rooms[+t.dataset.rI][t.dataset.rK] = t.value;
+    if (t.dataset.rK === 'dynamicIdleMode') renderCfgModal(true);
+  }
   if (t.dataset.rBoolI != null) {
     cfgDraft.rooms[+t.dataset.rBoolI][t.dataset.rBoolK] = t.checked;
+    if (t.dataset.rBoolK === 'dynamicMotion') renderCfgModal(true);
   }
   if (t.dataset.cbRi != null) {
     const cb = cfgDraft.rooms[+t.dataset.cbRi].camButtons[+t.dataset.cbBi];
