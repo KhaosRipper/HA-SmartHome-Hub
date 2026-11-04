@@ -51,17 +51,22 @@ const CTILE_TYPE_OPTIONS = [
 ];
 
 const DASHBOARD_CARD_LABELS = {
+  alerts: '🚨 Bedingte Warn-Karten (Alerts)',
   hero: '🖼️ Raum-Banner (Hero & Live-Kamera)',
+  presence: '👥 Familien-Präsenz (Status & Avatare)',
+  quick_routines: '⚡ Szenen & Routinen (Schnellzugriff)',
   devices: '🔌 Geräteübersicht (Haupt-Reiter)',
   extra_tabs: '📑 Zusätzliche Geräte-Reiter',
   covers: '🪟 Rolladen-Steuerung',
   calendar: '📅 Familienkalender (7 Tage)',
   status: '🛡️ Sicherheits-Status & Türschloss-Pills',
   climate: '🌡️ Raumklima / Wetter-Kachel',
+  ventilation: '🌬️ Smarte Lüftungsempfehlung',
   favorites: '⭐ Schnellauswahl / Favoriten',
   metrics: '⚡ Energie- & Verbrauchs-Metriken',
   security: '🔒 Sicherheits-Kachel (Schlösser/Fenster/Kameras)',
   lights: '💡 Lichter-Gruppen & Hauptschalter',
+  system_health: '🖥️ System-Health (Server & Docker)',
   trash: '🗑️ Abfallkalender'
 };
 
@@ -311,7 +316,29 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-cbool="pinProtect.systemLinks" ${pp.systemLinks ? 'checked' : ''}> PIN für Systemlinks</label>
       <label><input type="checkbox" data-cbool="pinProtect.kioskExit" ${pp.kioskExit ? 'checked' : ''}> PIN für Kiosk-Exit</label>
       <label><input type="checkbox" data-cbool="pinProtect.doorUnlock" ${pp.doorUnlock ? 'checked' : ''}> PIN für Türschlösser</label>
-    </div>`, false, '', 'allgemein_security');
+    </div>`, false, '', 'allgemein_security') +
+    box('⚡ Szenen & Routinen (Schnellzugriff)', 'Prominente 1-Klick Buttons auf der Startseite für tägliche Szenen (z. B. Gute Nacht, Haus verlassen, Alle Lichter aus).', `
+      ${(cfgDraft.routines || []).map((rt, ri) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+        ${fld('Name / Text', `data-rt-i="${ri}" data-rt-k="name" value="${esc(rt.name || '')}"`)}
+        ${fld('Szene oder Skript (scene.*, script.*)', `list="ha-entities-list" data-rt-i="${ri}" data-rt-k="entity" value="${esc(rt.entity || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(rt.icon || 'scenes') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="icon"`)}
+        ${sel('Farbe', [['acc', 'Lila (Standard)'], ['ok', 'Grün'], ['warn', 'Orange'], ['cool', 'Blau'], ['amber', 'Gold'], ['rose', 'Rot']].map(([v, l]) => `<option value="${v}" ${(rt.color || 'acc') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="color"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="-1" ${ri === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="1" ${ri === (cfgDraft.routines || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoutine" data-i="${ri}">✕</button></div>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgAddRoutine" style="margin-top:6px">+ Routine hinzufügen</button>
+    `, false, '', 'allgemein_routines') +
+    box('👥 Familien-Präsenz (Status & Avatare)', 'Zeigt Familienmitglieder als kleine Profil-Chips mit Status (Zuhause, Unterwegs) auf der Startseite an.', `
+      <div class="cfg-row" style="margin-bottom:10px">
+        <label><input type="checkbox" data-cbool="presence.show" ${cfgDraft.presence && cfgDraft.presence.show !== false ? 'checked' : ''}> Präsenzanzeige auf Startseite aktivieren</label>
+      </div>
+      ${((cfgDraft.presence && cfgDraft.presence.members) || []).map((pm, pi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+        ${fld('Name', `data-pm-i="${pi}" data-pm-k="name" value="${esc(pm.name || '')}"`)}
+        ${fld('Person-Entität (person.* oder device_tracker.*)', `list="ha-entities-list" data-pm-i="${pi}" data-pm-k="entity" value="${esc(pm.entity || '')}"`)}
+        ${fld('Foto-URL (leer = Initialen-Badge)', `data-pm-i="${pi}" data-pm-k="avatar" value="${esc(pm.avatar || '')}"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="1" ${pi === ((cfgDraft.presence && cfgDraft.presence.members) || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPresence" data-i="${pi}">✕</button></div>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgAddPresence" style="margin-top:6px">+ Person hinzufügen</button>
+    `, false, '', 'allgemein_presence');
 
   // ---------- TAB 2: LAYOUT & SPALTEN ----------
   const dLayout = cfgDraft.dashboardLayout || DEFAULT_DASHBOARD_LAYOUT();
@@ -396,6 +423,11 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Hintergrund go2rtc Stream-Name (für lokales LAN)', `data-r-i="${i}" data-r-k="webrtc" value="${esc(r.webrtc || '')}"`)}
     </div>
     <label style="margin-top:6px;display:block"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="showLiveBadge" ${r.showLiveBadge !== false ? 'checked' : ''}> Rotes „● LIVE“-Badge anzeigen (bei Kamera-Hintergrund)</label>
+    <div class="cfg-row" style="margin-top:8px;padding:8px 12px;background:rgba(255,255,255,.025);border-radius:10px;border:1px solid var(--line)">
+      <label style="cursor:pointer"><input type="checkbox" data-r-bool-i="${i}" data-r-bool-k="dynamicMotion" ${r.dynamicMotion ? 'checked' : ''}> 🎯 Dynamischer Stream (Frigate / AI): Standbild im Ruhezustand, Live-Stream nur bei Erkennung</label>
+      ${r.dynamicMotion ? fld('Erkennungs-Entität (binary_sensor.*)', `list="ha-entities-list" data-r-i="${i}" data-r-k="motionEntity" value="${esc(r.motionEntity || '')}"`) : ''}
+      ${r.dynamicMotion ? fld('Erkennungs-Text (z.B. Person erkannt, Hund Lucy)', `data-r-i="${i}" data-r-k="motionLabel" value="${esc(r.motionLabel || 'Erkennung')}"`) : ''}
+    </div>
 
     <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
       <span class="cfg-desc">Mini-Badges (z.B. °C, W, %) im Raum-Banner:</span>
@@ -425,10 +457,11 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 4: GERÄTE, LICHT & ROLLÄDEN ----------
   const dTabs = cfgDraft.deviceTabs || [];
-  if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter' && cfgDevSubTab !== 'favorites') cfgDevSubTab = 'favorites';
+  if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter' && cfgDevSubTab !== 'favorites' && cfgDevSubTab !== 'system') cfgDevSubTab = 'favorites';
 
   let tGeraete = `<div class="cfg-subtabs">
     <button class="pill ${cfgDevSubTab === 'favorites' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="favorites">⭐ Schnellauswahl / Favoriten</button>
+    <button class="pill ${cfgDevSubTab === 'system' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="system">🖥️ Server &amp; Docker</button>
     ${dTabs.map((t, ti) => `<div style="display:inline-flex;align-items:center;gap:3px">
       <button class="pill ${cfgDevSubTab === t.id ? 'on' : ''}" data-act="cfgDevTab" data-id="${esc(t.id)}">${esc(t.name)}</button>
       ${dTabs.length > 2 ? `<button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="-1" ${ti === 0 ? 'disabled' : ''}>◀</button><button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="1" ${ti === dTabs.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
@@ -449,6 +482,31 @@ function renderCfgModal(preserveScroll = true) {
       ${favRows || '<div class="mut sm" style="margin-bottom:8px">Noch keine Favoriten hinzugefügt. Klicke unten auf „+ Favorit hinzufügen“.</div>'}
       <button class="iconbtn" data-act="cfgAddFav" style="margin-top:6px">+ Favorit hinzufügen</button>
     `, true, '', 'dev_favorites');
+  } else if (cfgDevSubTab === 'system') {
+    const sh = cfgDraft.systemHealth || {};
+    const containersHtml = (sh.containers || []).map((ct, ci) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+      ${fld('Container-Name (z.B. n8n, Ollama, Frigate)', `data-ct-i="${ci}" data-ct-k="name" value="${esc(ct.name || '')}"`)}
+      ${fld('Entität (switch.*, sensor.*, binary_sensor.*)', `list="ha-entities-list" data-ct-i="${ci}" data-ct-k="entity" value="${esc(ct.entity || '')}"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMoveContainer" data-i="${ci}" data-dir="-1" ${ci === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveContainer" data-i="${ci}" data-dir="1" ${ci === (sh.containers || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelContainer" data-i="${ci}">✕</button></div>
+    </div>`).join('');
+
+    tGeraete += box('🖥️ System-Health (Unraid, Docker & Server)', 'Kompakte Überwachung von CPU-, RAM-, Disk- und Temperatur-Sensoren sowie kritischen Docker-Containern.', `
+      <div class="cfg-row" style="margin-bottom:10px">
+        <label><input type="checkbox" data-cbool="systemHealth.show" ${sh.show !== false ? 'checked' : ''}> System-Health Karte auf Dashboard anzeigen</label>
+        ${fld('Kachel-Titel', `data-cpath="systemHealth.title" value="${esc(sh.title || 'Server & Docker')}"`)}
+      </div>
+      <div class="cfg-row">
+        ${fld('CPU-Auslastung Sensor (%)', `list="ha-entities-list" data-cpath="systemHealth.cpu" value="${esc(sh.cpu || '')}"`)}
+        ${fld('RAM-Auslastung Sensor (%)', `list="ha-entities-list" data-cpath="systemHealth.ram" value="${esc(sh.ram || '')}"`)}
+        ${fld('Festplatten-Auslastung Sensor (%)', `list="ha-entities-list" data-cpath="systemHealth.disk" value="${esc(sh.disk || '')}"`)}
+        ${fld('CPU-Temperatur Sensor (°C)', `list="ha-entities-list" data-cpath="systemHealth.temp" value="${esc(sh.temp || '')}"`)}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+        <span class="cfg-desc">Kritische Docker-Container / Dienste überwachen (z. B. n8n, Ollama, Frigate, Plex):</span>
+        ${containersHtml || '<div class="mut sm" style="margin-bottom:8px">Noch keine Container hinterlegt. Klicke unten auf „+ Container hinzufügen“.</div>'}
+        <button class="iconbtn" data-act="cfgAddContainer" style="margin-top:6px">+ Container hinzufügen</button>
+      </div>
+    `, true, '', 'dev_system_health');
   } else if (cfgDevSubTab === 'covers') {
     const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px">
         ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
@@ -504,7 +562,27 @@ function renderCfgModal(preserveScroll = true) {
   }
 
   // ---------- TAB 5: KLIMA-BAUKASTEN ----------
-  let tKlima = box('Globale Klima-Kacheln (Startseite)', 'Diese Kacheln erscheinen unter dem Temperatur-Bogen auf der Startseite.', climateTilesEditorHtml('g'), false) +
+  const vnt = cfgDraft.ventilation || {};
+  let tKlima = box('Globale Klima-Kacheln (Startseite)', 'Diese Kacheln erscheinen unter dem Temperatur-Bogen auf der Startseite.', climateTilesEditorHtml('g'), false, '', 'klima_global') +
+    box('🌬️ Smarte Lüftungsempfehlung', 'Berechnet die absolute Feuchte (g/m³) innen vs. außen und empfiehlt, ob Fenster zum Lüften geöffnet oder geschlossen werden sollten.', `
+      <div class="cfg-row" style="margin-bottom:10px">
+        <label><input type="checkbox" data-cbool="ventilation.show" ${vnt.show !== false ? 'checked' : ''}> Lüftungsempfehlung auf Dashboard anzeigen</label>
+      </div>
+      <div class="cfg-row">
+        ${fld('Außentemperatur-Sensor (°C)', `list="ha-entities-list" data-cpath="ventilation.outdoorTemp" value="${esc(vnt.outdoorTemp || '')}"`)}
+        ${fld('Außenluftfeuchte-Sensor (%)', `list="ha-entities-list" data-cpath="ventilation.outdoorHum" value="${esc(vnt.outdoorHum || '')}"`)}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+        <span class="cfg-desc">Räume für die Lüftungsberechnung:</span>
+        ${(vnt.rooms || []).map((vr, vi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+          ${fld('Raum-Name', `data-vr-i="${vi}" data-vr-k="name" value="${esc(vr.name || '')}"`)}
+          ${fld('Raumtemperatur (°C)', `list="ha-entities-list" data-vr-i="${vi}" data-vr-k="temp" value="${esc(vr.temp || '')}"`)}
+          ${fld('Raumluftfeuchte (%)', `list="ha-entities-list" data-vr-i="${vi}" data-vr-k="hum" value="${esc(vr.hum || '')}"`)}
+          <div class="order-btns"><button class="btn-move" data-act="cfgMoveVentRoom" data-i="${vi}" data-dir="-1" ${vi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveVentRoom" data-i="${vi}" data-dir="1" ${vi === (vnt.rooms || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelVentRoom" data-i="${vi}">✕</button></div>
+        </div>`).join('')}
+        <button class="iconbtn" data-act="cfgAddVentRoom" style="margin-top:6px">+ Raum hinzufügen</button>
+      </div>
+    `, false, '', 'klima_ventilation') +
     (cfgDraft.climateRooms || []).map((cr, i) => {
       const helperItems = (cr.settings && cr.settings.groups && cr.settings.groups[0] && cr.settings.groups[0].items) || [];
       return box(`Klima-Raum #${i + 1}: ${esc(cr.name)}`, 'Raumkarte auf der Klima-Unterseite (Sensoren, Heizgeräte, 24h-Kurven & Helfer).', `
@@ -666,7 +744,37 @@ function renderCfgModal(preserveScroll = true) {
     </div>`, false, '', 'energie_cal_pf');
 
   // ---------- TAB 7: KAMERAS & SICHERHEIT ----------
-  let tKameras = box('Sicherheit & Kameras', 'Türschlösser, Akku-Anzeige, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
+  let tKameras = box('🚨 Bedingte Warn-Karten (Alerts)', 'Karten, die auf dem Dashboard unsichtbar sind und nur ganz oben aufpoppen, wenn ein kritischer Zustand eintritt (z.B. Wassermelder, Rauchmelder, Akku < 15%, Fenster offen bei Regen).', `
+    ${(cfgDraft.alerts || []).map((al, ai) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+      <div class="cfg-row">
+        <label><input type="checkbox" data-al-i="${ai}" data-al-k="show" ${al.show !== false ? 'checked' : ''}> Aktiv</label>
+        ${fld('Warn-Titel', `data-al-i="${ai}" data-al-k="title" value="${esc(al.title || '')}"`)}
+        ${fld('Nachricht', `data-al-i="${ai}" data-al-k="message" value="${esc(al.message || '')}"`)}
+        ${sel('Dringlichkeit (Farbe)', [['danger', 'Kritisch (Rot)'], ['warn', 'Warnung (Gelb / Orange)'], ['info', 'Hinweis (Lila / Blau)']].map(([v, l]) => `<option value="${v}" ${(al.color || 'warn') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-al-i="${ai}" data-al-k="color"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveAlert" data-i="${ai}" data-dir="-1" ${ai === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveAlert" data-i="${ai}" data-dir="1" ${ai === (cfgDraft.alerts || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelAlert" data-i="${ai}">✕</button></div>
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('Prüf-Entität', `list="ha-entities-list" data-al-i="${ai}" data-al-k="entity" value="${esc(al.entity || '')}"`)}
+        ${sel('Bedingung', [
+          ['==', 'ist gleich (==)'],
+          ['!=', 'ist ungleich (!=)'],
+          ['<', 'kleiner als (<)'],
+          ['<=', 'kleiner oder gleich (<=)'],
+          ['>', 'größer als (>)'],
+          ['>=', 'größer oder gleich (>=)'],
+          ['not_empty', 'nicht leer / verfügbar']
+        ].map(([v, l]) => `<option value="${v}" ${(al.op || '==') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-al-i="${ai}" data-al-k="op"`)}
+        ${fld('Vergleichswert (z.B. on / 15)', `data-al-i="${ai}" data-al-k="val" value="${esc(al.val || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(al.icon || 'shield') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-al-i="${ai}" data-al-k="icon"`)}
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('Optional: Entität für Direkt-Aktion (Beheben-Button)', `list="ha-entities-list" data-al-i="${ai}" data-al-k="actionEntity" value="${esc(al.actionEntity || '')}"`)}
+        ${fld('Service (z.B. turn_off, lock)', `data-al-i="${ai}" data-al-k="actionService" value="${esc(al.actionService || 'turn_off')}"`)}
+      </div>
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgAddAlert" style="margin-top:6px">+ Warn-Regel hinzufügen</button>
+  `, false, '', 'sec_alerts') +
+  box('Sicherheit & Kameras', 'Türschlösser, Akku-Anzeige, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
     <span class="cfg-desc">Türschlösser & Akku-Anzeige (Reihenfolge, Position & Stil frei wählbar):</span>
     ${(cfgDraft.security.locks || []).map((lk, i) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
       <div class="cfg-row">
@@ -1062,6 +1170,30 @@ document.addEventListener('input', e => {
       if (k === 'show') f.show = t.checked;
       else f[k] = t.value;
     }
+  }
+  if (t.dataset.rtI != null) {
+    if (!Array.isArray(cfgDraft.routines)) cfgDraft.routines = [];
+    if (cfgDraft.routines[+t.dataset.rtI]) cfgDraft.routines[+t.dataset.rtI][t.dataset.rtK] = t.value;
+  }
+  if (t.dataset.pmI != null) {
+    if (!cfgDraft.presence) cfgDraft.presence = { show: false, members: [] };
+    if (cfgDraft.presence.members[+t.dataset.pmI]) cfgDraft.presence.members[+t.dataset.pmI][t.dataset.pmK] = t.value;
+  }
+  if (t.dataset.vrI != null) {
+    if (!cfgDraft.ventilation) cfgDraft.ventilation = { show: false, rooms: [] };
+    if (cfgDraft.ventilation.rooms[+t.dataset.vrI]) cfgDraft.ventilation.rooms[+t.dataset.vrI][t.dataset.vrK] = t.value;
+  }
+  if (t.dataset.alI != null) {
+    if (!Array.isArray(cfgDraft.alerts)) cfgDraft.alerts = [];
+    const al = cfgDraft.alerts[+t.dataset.alI];
+    if (al) {
+      if (t.dataset.alK === 'show') al.show = t.checked;
+      else al[t.dataset.alK] = t.value;
+    }
+  }
+  if (t.dataset.ctI != null) {
+    if (!cfgDraft.systemHealth) cfgDraft.systemHealth = { show: false, containers: [] };
+    if (cfgDraft.systemHealth.containers[+t.dataset.ctI]) cfgDraft.systemHealth.containers[+t.dataset.ctI][t.dataset.ctK] = t.value;
   }
   if (t.dataset.hbI != null) {
     const b = cfgDraft.headerBadgeItems[+t.dataset.hbI];

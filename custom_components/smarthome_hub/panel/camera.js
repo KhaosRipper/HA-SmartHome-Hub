@@ -214,6 +214,27 @@ function syncHeroMedia(r) {
   const resolvedCam = resolveCamEntity(resolvedStream || r.webrtc, r.camera);
   const useHaCam = !useGo2 && !!resolvedCam && !DEMO && !!S(resolvedCam);
 
+  const motionTriggered = r.dynamicMotion && r.motionEntity && (S(r.motionEntity) || {}).state === 'on';
+  const forceLive = !r.dynamicMotion || motionTriggered;
+
+  if (!forceLive && (resolvedCam || resolvedStream)) {
+    bg.style.backgroundImage = 'none';
+    const snapCam = resolvedCam || resolveCamEntity(resolvedStream, '');
+    const key = `dynsnap:${snapCam}`;
+    if (heroMediaState.type !== 'cam' || heroMediaState.key !== key || !slot.contains(heroMediaState.el)) {
+      dropHeroMedia();
+      const img = document.createElement('img');
+      img.alt = '';
+      slot.innerHTML = '';
+      slot.appendChild(img);
+      heroMediaState.type = 'cam';
+      heroMediaState.key = key;
+      heroMediaState.el = img;
+      heroMediaState.timer = startSnapshotPolling(img, snapCam, 4000);
+    }
+    return;
+  }
+
   if (useGo2) {
     bg.style.backgroundImage = 'none';
     const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');

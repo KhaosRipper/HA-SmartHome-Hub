@@ -2166,4 +2166,30 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
 .lock-bat-inline.low { color: var(--warn); font-weight: 600; }
 .lock-bat-inline.crit { color: #f87171; font-weight: 600; }
 
+/* --- Styles für Alerts, Präsenz & Routinen --- */
+.alert-banner {
+  transition: transform .15s, opacity .15s;
+}
+.alert-banner:hover {
+  transform: translateY(-1px);
+}
+.presence-chip {
+  transition: transform .15s, background .15s;
+}
+.presence-chip:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  transform: scale(1.02);
+}
+.routine-btn {
+  transition: transform .15s, background .15s, border-color .15s;
+}
+.routine-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-2px);
+}
+.routine-btn:active {
+  transform: translateY(0);
+}
+
 

@@ -7,32 +7,42 @@
 let lastRenderedView = null;
 
 const DASH_CARD_EDITOR_TAB = {
+  alerts: 'kameras',
   hero: 'raeume',
+  presence: 'allgemein',
+  quick_routines: 'allgemein',
   devices: 'geraete',
   extra_tabs: 'geraete',
   covers: 'geraete',
   calendar: 'energie',
   status: 'kameras',
   climate: 'allgemein',
+  ventilation: 'klima',
   favorites: 'geraete',
   metrics: 'energie',
   security: 'kameras',
   lights: 'geraete',
+  system_health: 'geraete',
   trash: 'energie'
 };
 
 function renderDashCardHtml(id) {
   switch (id) {
+    case 'alerts': return conditionalAlertsCard();
+    case 'presence': return presenceCard();
+    case 'quick_routines': return routinesCard();
     case 'devices': return devicesCard(null, 'Geräteübersicht', 'geraete');
     case 'extra_tabs': return extraDeviceTabsCards();
     case 'covers': return coversCard();
     case 'calendar': return homeCalendarCard();
     case 'status': return rightTopStatus();
     case 'climate': return climateCard();
+    case 'ventilation': return ventilationCard();
     case 'favorites': return favoritesCard();
     case 'metrics': return (CONFIG.metrics || []).map(metricCard).join('');
     case 'security': return securityCard();
     case 'lights': return lightsCard();
+    case 'system_health': return systemHealthCard();
     case 'trash': return homeTrashCard();
     default: return '';
   }
@@ -406,6 +416,18 @@ function rebuildEntitiesList() {
   (CONFIG.devices || []).forEach(d => ids.push(d.entity, d.power, d.energy));
   (CONFIG.covers || []).forEach(c => ids.push(c.entity));
   (CONFIG.favorites || []).forEach(f => { if (f && f.entity) ids.push(f.entity); });
+  (CONFIG.alerts || []).forEach(a => { if (a && a.entity) ids.push(a.entity); });
+  (CONFIG.routines || []).forEach(r => { if (r && r.entity) ids.push(r.entity); });
+  if (CONFIG.presence) (CONFIG.presence.members || []).forEach(m => { if (m && m.entity) ids.push(m.entity); });
+  if (CONFIG.ventilation) {
+    ids.push(CONFIG.ventilation.outdoorTemp, CONFIG.ventilation.outdoorHum);
+    (CONFIG.ventilation.rooms || []).forEach(r => ids.push(r.temp, r.hum));
+  }
+  if (CONFIG.systemHealth) {
+    ids.push(CONFIG.systemHealth.cpu, CONFIG.systemHealth.ram, CONFIG.systemHealth.disk, CONFIG.systemHealth.temp);
+    (CONFIG.systemHealth.containers || []).forEach(c => ids.push(c.entity));
+  }
+  (CONFIG.rooms || []).forEach(r => { if (r.motionEntity) ids.push(r.motionEntity); });
   if (CONFIG.climate) {
     ids.push(CONFIG.climate.entity);
     (CONFIG.climate.tiles || []).forEach(t => ids.push(t.entity));
@@ -1169,6 +1191,59 @@ document.addEventListener('click', ev => {
     return;
   }
 
+  /* Szenen & Routinen */
+  if (act === 'cfgAddRoutine') {
+    if (!Array.isArray(cfgDraft.routines)) cfgDraft.routines = [];
+    cfgDraft.routines.push({ name: 'Neue Routine', entity: '', icon: 'scenes', color: 'acc' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelRoutine') { cfgDraft.routines.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveRoutine') { moveItem(cfgDraft.routines, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
+  /* Familien-Präsenz */
+  if (act === 'cfgAddPresence') {
+    if (!cfgDraft.presence) cfgDraft.presence = { show: true, members: [] };
+    if (!Array.isArray(cfgDraft.presence.members)) cfgDraft.presence.members = [];
+    cfgDraft.presence.members.push({ name: 'Person', entity: '', avatar: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelPresence') { cfgDraft.presence.members.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMovePresence') { moveItem(cfgDraft.presence.members, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
+  /* Smarte Lüftung */
+  if (act === 'cfgAddVentRoom') {
+    if (!cfgDraft.ventilation) cfgDraft.ventilation = { show: true, outdoorTemp: '', outdoorHum: '', rooms: [] };
+    if (!Array.isArray(cfgDraft.ventilation.rooms)) cfgDraft.ventilation.rooms = [];
+    cfgDraft.ventilation.rooms.push({ name: 'Raum', temp: '', hum: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelVentRoom') { cfgDraft.ventilation.rooms.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveVentRoom') { moveItem(cfgDraft.ventilation.rooms, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
+  /* Warn-Karten (Alerts) */
+  if (act === 'cfgAddAlert') {
+    if (!Array.isArray(cfgDraft.alerts)) cfgDraft.alerts = [];
+    cfgDraft.alerts.push({ title: 'Neue Warnung', message: '', entity: '', op: '==', val: 'on', icon: 'shield', color: 'danger', show: true });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelAlert') { cfgDraft.alerts.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveAlert') { moveItem(cfgDraft.alerts, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
+  /* Docker / Server Container */
+  if (act === 'cfgAddContainer') {
+    if (!cfgDraft.systemHealth) cfgDraft.systemHealth = { show: true, containers: [] };
+    if (!Array.isArray(cfgDraft.systemHealth.containers)) cfgDraft.systemHealth.containers = [];
+    cfgDraft.systemHealth.containers.push({ name: 'Container', entity: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelContainer') { cfgDraft.systemHealth.containers.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
+  if (act === 'cfgMoveContainer') { moveItem(cfgDraft.systemHealth.containers, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
+
   /* Metriken (Energie / Wasser / Eigene Kacheln) + SubButtons + PowerFlow */
   if (act === 'cfgAddMetric') {
     if (!Array.isArray(cfgDraft.metrics)) cfgDraft.metrics = [];
@@ -1584,6 +1659,24 @@ document.addEventListener('click', ev => {
       }
       setTimeout(() => tick(true), 250);
     }
+  }
+  else if (act === 'routineClick') {
+    const ent = el.dataset.e;
+    if (ent) {
+      const dm = dom(ent);
+      if (dm === 'scene') call('scene', 'turn_on', { entity_id: ent });
+      else if (dm === 'script') call('script', 'turn_on', { entity_id: ent });
+      else call('homeassistant', 'turn_on', { entity_id: ent });
+      toast(`Routine gestartet: ${el.dataset.name || ent}`);
+      setTimeout(() => tick(true), 300);
+    }
+  }
+  else if (act === 'callService') {
+    const ent = el.dataset.e;
+    const srv = el.dataset.srv || 'toggle';
+    const dm = dom(ent) || 'homeassistant';
+    call(dm, srv, { entity_id: ent });
+    setTimeout(() => tick(true), 300);
   }
   tick(true);
 });

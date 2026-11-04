@@ -186,7 +186,9 @@ function heroOverlayContent() {
   const resolvedCam = resolveCamEntity(r.webrtc, r.camera);
   const useHaCam = !useGo2 && !!resolvedCam && !DEMO && !!S(resolvedCam);
   const isBgLiveStream = useGo2 || useHaCam;
-  const showLive = isBgLiveStream && r.showLiveBadge !== false;
+  const motionTriggered = r.dynamicMotion && r.motionEntity && (S(r.motionEntity) || {}).state === 'on';
+  const showLive = isBgLiveStream && r.showLiveBadge !== false && (!r.dynamicMotion || motionTriggered);
+  const motionBadge = (r.dynamicMotion && motionTriggered) ? `<span class="chip on" style="background:var(--warn);color:#000;font-weight:700">🎯 ${esc(r.motionLabel || 'Erkennung')}</span>` : '';
 
   const rawBtns = Array.isArray(r.camButtons) && r.camButtons.length
     ? r.camButtons
@@ -213,7 +215,7 @@ function heroOverlayContent() {
       <h2>${esc(r.name)}</h2>
       <div class="hero-bar">
         <div class="chips">${chips}</div>
-        ${(showLive || camBtns) ? `<div class="camtools">${showLive ? '<span class="live" data-act="camBig" style="cursor:pointer" title="Vollbild öffnen">● LIVE</span>' : ''}${camBtns}</div>` : ''}
+        ${(showLive || motionBadge || camBtns) ? `<div class="camtools">${motionBadge}${showLive ? '<span class="live" data-act="camBig" style="cursor:pointer" title="Vollbild öffnen">● LIVE</span>' : ''}${camBtns}</div>` : ''}
       </div>
     </div>`;
 }
@@ -609,6 +611,220 @@ function securityCard() {
       ${lockTiles}
       <div class="tile ${openW ? 'warn' : ''}">${ic('window', 18)}<span><b>Fenster</b><small>${openW ? openW + ' offen' : 'Geschlossen'}</small></span></div>
       <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>Kameras</b><small>${camOn} aktiv</small></span></button></div></section>`;
+}
+
+/* ---------- BEDINGTE WARN-KARTEN (Conditional Alerts) ---------- */
+function conditionalAlertsCard() {
+  const alerts = (CONFIG.alerts || []).filter(a => a.show !== false);
+  if (!alerts.length) return '';
+
+  const activeAlerts = alerts.filter(a => {
+    if (!a.entity) return false;
+    const s = S(a.entity);
+    if (!s) return false;
+    const val = String(a.val ?? '').trim();
+    const cur = String(s.state ?? '').trim();
+    const curNum = parseFloat(cur);
+    const valNum = parseFloat(val);
+
+    if (a.op === '==') return cur.toLowerCase() === val.toLowerCase();
+    if (a.op === '!=') return cur.toLowerCase() !== val.toLowerCase();
+    if (a.op === '>') return !isNaN(curNum) && !isNaN(valNum) && curNum > valNum;
+    if (a.op === '<') return !isNaN(curNum) && !isNaN(valNum) && curNum < valNum;
+    if (a.op === '>=') return !isNaN(curNum) && !isNaN(valNum) && curNum >= valNum;
+    if (a.op === '<=') return !isNaN(curNum) && !isNaN(valNum) && curNum <= valNum;
+    if (a.op === 'not_empty') return cur !== '' && cur !== 'unavailable' && cur !== 'unknown';
+    return cur.toLowerCase() === 'on';
+  });
+
+  if (!activeAlerts.length) return '';
+
+  const items = activeAlerts.map(a => {
+    const s = S(a.entity);
+    const col = a.color === 'danger' ? 'var(--warn)' : a.color === 'ok' ? 'var(--ok)' : 'var(--acc2)';
+    const bg = a.color === 'danger' ? 'rgba(239,68,68,.12)' : 'rgba(245,158,11,.12)';
+    const border = a.color === 'danger' ? 'rgba(239,68,68,.35)' : 'rgba(245,158,11,.35)';
+    const icon = a.icon || (a.color === 'danger' ? 'shield' : 'battery');
+    return `<div class="alert-banner" style="background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:var(--r,16px);gap:12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div style="color:${col};flex-shrink:0">${ic(icon, 22)}</div>
+        <div style="min-width:0">
+          <b style="color:#fff;font-size:13px;display:block">${esc(a.title || 'Achtung')}</b>
+          <span class="mut sm" style="color:rgba(255,255,255,.75)">${esc(a.message || (s ? (s.attributes.friendly_name || a.entity) + ': ' + s.state : ''))}</span>
+        </div>
+      </div>
+      ${a.actionEntity ? `<button class="btn-pri" style="padding:6px 14px;font-size:11.5px;white-space:nowrap" data-act="callService" data-e="${esc(a.actionEntity)}" data-srv="${esc(a.actionService || 'toggle')}">Beheben</button>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<div class="alerts-container" style="display:flex;flex-direction:column;gap:4px">${items}</div>`;
+}
+
+/* ---------- FAMILIEN-PRÄSENZ ---------- */
+function presenceCard() {
+  const p = CONFIG.presence || {};
+  if (p.show === false) return '';
+  const members = (p.members || []).filter(m => m.entity);
+  if (!members.length) {
+    return ui.editMode
+      ? `<section class="card"><div class="ch"><b>👥 Familien-Präsenz</b></div><div class="page-note">Keine Familienmitglieder konfiguriert. Konfigurator → Allgemein → Familien-Präsenz.</div></section>`
+      : '';
+  }
+
+  const chips = members.map(m => {
+    const s = S(m.entity);
+    const state = s ? String(s.state) : 'unbekannt';
+    const isHome = state.toLowerCase() === 'home' || state.toLowerCase() === 'zuhause';
+    const dotCol = isHome ? 'var(--ok)' : state.toLowerCase() === 'not_home' ? 'var(--warn)' : 'var(--acc2)';
+    const stateLabel = isHome ? 'Zuhause' : (state === 'not_home' ? 'Unterwegs' : state);
+    const name = m.name || (s && s.attributes && s.attributes.friendly_name) || 'Person';
+    const avatar = m.avatar || (s && s.attributes && s.attributes.entity_picture) || '';
+
+    return `<div class="presence-chip" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:30px;background:rgba(255,255,255,.03);border:1px solid var(--line);min-width:0">
+      <div style="position:relative;width:34px;height:34px;flex-shrink:0">
+        ${avatar
+          ? `<img src="${esc(avatar)}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.2)" alt="">`
+          : `<div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--txt)">${esc(name.slice(0, 2).toUpperCase())}</div>`}
+        <span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:${dotCol};border:2px solid var(--bg,#080912)"></span>
+      </div>
+      <div style="min-width:0">
+        <b style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(name)}</b>
+        <small class="mut" style="font-size:10.5px;color:rgba(255,255,255,.6)">${esc(stateLabel)}</small>
+      </div>
+    </div>`;
+  }).join('');
+
+  const homeCount = members.filter(m => { const s = S(m.entity); return s && (s.state === 'home' || s.state === 'zuhause'); }).length;
+
+  return `<section class="card"><div class="ch"><b>👥 Anwesenheit</b><span class="mut sm">${homeCount} / ${members.length} zuhause</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div></section>`;
+}
+
+/* ---------- SZENEN- & ROUTINEN-SCHNELLZUGRIFF ---------- */
+function routinesCard() {
+  const list = CONFIG.routines || [];
+  if (!list.length) {
+    return ui.editMode
+      ? `<section class="card"><div class="ch"><b>⚡ Szenen & Routinen</b></div><div class="page-note">Keine Routinen konfiguriert. Konfigurator → Allgemein → Szenen & Routinen.</div></section>`
+      : '';
+  }
+
+  const buttons = list.map(r => {
+    const col = r.color || 'acc';
+    const icon = r.icon || 'scenes';
+    return `<button class="routine-btn" style="flex:1;min-width:140px;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r,16px);background:rgba(255,255,255,.03);border:1px solid var(--line);cursor:pointer;transition:all .2s;text-align:left" data-act="routineClick" data-e="${esc(r.entity)}" data-name="${esc(r.name)}">
+      <div style="width:36px;height:36px;border-radius:10px;background:color-mix(in srgb, var(--${col}, var(--acc)) 18%, transparent);color:var(--${col}, var(--acc));display:grid;place-items:center;flex-shrink:0">
+        ${ic(icon, 18)}
+      </div>
+      <div style="min-width:0;flex:1">
+        <b style="font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)">${esc(r.name)}</b>
+        <small class="mut" style="font-size:10.5px">1-Klick Start</small>
+      </div>
+    </button>`;
+  }).join('');
+
+  return `<section class="card"><div class="ch"><b>⚡ Szenen & Routinen</b><span class="mut sm">Schnellzugriff</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
+}
+
+/* ---------- SMARTE LÜFTUNGSEMPFEHLUNG ---------- */
+function ventilationCard() {
+  const cfg = CONFIG.ventilation || {};
+  if (cfg.show === false) return '';
+  const outT = num(cfg.outdoorTemp);
+  const outH = num(cfg.outdoorHum);
+  const outAH = calcAbsoluteHumidity(outT, outH);
+
+  const rooms = (cfg.rooms || []).map(rm => {
+    const inT = num(rm.temp);
+    const inH = num(rm.hum);
+    const inAH = calcAbsoluteHumidity(inT, inH);
+    let advice = '–';
+    let ok = false;
+    if (outAH != null && inAH != null) {
+      if (outAH < inAH - 0.5) {
+        advice = 'Lüften empfohlen (Außenluft trockener)';
+        ok = true;
+      } else if (outAH > inAH + 0.5) {
+        advice = 'Fenster schließen (Außenluft feuchter)';
+        ok = false;
+      } else {
+        advice = 'Gleiche Feuchte (Neutral)';
+        ok = true;
+      }
+    }
+    return { name: rm.name, inT, inH, inAH, advice, ok };
+  });
+
+  const generalOk = rooms.length ? rooms.some(r => r.ok) : (outAH != null);
+
+  const roomRows = rooms.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
+      <div>
+        <b>${esc(r.name)}</b>
+        <div class="mut sm">${r.inT != null ? fmt(r.inT, 1) + '°C' : ''} · ${r.inH != null ? fmt(r.inH, 0) + '%' : ''} ${r.inAH != null ? '(' + r.inAH + ' g/m³)' : ''}</div>
+      </div>
+      <div style="text-align:right">
+        <span class="pill ${r.ok ? 'on' : ''}" style="font-size:10px;padding:3px 8px">${esc(r.advice)}</span>
+      </div>
+    </div>`).join('');
+
+  return `<section class="card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">${generalOk ? '🍃' : '🛑'}</span>
+        <b>Smarte Lüftungsempfehlung</b>
+      </div>
+      <span class="mut sm">Außen: ${outT != null ? fmt(outT, 1) + '°C' : '–'} · ${outH != null ? fmt(outH, 0) + '%' : '–'} ${outAH != null ? '(' + outAH + ' g/m³)' : ''}</span>
+    </div>
+    ${roomRows || '<div class="mut sm">Hinterlege Innen- und Außensensoren im Konfigurator → Klima → Lüftungsempfehlung.</div>'}
+  </section>`;
+}
+
+/* ---------- SYSTEM-HEALTH (Server & Docker) ---------- */
+function systemHealthCard() {
+  const sh = CONFIG.systemHealth || {};
+  if (sh.show === false) return '';
+  const cpu = num(sh.cpu);
+  const ram = num(sh.ram);
+  const disk = num(sh.disk);
+  const temp = num(sh.temp);
+
+  const gaugeBar = (lbl, val, unit, max = 100, warnAt = 80) => {
+    const v = val != null ? val : 0;
+    const isWarn = v >= warnAt;
+    const pct = clamp(Math.round((v / max) * 100), 0, 100);
+    return `<div style="flex:1;min-width:70px;background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:12px;padding:8px 10px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+        <span class="mut">${lbl}</span>
+        <b style="color:${isWarn ? 'var(--warn)' : 'var(--txt)'}">${val != null ? fmt(val, 0) + unit : '–'}</b>
+      </div>
+      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${isWarn ? 'var(--warn)' : 'var(--ok)'}"></div>
+      </div>
+    </div>`;
+  };
+
+  const containerList = (sh.containers || []).map(c => {
+    const s = S(c.entity);
+    const isUp = s && (s.state === 'on' || s.state === 'running');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px dashed rgba(255,255,255,.04)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${isUp ? 'var(--ok)' : 'var(--warn)'}"></span>
+        <span>${esc(c.name || c.entity)}</span>
+      </div>
+      ${c.entity ? `<button class="chip ${isUp ? 'on' : ''}" style="padding:2px 8px;font-size:10px" data-act="callService" data-e="${esc(c.entity)}" data-srv="toggle">${isUp ? 'Online' : 'Starten'}</button>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<section class="card">
+    <div class="ch"><b>🖥️ ${esc(sh.title || 'System-Health')}</b><span class="mut sm">Server &amp; Docker</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${sh.cpu ? gaugeBar('CPU', cpu, '%') : ''}
+      ${sh.ram ? gaugeBar('RAM', ram, '%') : ''}
+      ${sh.disk ? gaugeBar('Disk', disk, '%') : ''}
+      ${sh.temp ? gaugeBar('Temp', temp, '°C', 90, 75) : ''}
+    </div>
+    ${containerList ? `<div style="margin-top:8px">${containerList}</div>` : ''}
+  </section>`;
 }
 
 function getGroupToggleEntities(g) {

@@ -150,20 +150,35 @@ function DEFAULT_CLIMATE_TILES() {
   ];
 }
 
+function calcAbsoluteHumidity(t, rh) {
+  if (t == null || rh == null || isNaN(t) || isNaN(rh)) return null;
+  const T = parseFloat(t);
+  const RH = parseFloat(rh);
+  const vSat = 6.112 * Math.exp((17.67 * T) / (T + 243.5));
+  const vAct = (RH / 100) * vSat;
+  const ah = (216.7 * vAct) / (273.15 + T);
+  return Number.isFinite(ah) ? +ah.toFixed(1) : null;
+}
+
 function DEFAULT_DASHBOARD_LAYOUT() {
   return [
-    { id: 'hero',       label: 'Raum-Banner (Hero & Kamera)',     col: 1, show: true, scope: 'all',  cfgTab: 'raeume' },
-    { id: 'devices',    label: 'Geräteübersicht',                 col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'extra_tabs', label: 'Zusätzliche Geräte-Reiter',       col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'covers',     label: 'Rolläden-Steuerung',              col: 1, show: true, scope: 'home', cfgTab: 'geraete' },
-    { id: 'calendar',   label: 'Familienkalender',                col: 1, show: true, scope: 'home', cfgTab: 'energie' },
-    { id: 'status',     label: 'Sicherheits-Status & Türschloss', col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'climate',    label: 'Raumklima & Wetter-Kachel',       col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'favorites',  label: 'Schnellauswahl / Favoriten',      col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'metrics',    label: 'Metriken (Energie / Wasser)',     col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'security',   label: 'Sicherheit (Schlösser/Fenster)',  col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'lights',     label: 'Lichter-Gruppen',                 col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'trash',      label: 'Abfallkalender',                  col: 2, show: true, scope: 'home', cfgTab: 'energie' }
+    { id: 'alerts',         label: '🚨 Bedingte Warn-Karten',         col: 1, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'hero',           label: 'Raum-Banner (Hero & Kamera)',     col: 1, show: true, scope: 'all',  cfgTab: 'raeume' },
+    { id: 'presence',       label: '👥 Familien-Präsenz',             col: 1, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'quick_routines', label: '⚡ Szenen & Routinen',             col: 1, show: true, scope: 'home', cfgTab: 'allgemein' },
+    { id: 'devices',        label: 'Geräteübersicht',                 col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'extra_tabs',     label: 'Zusätzliche Geräte-Reiter',       col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'covers',         label: 'Rolläden-Steuerung',              col: 1, show: true, scope: 'home', cfgTab: 'geraete' },
+    { id: 'calendar',       label: 'Familienkalender',                col: 1, show: true, scope: 'home', cfgTab: 'energie' },
+    { id: 'status',         label: 'Sicherheits-Status & Türschloss', col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'climate',        label: 'Raumklima & Wetter-Kachel',       col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'ventilation',    label: '🌬️ Smarte Lüftungsempfehlung',   col: 2, show: true, scope: 'all',  cfgTab: 'klima' },
+    { id: 'favorites',      label: 'Schnellauswahl / Favoriten',      col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'metrics',        label: 'Metriken (Energie / Wasser)',     col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'security',       label: 'Sicherheit (Schlösser/Fenster)',  col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'lights',         label: 'Lichter-Gruppen',                 col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'system_health',  label: '🖥️ System-Health (Server/Docker)', col: 2, show: false, scope: 'all', cfgTab: 'geraete' },
+    { id: 'trash',          label: 'Abfallkalender',                  col: 2, show: true, scope: 'home', cfgTab: 'energie' }
   ];
 }
 
@@ -221,6 +236,15 @@ function ensureConfigDefaults(cfg) {
   });
   if (!Array.isArray(cfg.security.windows)) cfg.security.windows = [];
   if (!Array.isArray(cfg.security.cameras)) cfg.security.cameras = [];
+
+  if (!Array.isArray(cfg.alerts)) cfg.alerts = [];
+  if (!Array.isArray(cfg.routines)) cfg.routines = [];
+  if (!cfg.presence || typeof cfg.presence !== 'object') cfg.presence = { show: false, members: [] };
+  if (!Array.isArray(cfg.presence.members)) cfg.presence.members = [];
+  if (!cfg.ventilation || typeof cfg.ventilation !== 'object') cfg.ventilation = { show: false, outdoorTemp: '', outdoorHum: '', rooms: [] };
+  if (!Array.isArray(cfg.ventilation.rooms)) cfg.ventilation.rooms = [];
+  if (!cfg.systemHealth || typeof cfg.systemHealth !== 'object') cfg.systemHealth = { show: false, title: 'Server & Docker', cpu: '', ram: '', disk: '', temp: '', containers: [] };
+  if (!Array.isArray(cfg.systemHealth.containers)) cfg.systemHealth.containers = [];
 
   if (!Array.isArray(cfg.deviceTabs) || !cfg.deviceTabs.length) {
     cfg.deviceTabs = [

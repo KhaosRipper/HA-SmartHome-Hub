@@ -60,6 +60,12 @@ const EMPTY_CONFIG = {
     trashEntities: []
   },
 
+  alerts: [],
+  routines: [],
+  presence: { show: false, members: [] },
+  ventilation: { show: false, outdoorTemp: "", outdoorHum: "", rooms: [] },
+  systemHealth: { show: false, title: "Server & Docker", cpu: "", ram: "", disk: "", temp: "", containers: [] },
+
   powerFlow: [],
 
   webrtcCameras: [],
@@ -197,6 +203,42 @@ const TIMO_PRESET_CONFIG = {
     weatherEntity: "weather.aussen_wetter_urloffen",
     familyEntities: ["calendar.familie", "calendar.familie_2"],
     trashEntities: ["calendar.abfallkalender2025", "calendar.abfallkalender2026"]
+  },
+
+  alerts: [
+    { title: "Wassermelder aktiv!", message: "Feuchtigkeit am Boden erkannt", entity: "binary_sensor.wassermelder", op: "==", val: "on", icon: "drop", color: "danger", show: false },
+    { title: "Türschloss Akku niedrig", message: "Bitte Akku des Schlosses aufladen", entity: "sensor.schloss_batterie", op: "<", val: "15", icon: "battery", color: "warn", show: false }
+  ],
+  routines: [
+    { name: "Gute Nacht", entity: "scene.gute_nacht", icon: "moon", color: "indigo" },
+    { name: "Haus verlassen", entity: "scene.abwesend", icon: "door", color: "amber" },
+    { name: "Guten Morgen", entity: "scene.guten_morgen", icon: "sun", color: "emerald" },
+    { name: "Alle Lichter aus", entity: "script.alle_lichter_aus", icon: "bulb", color: "rose" }
+  ],
+  presence: {
+    show: true,
+    members: [
+      { name: "Timo", entity: "person.timo", avatar: "" },
+      { name: "Joyce", entity: "person.joyce", avatar: "" }
+    ]
+  },
+  ventilation: {
+    show: true,
+    outdoorTemp: "sensor.appenweier_temperatur",
+    outdoorHum: "sensor.appenweier_luftfeuchtigkeit",
+    rooms: [
+      { name: "Schlafzimmer", temp: "sensor.temperatur_schlafzimmer_dachboden", hum: "sensor.heizung_wohnzimmer_luftfeuchtigkeit" },
+      { name: "Bad", temp: "sensor.bad_temperatur", hum: "sensor.bad_temperatur" }
+    ]
+  },
+  systemHealth: {
+    show: false,
+    title: "Server & Docker",
+    cpu: "sensor.processor_use",
+    ram: "sensor.memory_use_percent",
+    disk: "sensor.disk_use_percent",
+    temp: "sensor.cpu_temperature",
+    containers: []
   },
 
   powerFlow: [
