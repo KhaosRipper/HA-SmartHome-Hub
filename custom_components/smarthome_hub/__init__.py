@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "2.0.9"
+VERSION = "2.6.2"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
 STATIC_URL = f"/{DOMAIN}_static"
