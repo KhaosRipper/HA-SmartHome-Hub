@@ -515,6 +515,30 @@ function metricCard(m) {
     }
   }
 
+  if (m.showAutarky) {
+    let autVal = null;
+    if (m.autarkyEntity) {
+      autVal = num(m.autarkyEntity);
+    } else {
+      const houseVal = num(m.chart) ?? num(m.entity);
+      const gridVal = num(m.gridImportEntity);
+      const pvVal = num(m.pvEntity);
+
+      if (houseVal != null && gridVal != null && houseVal > 0) {
+        autVal = ((houseVal - Math.max(0, gridVal)) / houseVal) * 100;
+      } else if (houseVal != null && pvVal != null && houseVal > 0) {
+        autVal = (pvVal / houseVal) * 100;
+      }
+    }
+
+    if (autVal != null && !isNaN(autVal)) {
+      const autPct = clamp(Math.round(autVal), 0, 100);
+      const autCol = autPct >= 80 ? 'var(--ok)' : autPct >= 50 ? 'var(--warn)' : 'var(--acc2)';
+      const autBadge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${autCol};font-weight:600" title="Autarkiegrad: ${autPct}%">${ic('sun', 13)} ${autPct}% autark</span>`;
+      headRight = `${headRight} · ${autBadge}`;
+    }
+  }
+
   if (m.showSubButtons !== false && m.subButtons && m.subButtons.length) {
     const btns = m.subButtons.map(b => `<button class="iconbtn" style="flex:1;justify-content:center;border-color:transparent;background:rgba(255,255,255,.04);color:var(--${b.color || 'acc2'})" data-act="energymodal" data-mid="${esc(m.id)}" data-bid="${esc(b.id)}">${ic(b.icon, 15)} <span style="color:var(--txt)">${esc(b.name)}</span></button>`).join('');
     extraHTML = `<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${btns}</div>`;

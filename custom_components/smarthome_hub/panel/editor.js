@@ -655,6 +655,12 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showCompare" ${m.showCompare !== false ? 'checked' : ''}> Gestern-Vergleich / Trend</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showSubButtons" ${m.showSubButtons !== false ? 'checked' : ''}> Popup-Unterbuttons</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showLive" ${m.showLive !== false ? 'checked' : ''}> Aktueller Live-Wert</label>
+      <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showAutarky" ${m.showAutarky ? 'checked' : ''}> ☀️ Autarkiegrad in Kopfzeile</label>
+    </div>
+    <div class="cfg-row" style="margin-top:6px;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--line);${m.showAutarky ? '' : 'display:none'}">
+      ${fld('Autarkiegrad-Sensor (optional, z.B. sensor.senec_autarky)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="autarkyEntity" value="${esc(m.autarkyEntity || '')}"`)}
+      ${fld('Netzbezug-Sensor (für automatische Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="gridImportEntity" value="${esc(m.gridImportEntity || '')}"`)}
+      ${fld('PV-Ertrag / Erzeugung-Sensor (für Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="pvEntity" value="${esc(m.pvEntity || '')}"`)}
     </div>
     <div class="cfg-row">
       ${fld('Titel', `data-m-i="${mi}" data-m-k="title" value="${esc(m.title || '')}"`)}
@@ -1169,7 +1175,10 @@ document.addEventListener('input', e => {
   }
   if (t.dataset.mBoolI != null) {
     const m = cfgDraft.metrics[+t.dataset.mBoolI];
-    if (m) m[t.dataset.mBoolK] = t.checked;
+    if (m) {
+      m[t.dataset.mBoolK] = t.checked;
+      if (t.dataset.mBoolK === 'showAutarky') renderCfgModal(true);
+    }
   }
   if (t.dataset.favI != null) {
     if (!Array.isArray(cfgDraft.favorites)) cfgDraft.favorites = [];

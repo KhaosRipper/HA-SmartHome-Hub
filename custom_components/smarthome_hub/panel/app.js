@@ -444,7 +444,7 @@ function rebuildEntitiesList() {
     (r.charts || []).forEach(x => ids.push(x.entity));
   });
   (CONFIG.metrics || []).forEach(m => {
-    ids.push(m.entity, m.chart, m.yesterdayEntity, m.cmpEntity);
+    ids.push(m.entity, m.chart, m.yesterdayEntity, m.cmpEntity, m.autarkyEntity, m.gridImportEntity, m.pvEntity);
     if (m.subButtons) m.subButtons.forEach(b => (b.entities || []).forEach(e => ids.push(e.entity)));
   });
   if (CONFIG.security) {

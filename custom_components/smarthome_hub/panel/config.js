@@ -415,6 +415,9 @@ const TIMO_PRESET_CONFIG = {
   metrics: [
     { id: "energy", title: "Energieverbrauch", entity: "sensor.senec_main_unit_senec_hausverbrauch_heute", unit: "kWh", decimals: 1,
       chart: "sensor.senec_house_power", mode: "avg", chartUnit: "W",
+      showAutarky: true,
+      gridImportEntity: "sensor.senec_grid_imported_power",
+      pvEntity: "sensor.senec_solar_generated_power",
       subButtons: [
         { id: "solar", name: "Solar", icon: "sun", color: "warn",
           entities: [ { entity: "sensor.senec_solar_generated_power", name: "Produktion PV", unit: "W", chart: true } ] },
