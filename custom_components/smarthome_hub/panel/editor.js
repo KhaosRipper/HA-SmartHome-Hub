@@ -658,8 +658,9 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showAutarky" ${m.showAutarky ? 'checked' : ''}> ☀️ Autarkiegrad in Kopfzeile</label>
     </div>
     <div class="cfg-row" style="margin-top:6px;padding:8px 12px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--line);${m.showAutarky ? '' : 'display:none'}">
-      ${fld('Autarkiegrad-Sensor (optional, z.B. sensor.senec_autarky)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="autarkyEntity" value="${esc(m.autarkyEntity || '')}"`)}
-      ${fld('Netzbezug-Sensor (für automatische Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="gridImportEntity" value="${esc(m.gridImportEntity || '')}"`)}
+      ${sel('Berechnung', [['day', 'Tageswert (00:00 bis jetzt)'], ['live', 'Live (aktuelle Leistung)']].map(([v, l]) => `<option value="${v}" ${(m.autarkyMode || 'day') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-m-i="${mi}" data-m-k="autarkyMode"`)}
+      ${fld('Autarkiegrad-Sensor (optional, überschreibt die Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="autarkyEntity" value="${esc(m.autarkyEntity || '')}"`)}
+      ${fld('Netzbezug-Sensor (W/kW oder kWh) (für automatische Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="gridImportEntity" value="${esc(m.gridImportEntity || '')}"`)}
       ${fld('PV-Ertrag / Erzeugung-Sensor (für Berechnung)', `list="ha-entities-list" data-m-i="${mi}" data-m-k="pvEntity" value="${esc(m.pvEntity || '')}"`)}
     </div>
     <div class="cfg-row">

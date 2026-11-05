@@ -517,13 +517,16 @@ function metricCard(m) {
 
   if (m.showAutarky) {
     let autVal = null;
+    const dayMode = (m.autarkyMode || 'day') === 'day';
     if (m.autarkyEntity) {
       autVal = num(m.autarkyEntity);
+    } else if (dayMode && autarkyDayVals[m.id] != null) {
+      autVal = autarkyDayVals[m.id];
     } else {
+      // Live-Berechnung (Modus "Live" oder solange der Tageswert noch lädt)
       const houseVal = num(m.chart) ?? num(m.entity);
       const gridVal = num(m.gridImportEntity);
       const pvVal = num(m.pvEntity);
-
       if (houseVal != null && gridVal != null && houseVal > 0) {
         autVal = ((houseVal - Math.max(0, gridVal)) / houseVal) * 100;
       } else if (houseVal != null && pvVal != null && houseVal > 0) {
@@ -534,7 +537,7 @@ function metricCard(m) {
     if (autVal != null && !isNaN(autVal)) {
       const autPct = clamp(Math.round(autVal), 0, 100);
       const autCol = autPct >= 80 ? 'var(--ok)' : autPct >= 50 ? 'var(--warn)' : 'var(--acc2)';
-      const autBadge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${autCol};font-weight:600" title="Autarkiegrad: ${autPct}%">${ic('sun', 13)} ${autPct}% autark</span>`;
+      const autBadge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${autCol};font-weight:600" title="Autarkiegrad ${(m.autarkyEntity || (m.autarkyMode || 'day') !== 'day') ? 'aktuell' : 'heute (ab 00:00)'}: ${autPct}%">${ic('sun', 13)} ${autPct}% autark</span>`;
       headRight = `${headRight} · ${autBadge}`;
     }
   }

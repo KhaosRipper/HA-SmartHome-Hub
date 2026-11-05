@@ -264,6 +264,7 @@ function ensureConfigDefaults(cfg) {
     if (m.showCompare === undefined) m.showCompare = true;
     if (m.showSubButtons === undefined) m.showSubButtons = true;
     if (m.showLive === undefined) m.showLive = true;
+    if (m.autarkyMode === undefined) m.autarkyMode = 'day';
   });
   if (!Array.isArray(cfg.rooms) || !cfg.rooms.length) cfg.rooms = [{ name: 'Home', image: '', color: '#2a2370', chips: [] }];
   cfg.rooms.forEach(r => {

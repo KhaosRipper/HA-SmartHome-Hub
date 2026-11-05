@@ -487,9 +487,44 @@ async function loadMetricCompare(m) {
   return { today, yest, unit, tLabel, yLabel };
 }
 
+/* Autarkiegrad des Tages (00:00 bis jetzt). Beide Seiten werden aus dem Verlauf
+   integriert (W -> kWh bzw. kWh-Zähler), damit die Datenbasis identisch ist. */
+const autarkyDayVals = {};
+
+async function _autKwhToday(h, ent, start, now) {
+  if (!ent) return null;
+  const url = `history/period/${start.toISOString()}?filter_entity_id=${ent}&end_time=${encodeURIComponent(now.toISOString())}&minimal_response&no_attributes`;
+  const res = await h.callApi('GET', url);
+  const pts = ((res && res[0]) || [])
+    .map(p => ({ t: new Date(p.last_changed || p.last_updated).getTime(), v: parseFloat(p.state) }))
+    .filter(p => Number.isFinite(p.v))
+    .sort((a, b) => a.t - b.t);
+  if (!pts.length) return null;
+  if (pts[0].t < start.getTime()) pts[0].t = start.getTime();
+  const st = S(ent), unit = String((st && st.attributes && st.attributes.unit_of_measurement) || '').trim();
+  if (/^k?wh$/i.test(unit)) return _cmpCounterUsage(pts, start.getTime(), now.getTime()) * (/^wh$/i.test(unit) ? 0.001 : 1);
+  return _cmpIntegrate(pts, start.getTime(), now.getTime(), /^kw$/i.test(unit) ? 1 : 0.001);
+}
+
+async function loadAutarkyDay(m) {
+  if (DEMO) return 72;
+  const h = getHass();
+  if (!h || !m.gridImportEntity) return null;
+  const now = new Date(), start = _cmpStartOfDay(now);
+  const [house, grid] = await Promise.all([
+    _autKwhToday(h, m.chart || m.entity, start, now),
+    _autKwhToday(h, m.gridImportEntity, start, now)
+  ]);
+  if (house == null || grid == null || house <= 0) return null;
+  return clamp(((house - grid) / house) * 100, 0, 100);
+}
+
 async function refreshMetricCompare() {
   for (const m of CONFIG.metrics || []) {
-    try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
+        try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
+    if (m.showAutarky && !m.autarkyEntity && (m.autarkyMode || 'day') === 'day') {
+      try { autarkyDayVals[m.id] = await loadAutarkyDay(m); } catch (e) {}
+    }
   }
   ui.seriesVer++; tick(true);
 }
@@ -519,6 +554,9 @@ async function refreshSeries() {
       })));
     }
     try { yesterdayMetricVals[m.id] = await loadMetricCompare(m); } catch (e) {}
+        if (m.showAutarky && !m.autarkyEntity && (m.autarkyMode || 'day') === 'day') {
+      try { autarkyDayVals[m.id] = await loadAutarkyDay(m); } catch (e) {}
+    }
   });
 
   const climateTasks = (CONFIG.climateRooms || []).flatMap(r => (r.charts || []).map(async c => {
