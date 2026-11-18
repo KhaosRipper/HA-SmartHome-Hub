@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "3.0.1"
+VERSION = "3.1.0"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
