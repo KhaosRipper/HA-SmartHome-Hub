@@ -687,3 +687,25 @@ const ui = {
 };
 const series = {};
 const yesterdayMetricVals = {};
+
+
+/* ---------- Hub als Standard-Dashboard in HA-Profil eintragen ---------- */
+async function setHubAsDefaultPanel() {
+  const PANEL = 'smarthome-hub';
+  const h = getHass();
+  if (!h) { toast('Keine Verbindung zu Home Assistant'); return; }
+  let ok = false;
+  // 1) Pro Browser/Gerät (ältere HA-Versionen & Fallback)
+  try {
+    window.parent.localStorage.setItem('defaultPanel', JSON.stringify(PANEL));
+    ok = true;
+  } catch (e) {}
+  // 2) Pro HA-Benutzerkonto (neuere HA-Versionen), bestehende Werte bleiben erhalten
+  try {
+    const cur = await h.callWS({ type: 'frontend/get_user_data', key: 'core' });
+    const val = Object.assign({}, (cur && cur.value) || {}, { defaultPanel: PANEL });
+    await h.callWS({ type: 'frontend/set_user_data', key: 'core', value: val });
+    ok = true;
+  } catch (e) {}
+  toast(ok ? 'Als Standard gesetzt – Seite neu laden (F5)' : 'Konnte Standard nicht setzen');
+}

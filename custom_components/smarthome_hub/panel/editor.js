@@ -317,6 +317,10 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-cbool="pinProtect.systemLinks" ${pp.systemLinks ? 'checked' : ''}> PIN für Systemlinks</label>
       <label><input type="checkbox" data-cbool="pinProtect.kioskExit" ${pp.kioskExit ? 'checked' : ''}> PIN für Kiosk-Exit</label>
       <label><input type="checkbox" data-cbool="pinProtect.doorUnlock" ${pp.doorUnlock ? 'checked' : ''}> PIN für Türschlösser</label>
+    </div>
+    <div style="margin-top:10px">
+      <button class="iconbtn" data-act="cfgSetDefaultPanel">🏠 Smart Home Hub als Standard-Dashboard festlegen</button>
+      <span class="cfg-desc" style="margin-top:4px">Rückgängig: In HA unter Profil → Dashboard wieder auf „Auto“ stellen.</span>
     </div>`, false, '', 'allgemein_security') +
     box('⚡ Szenen & Routinen (Schnellzugriff)', 'Prominente 1-Klick Buttons auf der Startseite für tägliche Szenen (z. B. Gute Nacht, Haus verlassen, Alle Lichter aus).', `
       ${(cfgDraft.routines || []).map((rt, ri) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">

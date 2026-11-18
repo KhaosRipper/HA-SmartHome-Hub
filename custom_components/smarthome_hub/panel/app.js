@@ -956,6 +956,7 @@ document.addEventListener('click', ev => {
 
   /* ---------- KONFIGURATOR-AKTIONEN ---------- */
   if (act === 'cfgOpen') { openCfgEditor(); return; }
+    if (act === 'cfgSetDefaultPanel') { setHubAsDefaultPanel(); return; }
   if (act === 'cfgClose') { document.getElementById('cfgmodal').classList.remove('show'); return; }
   if (act === 'cfgtab') { cfgTab = el.dataset.tab; renderCfgModal(false); return; }
   if (act === 'cfgDevTab') { cfgDevSubTab = el.dataset.id; renderCfgModal(false); return; }
