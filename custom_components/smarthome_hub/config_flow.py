@@ -1,7 +1,13 @@
 from __future__ import annotations
+
 from typing import Any
+
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
+
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
 
 DOMAIN = "smarthome_hub"
 
@@ -13,7 +19,7 @@ class SmartHomeHubConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Erstellt den Eintrag, sofern noch nicht vorhanden."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")

@@ -10,13 +10,18 @@ import uuid
 import voluptuous as vol
 
 from homeassistant.components import frontend, websocket_api
-from homeassistant.components.http import StaticPathConfig
+try:
+    from homeassistant.components.http import StaticPathConfig
+    HAS_STATIC_PATH_CONFIG = True
+except ImportError:
+    HAS_STATIC_PATH_CONFIG = False
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "2.6.3"
+VERSION = "3.0.0"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
@@ -52,11 +57,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     hass.data[DOMAIN]["store"] = store
 
-    panel_dir = hass.config.path("custom_components", DOMAIN, "panel")
+    panel_dir = os.path.join(os.path.dirname(__file__), "panel")
     if not hass.data[DOMAIN].get("static_paths_registered"):
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig(STATIC_URL, panel_dir, cache_headers=False)]
-        )
+        if HAS_STATIC_PATH_CONFIG:
+            await hass.http.async_register_static_paths(
+                [StaticPathConfig(STATIC_URL, panel_dir, cache_headers=False)]
+            )
+        else:
+            hass.http.register_static_path(STATIC_URL, panel_dir, cache_headers=False)
         hass.data[DOMAIN]["static_paths_registered"] = True
 
     upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
@@ -148,6 +156,7 @@ def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
     # Base64 bereinigen und dekodieren
     if "," in b64_data:
         b64_data = b64_data.split(",", 1)[1]
+    b64_data = b64_data.strip()
 
     try:
         raw = base64.b64decode(b64_data, validate=True)
@@ -166,8 +175,9 @@ def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
     base_name = re.sub(r"[^a-zA-Z0-9_-]", "_", os.path.splitext(os.path.basename(filename))[0])[:32]
     safe_name = f"{uuid.uuid4().hex[:12]}_{base_name}{ext}"
 
-    # Path-Traversal-Schutz
+    # Path-Traversal-Schutz & Zielordner sicherstellen
     abs_upload_dir = os.path.abspath(upload_dir)
+    os.makedirs(abs_upload_dir, exist_ok=True)
     target_path = os.path.abspath(os.path.join(abs_upload_dir, safe_name))
     if not target_path.startswith(abs_upload_dir + os.sep):
         raise ValueError("Ungültiger Zielpfad für Bildupload")
