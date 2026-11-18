@@ -16,7 +16,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "2.6.2"
+VERSION = "2.6.3"
+PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
 STATIC_URL = f"/{DOMAIN}_static"
@@ -32,7 +33,7 @@ def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
         component_name="iframe",
         sidebar_title=title or "Smart Home Hub",
         sidebar_icon=icon or "mdi:home-automation",
-        frontend_url_path=DOMAIN,
+        frontend_url_path=PANEL_URL_PATH,
         config={"url": f"{STATIC_URL}/index.html?v={VERSION}"},
         require_admin=False,
         update=True,
@@ -79,7 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Entfernt das Panel beim Deinstallieren der Integration."""
-    frontend.async_remove_panel(hass, DOMAIN)
+    frontend.async_remove_panel(hass, PANEL_URL_PATH)
     return True
 
 
