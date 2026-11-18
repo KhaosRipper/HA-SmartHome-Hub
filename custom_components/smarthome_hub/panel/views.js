@@ -120,7 +120,7 @@ function rightTopStatus() {
     const lk = S(l.entity);
     if (lk && lk.state !== 'locked') problems.push(`${l.name || 'Tür'} entriegelt`);
   });
-  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && s.state === 'on'; }).length;
+  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && (s.state === 'on' || s.state === 'open'); }).length;
   if (openW) problems.push(`${openW} Fenster offen`);
 
   const subtextBats = locks.map(l => renderLockBatteryHtml(l, 'subtext', locks.length)).filter(Boolean);
@@ -429,10 +429,34 @@ function weatherCard(c) {
     ? `<button class="iconbtn wfc-open-btn" data-act="wfcOpen">${ic('calendar', 15)}<span>${esc(c.forecastTitle || '7-Tage-Wettervorhersage öffnen')}</span></button>`
     : '';
 
+  const rainMiniHtml = (c.showRainTimeline !== false && CONFIG.weather?.showRainTimeline !== false)
+    ? renderRainMiniTimeline()
+    : '';
+
   return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuell</span></div>
     <div class="weather-now"><div class="weather-symbol">${symbol}</div><div><div class="weather-temp">${tempVal == null || isNaN(tempVal) ? '—' : fmt(tempVal, 1)}<sup>${esc(tempUnit)}</sup></div><div class="mut sm">${esc(condText)}</div></div></div>
     ${detailsHtml ? `<div class="two">${detailsHtml}</div>` : ''}
+    ${rainMiniHtml}
     ${fcBtnHtml}</section>`;
+}
+
+function renderRainMiniTimeline() {
+  const rain = getRainTimeline60Min();
+  const bars = rain.slots.map(s => {
+    const barH = s.mm > 0 ? Math.min(28, Math.max(8, s.mm * 14)) : (s.prob > 15 ? Math.max(5, s.prob * 0.25) : 3);
+    const barColor = s.mm > 1.5 ? '#f59e0b' : (s.mm > 0 ? '#38bdf8' : (s.prob > 20 ? 'rgba(56,189,248,.35)' : 'rgba(255,255,255,.07)'));
+    return `<div class="rain-mini-col" title="${s.label} (${s.time}): ${s.mm} mm/h (${s.prob}%)">
+      <div class="rain-mini-bar" style="height:${barH}px;background:${barColor}"></div>
+      <span class="rain-mini-t">${s.label}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="rain-mini-wrap">
+    <div class="rain-mini-hdr">
+      <span class="rain-mini-advice ${rain.statusClass}">${esc(rain.advice)}</span>
+    </div>
+    <div class="rain-mini-grid">${bars}</div>
+  </div>`;
 }
 
 /* ---------- 7-Tage-Vorhersage als Kachel (klickbar -> Popup) ---------- */
@@ -621,7 +645,7 @@ function securityCard() {
   const sec = CONFIG.security || {};
   const locks = getLocksList(sec);
   if (!locks.length && !(sec.windows && sec.windows.length) && !(sec.cameras && sec.cameras.length)) return '';
-  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && s.state === 'on'; }).length;
+  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && (s.state === 'on' || s.state === 'open'); }).length;
   const camOn = (sec.cameras || []).filter(c => { const s = S(c); return s && s.state !== 'unavailable' && s.state !== 'off'; }).length;
   const allLocksOk = locks.every(l => { const s = S(l.entity); return !s || s.state === 'locked'; });
   const allOk = allLocksOk && !openW;
@@ -640,10 +664,29 @@ function securityCard() {
       <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>Kameras</b><small>${camOn} aktiv</small></span></button></div></section>`;
 }
 
-/* ---------- BEDINGTE WARN-KARTEN (Conditional Alerts) ---------- */
+/* ---------- BEDINGTE WARN-KARTEN (Conditional Alerts & Vorabend-Müllerinnerung) ---------- */
 function conditionalAlertsCard() {
   const alerts = (CONFIG.alerts || []).filter(a => a.show !== false);
-  if (!alerts.length) return '';
+  
+  // 1. Automatische Müll-Erinnerung am Vorabend (ab 17:00 Uhr)
+  let trashAlertHtml = '';
+  const now = new Date();
+  if (now.getHours() >= 17 && CONFIG.calendars?.trashEntities?.length) {
+    const upcoming = getUpcomingTrashItems(1);
+    const tomorrowTrash = upcoming.find(it => it.days === 1);
+    if (tomorrowTrash) {
+      trashAlertHtml = `<div class="alert-banner" style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:var(--r,16px);gap:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+          <div style="color:#fbbf24;flex-shrink:0">${ic(tomorrowTrash.type.icon || 'trash', 22)}</div>
+          <div style="min-width:0">
+            <b style="color:#fff;font-size:13px;display:block">Müllabfuhr morgen: ${esc(tomorrowTrash.type.label)}</b>
+            <span class="mut sm" style="color:rgba(255,255,255,.85)">Bitte heute Abend herausstellen: <b>${esc(tomorrowTrash.summary)}</b></span>
+          </div>
+        </div>
+        <span class="pill on" style="border-color:#fbbf24;color:#fbbf24;font-size:11px;padding:3px 9px">Morgen früh</span>
+      </div>`;
+    }
+  }
 
   const activeAlerts = alerts.filter(a => {
     if (!a.entity) return false;
@@ -664,7 +707,7 @@ function conditionalAlertsCard() {
     return cur.toLowerCase() === 'on';
   });
 
-  if (!activeAlerts.length) return '';
+  if (!activeAlerts.length && !trashAlertHtml) return '';
 
   const items = activeAlerts.map(a => {
     const s = S(a.entity);
@@ -684,7 +727,7 @@ function conditionalAlertsCard() {
     </div>`;
   }).join('');
 
-  return `<div class="alerts-container" style="display:flex;flex-direction:column;gap:4px">${items}</div>`;
+  return `<div class="alerts-container" style="display:flex;flex-direction:column;gap:4px">${trashAlertHtml}${items}</div>`;
 }
 
 /* ---------- FAMILIEN-PRÄSENZ ---------- */
@@ -752,7 +795,7 @@ function routinesCard() {
   return `<section class="card"><div class="ch"><b>⚡ Szenen & Routinen</b><span class="mut sm">Schnellzugriff</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
 }
 
-/* ---------- SMARTE LÜFTUNGSEMPFEHLUNG ---------- */
+/* ---------- SMARTE LÜFTUNGSEMPFEHLUNG & AUSKÜHLUNGSSCHUTZ ---------- */
 function ventilationCard() {
   const cfg = CONFIG.ventilation || {};
   if (cfg.show === false) return '';
@@ -783,6 +826,45 @@ function ventilationCard() {
 
   const generalOk = rooms.length ? rooms.some(r => r.ok) : (outAH != null);
 
+  // 1. Fenster- & Tür-Offen-Timer & Auskühlungsschutz
+  let openTimerHtml = '';
+  if (cfg.showOpenTimer !== false) {
+    const openInfo = getOpenWindowsAndDoors();
+    if (openInfo.openItems.length) {
+      const openBadges = openInfo.openItems.map(it => {
+        const icon = it.type === 'door' ? 'door' : 'window';
+        const warnCls = it.warnTriggered ? 'warn' : 'info';
+        const statusTxt = it.warnTriggered ? 'Auskühlungsgefahr!' : 'Offen';
+        return `<div class="vent-timer-item ${warnCls}">
+          <div style="display:flex;align-items:center;gap:7px;min-width:0">
+            <span class="vent-timer-ico">${ic(icon, 14)}</span>
+            <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</b>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span class="rt vent-timer-rt ${it.warnTriggered ? 'warn-pulse' : ''}" data-since="${it.since}">${fmtDur(it.durationMs)}</span>
+            <span class="vent-timer-lbl">${statusTxt}</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      const hasAuskuehlung = openInfo.openItems.some(x => x.warnTriggered);
+      const banner = hasAuskuehlung
+        ? `<div class="vent-open-alert warn">⚠️ <b>Auskühlungswarnung!</b> Ein Fenster/eine Tür ist seit über ${openInfo.warnMinutes} Min. geöffnet (${outT != null ? fmt(outT, 1) + '°C Außentemperatur' : 'kalte Außenluft'}). Bitte schließen, um Energieverlust zu vermeiden!</div>`
+        : '';
+
+      openTimerHtml = `<div class="vent-timer-box">${banner}<div class="vent-timer-grid">${openBadges}</div></div>`;
+    }
+  }
+
+  // 2. Regen-Vorschau Hinweis fürs Lüften
+  let rainNotice = '';
+  if (CONFIG.weather?.showRainTimeline !== false) {
+    const rain = getRainTimeline60Min();
+    if (rain.statusClass !== 'dry') {
+      rainNotice = `<div class="vent-rain-note ${rain.statusClass}">${esc(rain.advice)}</div>`;
+    }
+  }
+
   const roomRows = rooms.map(r => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
       <div>
@@ -802,7 +884,112 @@ function ventilationCard() {
       </div>
       <span class="mut sm">Außen: ${outT != null ? fmt(outT, 1) + '°C' : '–'} · ${outH != null ? fmt(outH, 0) + '%' : '–'} ${outAH != null ? '(' + outAH + ' g/m³)' : ''}</span>
     </div>
+    ${openTimerHtml}
+    ${rainNotice}
     ${roomRows || '<div class="mut sm">Hinterlege Innen- und Außensensoren im Konfigurator → Klima → Lüftungsempfehlung.</div>'}
+  </section>`;
+}
+
+/* ---------- REGENRADAR (60-MINUTEN-VORSCHAU) ---------- */
+function rainTimelineCard(customTitle) {
+  const wCfg = CONFIG.weather || {};
+  if (wCfg.showRainTimeline === false) return '';
+  const rain = getRainTimeline60Min();
+  const title = customTitle || 'Regenradar · 60 Min. Vorschau';
+
+  const statusLabel = rain.statusClass === 'dry' ? 'Trocken' : (rain.statusClass === 'soon' ? 'Regen erwartet' : 'Niederschlag');
+  const statusColor = rain.statusClass === 'dry' ? 'var(--ok)' : (rain.statusClass === 'soon' ? 'var(--cool)' : 'var(--warn)');
+
+  const bars = rain.slots.map(s => {
+    const barH = s.mm > 0 ? Math.min(54, Math.max(14, s.mm * 20)) : (s.prob > 15 ? Math.max(8, s.prob * 0.35) : 4);
+    const barColor = s.mm > 2.0 ? '#f59e0b' : (s.mm > 0.5 ? '#2563eb' : (s.mm > 0 ? '#38bdf8' : (s.prob > 20 ? 'rgba(56,189,248,.35)' : 'rgba(255,255,255,.07)')));
+    const topLabel = s.mm > 0 ? `${s.mm}mm` : (s.prob > 0 ? `${s.prob}%` : '0');
+
+    return `<div class="rt-slot" title="${s.time} Uhr: ${s.mm} mm/h (${s.prob}% Regenwahrscheinlichkeit)">
+      <div class="rt-val">${topLabel}</div>
+      <div class="rt-bar-wrap">
+        <div class="rt-bar" style="height:${barH}px;background:${barColor}"></div>
+      </div>
+      <div class="rt-time">${s.label}</div>
+    </div>`;
+  }).join('');
+
+  return `<section class="card rain-timeline-card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">🌧️</span>
+        <b>${esc(title)}</b>
+      </div>
+      <span class="pill" style="font-size:10px;padding:3px 8px;border-color:${statusColor};color:${statusColor}">${statusLabel}</span>
+    </div>
+    <div class="rain-advice-banner ${rain.statusClass}">
+      ${esc(rain.advice)}
+    </div>
+    <div class="rt-grid">
+      ${bars}
+    </div>
+  </section>`;
+}
+
+/* ---------- SPEICHER-RESTLAUFZEIT & LADEPROGNOSE ---------- */
+function batteryForecastCard(customTitle) {
+  const bfCfg = CONFIG.batteryForecast || {};
+  if (bfCfg.show === false) return '';
+  const bf = calcBatteryForecast();
+  if (!bf) return ui.editMode ? `<section class="card"><div class="ch"><b>⚡ Speicher-Prognose</b></div><div class="page-note">Keine Batterie- oder SoC-Sensoren hinterlegt. Konfigurator → Energie → Batteriespeicher.</div></section>` : '';
+
+  const title = customTitle || 'Speicher-Laufzeit & Prognose';
+  const isChg = bf.state === 'charging';
+  const isDis = bf.state === 'discharging';
+  const stateLabel = isChg ? 'Lädt' : (isDis ? 'Entlädt' : 'Standby');
+  const stateColor = isChg ? 'var(--ok)' : (isDis ? 'var(--cool)' : 'var(--mut)');
+  const stateIco = isChg ? ic('batteryCharge', 22) : (isDis ? ic('battery', 22) : ic('batteryClock', 22));
+
+  return `<section class="card battery-forecast-card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:${stateColor}">${stateIco}</span>
+        <b>${esc(title)}</b>
+      </div>
+      <span class="pill on" style="font-size:11px;padding:3px 9px;border-color:${stateColor};color:#fff">${bf.soc}% · ${stateLabel}</span>
+    </div>
+
+    <div class="bf-hero ${bf.state}">
+      <div class="bf-hero-left">
+        <div class="bf-hero-headline">${isChg ? 'Voll in ca. ' + bf.durationStr : 'Reicht noch ca. ' + bf.durationStr}</div>
+        <div class="bf-hero-sub">${esc(bf.desc)}</div>
+      </div>
+      <div class="bf-hero-right">
+        <div class="bf-hero-eta">${bf.targetTime}</div>
+        <small class="mut">Prognose-Uhrzeit</small>
+      </div>
+    </div>
+
+    <div class="bf-prog-wrap">
+      <div class="bf-prog-bar">
+        <div class="bf-prog-fill ${bf.state}" style="width:${clamp(bf.soc, 0, 100)}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:4px">
+        <span>0%</span>
+        <span>Min-Reserve: ${bfCfg.minSoC || 5}%</span>
+        <span>100% (${bfCfg.capacityKwh || 10} kWh)</span>
+      </div>
+    </div>
+
+    <div class="bf-stats-row">
+      <div class="bf-stat-col">
+        <span class="mut sm">Ladezustand</span>
+        <b>${bf.soc}%</b>
+      </div>
+      <div class="bf-stat-col">
+        <span class="mut sm">Aktuelle Leistung</span>
+        <b style="color:${stateColor}">${fmt(bf.powerW, 0)} W</b>
+      </div>
+      <div class="bf-stat-col">
+        <span class="mut sm">${isChg ? 'Voll um' : 'Leer um'}</span>
+        <b>${bf.etaStr}</b>
+      </div>
+    </div>
   </section>`;
 }
 
@@ -1307,6 +1494,11 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return useCard ? powerFlowHacsCard(w) : powerFlowTilesCard(w.title || 'PV Anlage');
   }
   if (w.type === 'weather_forecast') return weatherForecastCard(w.title);
+  if (w.type === 'rain_timeline') return rainTimelineCard(w.title);
+  if (w.type === 'battery_forecast') return batteryForecastCard(w.title);
+  if (w.type === 'energy_prices') return energyPricesCard(w.title);
+  if (w.type === 'wallbox') return wallboxCard(w.title);
+  if (w.type === 'appliances') return appliancesCard(w.title);
   if (w.type === 'devices') return devicesCard(w.room || '', w.title || 'Geräte', '');
   if (w.type === 'calendar') return homeCalendarCard(w.days || 14, w.title);
   if (w.type === 'trash') return homeTrashCard(w.days || 30, w.maxItems || 25, w.subtitle || 'Nächste 30 Tage');
@@ -1343,6 +1535,160 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
   if (w.type === 'f1_next') return f1NextRaceCard(w);
   if (w.type === 'f1_standings') return f1StandingsCard(w);
   return '';
+}
+
+/* ---------- DYNAMISCHE STROMPREISE (Tibber / EPEX Spot) ---------- */
+function energyPricesCard(customTitle) {
+  const cfg = CONFIG.energyPrices || {};
+  if (cfg.show === false) return '';
+  const s = S(cfg.entity);
+  if (!s || !s.attributes) return ui.editMode ? `<section class="card"><div class="ch"><b>💶 ${esc(cfg.title || 'Strompreise')}</b></div><div class="page-note">Strompreis-Entität fehlt (z.B. sensor.tibber_prices).</div></section>` : '';
+  
+  const attr = s.attributes;
+  const today = attr.today || attr.prices_today || [];
+  const tmr = attr.tomorrow || attr.prices_tomorrow || [];
+  const allPrices = [...today, ...tmr].slice(0, 48); // max 48h
+  
+  if (!allPrices.length) return `<section class="card"><div class="ch"><b>💶 ${esc(cfg.title || 'Strompreise')}</b></div><div class="page-note">Keine Preisdaten im Sensor-Attribut gefunden.</div></section>`;
+
+  const now = new Date();
+  const curHourIso = now.toISOString().slice(0, 13);
+  let curPriceObj = allPrices.find(p => (p.starts_at || p.start_time || '').startsWith(curHourIso));
+  if (!curPriceObj && today.length) curPriceObj = today[now.getHours()];
+  
+  const isEur = (cfg.priceUnit || 'Cent') === 'EUR';
+  const mult = isEur ? 100 : 1;
+  const curPriceCent = curPriceObj ? (curPriceObj.total || curPriceObj.price || 0) * mult : 0;
+  
+  const cheapThresh = cfg.cheapThreshold != null ? cfg.cheapThreshold : 20;
+  const expThresh = cfg.expensiveThreshold != null ? cfg.expensiveThreshold : 32;
+
+  const getCol = val => val < cheapThresh ? '#34d399' : (val > expThresh ? '#ef4444' : '#fcd34d');
+
+  // Nächste 24h rendern
+  const startIndex = allPrices.findIndex(p => (p.starts_at || p.start_time || '').startsWith(curHourIso)) || now.getHours();
+  const next24 = allPrices.slice(startIndex, startIndex + 24);
+  const maxP = Math.max(...next24.map(p => (p.total || p.price || 0) * mult), expThresh);
+  
+  const bars = next24.map((p, i) => {
+    const valCent = (p.total || p.price || 0) * mult;
+    const hPct = clamp((valCent / maxP) * 100, 5, 100);
+    const col = getCol(valCent);
+    const timeStr = (p.starts_at || p.start_time) ? new Date(p.starts_at || p.start_time).getHours() + 'h' : ((startIndex + i) % 24) + 'h';
+    return `<div class="ep-slot" title="${timeStr}: ${fmt(valCent, 1)} Cent">
+      <div class="ep-bar" style="height:${hPct}%;background:${col};opacity:${i===0 ? 1 : 0.6}"></div>
+      <div class="ep-lbl">${i % 3 === 0 ? timeStr : ''}</div>
+    </div>`;
+  }).join('');
+
+  return `<section class="card energy-prices-card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">💶</span>
+        <b>${esc(customTitle || cfg.title || 'Dynamische Strompreise')}</b>
+      </div>
+      <span class="pill" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,.05);color:${getCol(curPriceCent)};border-color:${getCol(curPriceCent)}">${fmt(curPriceCent, 1)} Cent/kWh</span>
+    </div>
+    <div class="ep-grid" style="display:flex;align-items:flex-end;height:80px;gap:2px;margin-top:12px;padding-bottom:18px;border-bottom:1px solid var(--line);position:relative">
+      ${bars}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:6px">
+      <span>Jetzt</span>
+      <span>Nächste 24 Stunden</span>
+      <span>+24h</span>
+    </div>
+  </section>`;
+}
+
+/* ---------- WALLBOX & E-AUTO ---------- */
+function wallboxCard(customTitle) {
+  const cfg = CONFIG.wallbox || {};
+  if (cfg.show === false) return '';
+  
+  const soc = num(cfg.socEntity);
+  const pwr = Math.max(0, num(cfg.powerEntity) || 0);
+  const statusS = S(cfg.statusEntity);
+  const modeS = S(cfg.modeEntity);
+  
+  const isCharging = pwr > 50 || (statusS && (statusS.state === 'charging' || statusS.state === 'Läd'));
+  const isConnected = isCharging || (statusS && ['connected', 'verbunden', 'steckend'].includes((statusS.state||'').toLowerCase()));
+  
+  const stateLabel = isCharging ? `Lädt (${fmt(pwr, 0)} W)` : (isConnected ? 'Verbunden' : 'Nicht verbunden');
+  const stateCol = isCharging ? 'var(--ok)' : (isConnected ? 'var(--acc2)' : 'var(--mut)');
+  
+  // Modus Toggle (wenn input_select oder switch)
+  let modeBtn = '';
+  if (modeS) {
+    const modes = modeS.attributes.options || ['PV', 'Schnell'];
+    const curM = modeS.state;
+    const nextM = modes[(modes.indexOf(curM) + 1) % modes.length] || curM;
+    modeBtn = `<button class="pill" style="font-size:10px;padding:3px 8px;border-color:var(--line)" data-act="callService" data-e="${esc(cfg.modeEntity)}" data-srv="toggle" title="Modus wechseln (aktuell: ${esc(curM)})">🔄 ${esc(curM)}</button>`;
+  }
+
+  return `<section class="card wallbox-card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px;color:${stateCol}">🚗</span>
+        <b>${esc(customTitle || cfg.title || 'Wallbox & E-Auto')}</b>
+      </div>
+      ${modeBtn}
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;margin-top:12px">
+      <div style="position:relative;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.03);border:2px solid ${stateCol}">
+        <b style="font-size:15px;color:var(--txt)">${soc != null ? soc + '%' : '--'}</b>
+        ${isCharging ? `<div style="position:absolute;bottom:-6px;background:var(--bg);padding:0 4px;color:var(--ok);font-size:14px">⚡</div>` : ''}
+      </div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px;color:var(--txt)">${stateLabel}</div>
+        <div class="mut sm" style="margin-top:2px">Status</div>
+      </div>
+      ${isConnected ? `<button class="iconbtn" style="width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.05);color:var(--txt)" data-act="callService" data-e="${esc(cfg.statusEntity)}" data-srv="toggle" title="Laden starten/stoppen">${isCharging ? '⏸' : '▶'}</button>` : ''}
+    </div>
+  </section>`;
+}
+
+/* ---------- HAUSHALTSGERÄTE-MONITOR ---------- */
+function appliancesCard(customTitle) {
+  const cfg = CONFIG.appliances || {};
+  if (cfg.show === false || !(cfg.items && cfg.items.length)) return '';
+  
+  const rows = cfg.items.map(a => {
+    const sState = S(a.stateEntity);
+    const sProg = S(a.progEntity);
+    const sRem = S(a.remainEntity);
+    const pwr = num(a.powerEntity);
+    
+    const stateStr = (sState ? sState.state : '').toLowerCase();
+    const isRunning = stateStr === 'on' || stateStr === 'run' || stateStr === 'running' || stateStr === 'active' || (pwr > 5);
+    const isDone = stateStr === 'done' || stateStr === 'finished' || stateStr === 'fertig';
+    
+    const iconCol = isDone ? 'var(--ok)' : (isRunning ? 'var(--warn)' : 'var(--mut)');
+    const iconAnim = isRunning ? 'pulse-slow 2s infinite' : 'none';
+    
+    const progStr = sProg ? (sProg.attributes?.friendly_name || sProg.state) : '';
+    const remStr = sRem ? (sRem.state !== 'unknown' && sRem.state !== 'unavailable' ? sRem.state : '') : '';
+    
+    const subTxt = isDone ? 'Bereit zum Ausräumen' : (isRunning ? [progStr, remStr].filter(Boolean).join(' · ') || 'Läuft' : 'Ausgeschaltet');
+    
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;background:rgba(255,255,255,.02);border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+      <div style="color:${iconCol};animation:${iconAnim}">${ic(a.icon || 'washing', 24)}</div>
+      <div style="flex:1;min-width:0">
+        <b style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.name)}</b>
+        <div class="mut sm" style="margin-top:2px;color:${isDone ? 'var(--ok)' : 'var(--mut)'}">${esc(subTxt)}</div>
+      </div>
+      ${pwr > 0 ? `<div style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.05);padding:3px 6px;border-radius:6px">${fmt(pwr, 0)}W</div>` : ''}
+    </div>`;
+  }).join('');
+  
+  return `<section class="card appliances-card">
+    <div class="ch">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">🧺</span>
+        <b>${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b>
+      </div>
+    </div>
+    ${rows}
+  </section>`;
 }
 
 function buliTeamCard(w) {
@@ -1790,11 +2136,13 @@ function formatCountdown(entity, fallback = '') {
   return `${hours > 0 ? `${hours}h ` : ''}${rest}m`;
 }
 function wasteType(summary) {
-  const value = String(summary || '');
-  if (/strauchgut/i.test(value)) return { label: 'Strauchgut', icon: 'leaf', color: '#84cc16' };
-  if (/grüne tonne|papier/i.test(value)) return { label: 'Papier', icon: 'cal', color: '#60a5fa' };
-  if (/gelber sack/i.test(value)) return { label: 'Gelber Sack', icon: 'trash', color: '#fbbf24' };
-  if (/graue tonne|restmüll|restmuell/i.test(value)) return { label: 'Restmüll', icon: 'trash', color: '#9ca3af' };
+  const value = String(summary || '').trim();
+  if (/strauch|astwerk|grüngut|gruengut|gartenabfall/i.test(value)) return { label: 'Grüngut', icon: 'leaf', color: '#84cc16' };
+  if (/bio|braune tonne|kompost/i.test(value)) return { label: 'Biotonne', icon: 'leaf', color: '#a16207' };
+  if (/gelbe tonne|gelber sack|wertstoff|recycling|dual/i.test(value)) return { label: 'Gelber Sack', icon: 'trash', color: '#fbbf24' };
+  if (/glas|altglas/i.test(value)) return { label: 'Altglas', icon: 'trash', color: '#2dd4bf' };
+  if (/grüne tonne|blaue tonne|papier|pappe/i.test(value)) return { label: 'Papier', icon: 'cal', color: '#60a5fa' };
+  if (/graue tonne|schwarze tonne|restmüll|restmuell/i.test(value)) return { label: 'Restmüll', icon: 'trash', color: '#9ca3af' };
   if (/sperrmüll|sperrmuell/i.test(value)) return { label: 'Sperrmüll', icon: 'trash', color: '#c084fc' };
   return { label: 'Abfall', icon: 'trash', color: '#9ca3af' };
 }
@@ -1951,10 +2299,11 @@ function homeCalendarCard(daysCount = 7, customTitle = null) {
   }).join('');
   return `<section class="card home-agenda"><div class="ch"><b>${esc(customTitle || `Familienkalender · ${daysCount} Tage`)}</b></div><div class="home-agenda-list">${DEMO ? '<div class="home-agenda-empty">Kalender im HA-Modus aktiv.</div>' : dayRows}</div></section>`;
 }
-function homeTrashCard(maxDays = 2, maxItems = 6, subtitle = 'Nächste 3 Tage') {
+function homeTrashCard(maxDays = 2, maxItems = 6, subtitle = null) {
   const calCfg = CONFIG.calendars || {};
   if (!(calCfg.trashEntities && calCfg.trashEntities.length)) return '';
   const items = getUpcomingTrashItems(maxDays).slice(0, maxItems);
+  const effSubtitle = subtitle || (maxDays === 2 ? 'Nächste 3 Tage' : `Nächste ${maxDays + 1} Tage`);
   const rows = items.map(ev => `<div class="home-agenda-row" style="--agenda-accent:${ev.type.color}"><div class="home-agenda-date">${esc(ev.when)}</div><div class="home-agenda-main"><span class="home-trash-type">${ic(ev.type.icon, 13)} ${esc(ev.type.label)}</span><b>${esc(ev.summary)}</b></div></div>`).join('');
-  return `<section class="card home-agenda"><div class="ch"><b>Abfallkalender</b><span class="mut sm">${esc(subtitle)}</span></div><div class="home-agenda-list">${rows || `<div class="home-agenda-empty">Keine Abholung (${esc(subtitle)}).</div>`}</div></section>`;
+  return `<section class="card home-agenda"><div class="ch"><b>Abfallkalender</b><span class="mut sm">${esc(effSubtitle)}</span></div><div class="home-agenda-list">${rows || `<div class="home-agenda-empty">Keine Abholung (${esc(effSubtitle)}).</div>`}</div></section>`;
 }

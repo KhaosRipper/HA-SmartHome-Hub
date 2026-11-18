@@ -29,6 +29,9 @@ const CHIP_ICON_OPTIONS = [
   ['mower', '🚜 Mähroboter (mower)'],
   ['blinds', '🪟 Rolladen (blinds)'],
   ['lock', '🔒 Schloss (lock)'],
+  ['door', '🚪 Tür (door)'],
+  ['bell', '🔔 Klingel (bell)'],
+  ['moon', '🌙 Nacht (moon)'],
   ['cal', '📅 Kalender (cal)'],
   ['trash', '🗑️ Müll / Abfall (trash)'],
   ['leaf', '🌿 Natur / Garten (leaf)'],
@@ -286,6 +289,7 @@ function renderCfgModal(preserveScroll = true) {
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="weather.showCard" ${w.showCard !== false ? 'checked' : ''}> Aktuelle Wetter-Kachel anzeigen</label>
       <label><input type="checkbox" data-cbool="weather.showForecast" ${w.showForecast ? 'checked' : ''}> 7-Tage-Vorhersage (Popup) aktivieren</label>
+      <label><input type="checkbox" data-cbool="weather.showRainTimeline" ${w.showRainTimeline !== false ? 'checked' : ''}> 🌧️ 60-Minuten Regenradar anzeigen</label>
     </div>
     <div class="cfg-row">
       ${fld('Kachel-Titel', `data-cpath="weather.title" value="${esc(w.title || 'Wetter')}"`)}
@@ -293,6 +297,7 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Haupt-Wetter (weather.*)', `list="ha-entities-list" data-cpath="weather.entity" value="${esc(w.entity || '')}"`)}
       ${fld('Eigene Temp.-Entität', `list="ha-entities-list" data-cpath="weather.tempEntity" value="${esc(w.tempEntity || '')}"`)}
       ${fld('Vorhersage-Entität', `list="ha-entities-list" data-cpath="weather.forecastEntity" value="${esc(w.forecastEntity || '')}"`)}
+      ${fld('Eigener Regen-/DWD-Sensor (optional)', `list="ha-entities-list" data-cpath="weather.rainEntity" value="${esc(w.rainEntity || '')}"`)}
     </div>
     <div style="margin-top:6px">
       <span class="cfg-desc" style="margin-bottom:8px">Zusätzliche Detail-Werte (z.B. Luftfeuchte, Wind) in der Wetter-Kachel:</span>
@@ -317,6 +322,13 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-cbool="pinProtect.systemLinks" ${pp.systemLinks ? 'checked' : ''}> PIN für Systemlinks</label>
       <label><input type="checkbox" data-cbool="pinProtect.kioskExit" ${pp.kioskExit ? 'checked' : ''}> PIN für Kiosk-Exit</label>
       <label><input type="checkbox" data-cbool="pinProtect.doorUnlock" ${pp.doorUnlock ? 'checked' : ''}> PIN für Türschlösser</label>
+    </div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc">OLED Screensaver (Burn-In-Schutz für Wandtablets):</span>
+      <div class="cfg-row" style="margin-top:6px">
+        <label><input type="checkbox" data-cbool="screensaver.show" ${(cfgDraft.screensaver || {}).show !== false ? 'checked' : ''}> Screensaver aktivieren</label>
+        ${fld('Inaktivitäts-Zeit (Minuten, 0 = Aus)', `type="number" min="0" max="120" data-cpath="screensaver.timeoutMins" value="${(cfgDraft.screensaver || {}).timeoutMins != null ? (cfgDraft.screensaver || {}).timeoutMins : 3}"`)}
+      </div>
     </div>
     <div style="margin-top:10px">
       <button class="iconbtn" data-act="cfgSetDefaultPanel">🏠 Smart Home Hub als Standard-Dashboard festlegen</button>
@@ -477,6 +489,7 @@ function renderCfgModal(preserveScroll = true) {
       ${dTabs.length > 2 ? `<button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="-1" ${ti === 0 ? 'disabled' : ''}>◀</button><button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="1" ${ti === dTabs.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
     </div>`).join('')}
     <button class="pill ${cfgDevSubTab === 'lichter' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="lichter">💡 Lichter-Karte</button>
+    <button class="pill ${cfgDevSubTab === 'appliances' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="appliances">🧺 Haushaltsgeräte</button>
     <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Reiter erstellen</button>
   </div>`;
 
@@ -517,6 +530,28 @@ function renderCfgModal(preserveScroll = true) {
         <button class="iconbtn" data-act="cfgAddContainer" style="margin-top:6px">+ Container hinzufügen</button>
       </div>
     `, true, '', 'dev_system_health');
+  } else if (cfgDevSubTab === 'appliances') {
+    const apps = cfgDraft.appliances || { show: false, title: 'Haushaltsgeräte', items: [] };
+    const itemsHtml = (apps.items || []).map((a, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+      ${fld('Name (z.B. Waschmaschine)', `data-ap-i="${i}" data-ap-k="name" value="${esc(a.name || '')}"`)}
+      ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(a.icon || 'washing') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-ap-i="${i}" data-ap-k="icon"`)}
+      ${fld('Status-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="stateEntity" value="${esc(a.stateEntity || '')}"`)}
+      ${fld('Programm-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="progEntity" value="${esc(a.progEntity || '')}"`)}
+      ${fld('Restzeit-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="remainEntity" value="${esc(a.remainEntity || '')}"`)}
+      ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="powerEntity" value="${esc(a.powerEntity || '')}"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="1" ${i === (apps.items || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelAppliance" data-i="${i}">✕</button></div>
+    </div>`).join('');
+    
+    tGeraete += box('🧺 Haushaltsgeräte-Monitor', 'Überwachung von Waschmaschine, Trockner oder Spülmaschine mit Restlaufzeit und Fertig-Hinweis.', `
+      <div class="cfg-row" style="margin-bottom:10px">
+        <label><input type="checkbox" data-cbool="appliances.show" ${apps.show !== false ? 'checked' : ''}> Haushaltsgeräte-Monitor auf Dashboard anzeigen</label>
+        ${fld('Kachel-Titel', `data-cpath="appliances.title" value="${esc(apps.title || 'Haushaltsgeräte')}"`)}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+        ${itemsHtml || '<div class="mut sm" style="margin-bottom:8px">Noch keine Geräte hinterlegt.</div>'}
+        <button class="iconbtn" data-act="cfgAddAppliance" style="margin-top:6px">+ Haushaltsgerät hinzufügen</button>
+      </div>
+    `, true, '', 'dev_appliances');
   } else if (cfgDevSubTab === 'covers') {
     const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px">
         ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
@@ -577,10 +612,13 @@ function renderCfgModal(preserveScroll = true) {
     box('🌬️ Smarte Lüftungsempfehlung', 'Berechnet die absolute Feuchte (g/m³) innen vs. außen und empfiehlt, ob Fenster zum Lüften geöffnet oder geschlossen werden sollten.', `
       <div class="cfg-row" style="margin-bottom:10px">
         <label><input type="checkbox" data-cbool="ventilation.show" ${vnt.show !== false ? 'checked' : ''}> Lüftungsempfehlung auf Dashboard anzeigen</label>
+        <label><input type="checkbox" data-cbool="ventilation.showOpenTimer" ${vnt.showOpenTimer !== false ? 'checked' : ''}> ⏱️ Fenster- &amp; Tür-Offen-Timer anzeigen</label>
       </div>
       <div class="cfg-row">
         ${fld('Außentemperatur-Sensor (°C)', `list="ha-entities-list" data-cpath="ventilation.outdoorTemp" value="${esc(vnt.outdoorTemp || '')}"`)}
         ${fld('Außenluftfeuchte-Sensor (%)', `list="ha-entities-list" data-cpath="ventilation.outdoorHum" value="${esc(vnt.outdoorHum || '')}"`)}
+        ${fld('Auskühlungswarnung nach (Minuten)', `type="number" min="1" max="120" data-cpath="ventilation.openWarnMinutes" value="${vnt.openWarnMinutes || 10}"`)}
+        ${fld('Auskühlungs-Schwelle Außentemp (°C)', `type="number" step="0.5" data-cpath="ventilation.warnOutdoorTempThreshold" value="${vnt.warnOutdoorTempThreshold != null ? vnt.warnOutdoorTempThreshold : 12}"`)}
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         <span class="cfg-desc">Räume für die Lüftungsberechnung:</span>
@@ -653,7 +691,35 @@ function renderCfgModal(preserveScroll = true) {
     `<button class="btn-pri" data-act="cfgAddCRoom" style="align-self:flex-start">+ Klima-Raum hinzufügen</button>`;
 
   // ---------- TAB 6: ENERGIE & KALENDER ----------
-  let tEnergie = (cfgDraft.metrics || []).map((m, mi) => box(`Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
+  let tEnergie = box('💶 Dynamische Strompreise (Tibber / EPEX)', 'Zeigt die aktuellen Strompreise (Cent/kWh) für 24 Stunden als Balkendiagramm inkl. Einfärbung (Grün/Günstig bis Rot/Teuer).', `
+    <div class="cfg-row" style="margin-bottom:10px">
+      <label><input type="checkbox" data-cbool="energyPrices.show" ${(cfgDraft.energyPrices || {}).show ? 'checked' : ''}> Strompreis-Kachel anzeigen</label>
+    </div>
+    <div class="cfg-row">
+      ${fld('Titel', `data-cpath="energyPrices.title" value="${esc((cfgDraft.energyPrices || {}).title || 'Dynamische Strompreise')}"`)}
+      ${fld('Preisentität (z.B. sensor.tibber_prices)', `list="ha-entities-list" data-cpath="energyPrices.entity" value="${esc((cfgDraft.energyPrices || {}).entity || '')}"`)}
+      ${sel('Einheit', [['Cent', 'Cent (z.B. 28.5)'], ['EUR', 'Euro (z.B. 0.285)']].map(([v, l]) => `<option value="${v}" ${((cfgDraft.energyPrices || {}).priceUnit || 'Cent') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="energyPrices.priceUnit"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:6px">
+      ${fld('Schwelle: Günstig (unter)', `type="number" step="0.1" data-cpath="energyPrices.cheapThreshold" value="${(cfgDraft.energyPrices || {}).cheapThreshold != null ? (cfgDraft.energyPrices || {}).cheapThreshold : 20}"`)}
+      ${fld('Schwelle: Teuer (über)', `type="number" step="0.1" data-cpath="energyPrices.expensiveThreshold" value="${(cfgDraft.energyPrices || {}).expensiveThreshold != null ? (cfgDraft.energyPrices || {}).expensiveThreshold : 32}"`)}
+    </div>
+  `, false, '', 'energie_prices') +
+  box('🚗 Wallbox & E-Auto', 'Zentrale Kachel für die Steuerung der Wallbox und die Anzeige des Auto-Akkus.', `
+    <div class="cfg-row" style="margin-bottom:10px">
+      <label><input type="checkbox" data-cbool="wallbox.show" ${(cfgDraft.wallbox || {}).show ? 'checked' : ''}> Wallbox-Kachel anzeigen</label>
+    </div>
+    <div class="cfg-row">
+      ${fld('Titel', `data-cpath="wallbox.title" value="${esc((cfgDraft.wallbox || {}).title || 'Wallbox')}"`)}
+      ${fld('Auto-Akku SoC (%)', `list="ha-entities-list" data-cpath="wallbox.socEntity" value="${esc((cfgDraft.wallbox || {}).socEntity || '')}"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:6px">
+      ${fld('Aktuelle Ladeleistung (W/kW)', `list="ha-entities-list" data-cpath="wallbox.powerEntity" value="${esc((cfgDraft.wallbox || {}).powerEntity || '')}"`)}
+      ${fld('Wallbox Status-Sensor', `list="ha-entities-list" data-cpath="wallbox.statusEntity" value="${esc((cfgDraft.wallbox || {}).statusEntity || '')}"`)}
+      ${fld('Lademodus (input_select/switch)', `list="ha-entities-list" data-cpath="wallbox.modeEntity" value="${esc((cfgDraft.wallbox || {}).modeEntity || '')}"`)}
+    </div>
+  `, false, '', 'energie_wallbox') +
+  (cfgDraft.metrics || []).map((m, mi) => box(`Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
     <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:10px">
       <label style="font-weight:600;cursor:pointer"><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="show" ${m.show !== false ? 'checked' : ''}> Kachel auf Dashboard anzeigen</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showChart" ${m.showChart !== false ? 'checked' : ''}> 24h-Diagramm (Sparkline)</label>
@@ -758,7 +824,27 @@ function renderCfgModal(preserveScroll = true) {
         <button class="btn-danger" data-act="cfgDelPF" data-i="${pfi}">✕</button>
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddPF" style="margin-top:6px">+ Power-Flow Sensor hinzufügen</button>
-    </div>`, false, '', 'energie_cal_pf');
+    </div>`, false, '', 'energie_cal_pf') +
+    box('⚡ Batteriespeicher-Prognose (Restlaufzeit & Ladeprognose)', 'Berechnet automatisch die verbleibende Akkulaufzeit (aktuelle Last / Grundlast) und die Uhrzeit der Vollladung bei PV-Überschuss.', `
+      <div class="cfg-row" style="margin-bottom:10px">
+        <label><input type="checkbox" data-cbool="batteryForecast.show" ${(cfgDraft.batteryForecast || {}).show !== false ? 'checked' : ''}> Speicher-Prognose aktivieren</label>
+      </div>
+      <div class="cfg-row">
+        ${fld('Nutzbare Akkukapazität (kWh)', `type="number" step="0.1" min="0.5" max="100" data-cpath="batteryForecast.capacityKwh" value="${(cfgDraft.batteryForecast || {}).capacityKwh || 10}"`)}
+        ${fld('Notstrom- / Min-Reserve (%)', `type="number" min="0" max="50" data-cpath="batteryForecast.minSoC" value="${(cfgDraft.batteryForecast || {}).minSoC != null ? (cfgDraft.batteryForecast || {}).minSoC : 5}"`)}
+        ${fld('Fallback-Grundlast bei Standby (W)', `type="number" min="50" max="3000" data-cpath="batteryForecast.defaultBaseLoad" value="${(cfgDraft.batteryForecast || {}).defaultBaseLoad || 450}"`)}
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('SoC-Sensor (% Ladezustand)', `list="ha-entities-list" data-cpath="batteryForecast.socEntity" value="${esc((cfgDraft.batteryForecast || {}).socEntity || '')}"`)}
+        ${fld('Ladeleistung (W)', `list="ha-entities-list" data-cpath="batteryForecast.chargePowerEntity" value="${esc((cfgDraft.batteryForecast || {}).chargePowerEntity || '')}"`)}
+        ${fld('Entladeleistung (W)', `list="ha-entities-list" data-cpath="batteryForecast.dischargePowerEntity" value="${esc((cfgDraft.batteryForecast || {}).dischargePowerEntity || '')}"`)}
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('Hausverbrauch (W)', `list="ha-entities-list" data-cpath="batteryForecast.housePowerEntity" value="${esc((cfgDraft.batteryForecast || {}).housePowerEntity || '')}"`)}
+        ${fld('PV-Erzeugung (W)', `list="ha-entities-list" data-cpath="batteryForecast.pvPowerEntity" value="${esc((cfgDraft.batteryForecast || {}).pvPowerEntity || '')}"`)}
+      </div>
+      <span class="cfg-desc" style="margin-top:8px">Tipp: Wenn Entitätsfelder leer bleiben, erkennt der Hub kompatible Sensoren (Senec, Sungrow, Fronius, Huawei etc.) automatisch aus deiner Power-Flow-Konfiguration!</span>
+    `, false, '', 'energie_battery_forecast');
 
   // ---------- TAB 7: KAMERAS & SICHERHEIT ----------
   let tKameras = box('🚨 Bedingte Warn-Karten (Alerts)', 'Karten, die auf dem Dashboard unsichtbar sind und nur ganz oben aufpoppen, wenn ein kritischer Zustand eintritt (z.B. Wassermelder, Rauchmelder, Akku < 15%, Fenster offen bei Regen).', `
@@ -836,7 +922,20 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('go2rtc Stream-Name (für lokales LAN)', `data-cam-i="${i}" data-cam-k="stream" value="${esc(c.stream || '')}"`)}
       <div class="order-btns"><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="1" ${i === cfgDraft.webrtcCameras.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCam" data-i="${i}">✕</button></div>
     </div>`).join('')}
-    <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true, '', 'security_all');
+    <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true, '', 'security_all') +
+  box('🛎️ Event-Popup (Türklingel / Bewegung)', 'Zeigt sofort ein großes Vollbild-Popup der Kamera, sobald der Auslöser auf "on" springt.', `
+    <div class="cfg-row" style="margin-bottom:10px">
+      <label><input type="checkbox" data-cbool="bellPopup.show" ${(cfgDraft.bellPopup || {}).show !== false ? 'checked' : ''}> Event-Popup aktivieren</label>
+    </div>
+    <div class="cfg-row">
+      ${fld('Auslöser (binary_sensor.*, z.B. Türklingel)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc((cfgDraft.bellPopup || {}).triggerEntity || '')}"`)}
+      ${fld('Kamera-Stream (Entität oder WebRTC-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc((cfgDraft.bellPopup || {}).cameraEntity || '')}"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:6px">
+      ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc((cfgDraft.bellPopup || {}).title || 'Türklingel')}"`)}
+      ${fld('Anzeigedauer (Sekunden)', `type="number" min="5" max="300" data-cpath="bellPopup.durationSec" value="${(cfgDraft.bellPopup || {}).durationSec || 30}"`)}
+    </div>
+  `, false, '', 'sec_bell');
 
   // ---------- TAB 8: EIGENE SEITEN ----------
   let tSeiten = (cfgDraft.customPages || []).map((p, pi) => {
@@ -973,7 +1072,7 @@ function renderCfgModal(preserveScroll = true) {
           return `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
             <div class="cfg-row">
               <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="show" ${w.show !== false ? 'checked' : ''}> Sichtbar</label>
-              ${sel('Widget-Typ', [['sports_hub', '🏆 Universal Sport-Center (Google-Style: Fußball, NFL, Tennis & mehr)'], ['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+              ${sel('Widget-Typ', [['sports_hub', '🏆 Universal Sport-Center (Google-Style: Fußball, NFL, Tennis & mehr)'], ['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['rain_timeline', 'O) 🌧️ Regenradar (60-Minuten-Vorschau)'], ['battery_forecast', 'P) ⚡ Speicher-Restlaufzeit & Prognose'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
               ${sel('Spalten-Zuweisung', wColOpts.map(([v, l]) => `<option value="${v}" ${String(w.col || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="col"`)}
               ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
               ${w.type !== 'sports_hub' ? fld('Haupt-Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`) : ''}
@@ -1195,6 +1294,21 @@ document.addEventListener('input', e => {
       else f[k] = t.value;
     }
   }
+  if (t.dataset.apI != null) {
+    if (!cfgDraft.appliances) cfgDraft.appliances = { show: true, items: [] };
+    if (!Array.isArray(cfgDraft.appliances.items)) cfgDraft.appliances.items = [];
+    const item = cfgDraft.appliances.items[+t.dataset.apI];
+    if (item) item[t.dataset.apK] = t.value;
+  }
+  if (t.dataset.sdI != null) {
+    if (!Array.isArray(cfgDraft.security.doors)) cfgDraft.security.doors = [];
+    let d = cfgDraft.security.doors[+t.dataset.sdI];
+    if (typeof d === 'string') {
+      d = { entity: d, name: '' };
+      cfgDraft.security.doors[+t.dataset.sdI] = d;
+    }
+    if (d) d[t.dataset.sdK] = t.value;
+  }
   if (t.dataset.rtI != null) {
     if (!Array.isArray(cfgDraft.routines)) cfgDraft.routines = [];
     if (cfgDraft.routines[+t.dataset.rtI]) cfgDraft.routines[+t.dataset.rtI][t.dataset.rtK] = t.value;
@@ -1363,7 +1477,10 @@ document.addEventListener('change', async e => {
           cfgDraft.rooms[idx].image = res.url;
           renderCfgModal(true);
           toast('Bild hochgeladen: ' + res.url);
-        } catch (err) { toast('Upload fehlgeschlagen'); }
+        } catch (err) {
+          const errMsg = (err && (err.message || err.error?.message || String(err))) || 'Unbekannter Fehler';
+          toast('Upload fehlgeschlagen: ' + errMsg);
+        }
       } else {
         cfgDraft.rooms[idx].image = b64;
         renderCfgModal(true);

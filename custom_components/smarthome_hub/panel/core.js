@@ -29,6 +29,9 @@ const ICONS = {
   unlock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
   window:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M12 3v18M4 12h16"/>',
   leaf:'<path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15zM5 19l8-8"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>',
+  moon:'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  door:'<path d="M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14M4 20h16M14 12v.01"/>',
   fan:'<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4C12 6 14 3 17 4s2 5-3.4 7M13.6 12c4.4 0 7.4 2 6.4 5s-5 2-7-3.4M12 13.6c0 4.4-2 7.4-5 6.4s-2-5 3.4-7M10.4 12C6 12 3 10 4 7s5-2 7 3.4"/>',
   sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
   filter:'<path d="M4 6h16M7 12h10M10 18h4"/>',
@@ -162,24 +165,277 @@ function calcAbsoluteHumidity(t, rh) {
 
 function DEFAULT_DASHBOARD_LAYOUT() {
   return [
-    { id: 'alerts',         label: '🚨 Bedingte Warn-Karten',         col: 1, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'hero',           label: 'Raum-Banner (Hero & Kamera)',     col: 1, show: true, scope: 'all',  cfgTab: 'raeume' },
-    { id: 'presence',       label: '👥 Familien-Präsenz',             col: 1, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'quick_routines', label: '⚡ Szenen & Routinen',             col: 1, show: true, scope: 'home', cfgTab: 'allgemein' },
-    { id: 'devices',        label: 'Geräteübersicht',                 col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'extra_tabs',     label: 'Zusätzliche Geräte-Reiter',       col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'covers',         label: 'Rolläden-Steuerung',              col: 1, show: true, scope: 'home', cfgTab: 'geraete' },
-    { id: 'calendar',       label: 'Familienkalender',                col: 1, show: true, scope: 'home', cfgTab: 'energie' },
-    { id: 'status',         label: 'Sicherheits-Status & Türschloss', col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'climate',        label: 'Raumklima & Wetter-Kachel',       col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'ventilation',    label: '🌬️ Smarte Lüftungsempfehlung',   col: 2, show: true, scope: 'all',  cfgTab: 'klima' },
-    { id: 'favorites',      label: 'Schnellauswahl / Favoriten',      col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'metrics',        label: 'Metriken (Energie / Wasser)',     col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'security',       label: 'Sicherheit (Schlösser/Fenster)',  col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'lights',         label: 'Lichter-Gruppen',                 col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'system_health',  label: '🖥️ System-Health (Server/Docker)', col: 2, show: false, scope: 'all', cfgTab: 'geraete' },
-    { id: 'trash',          label: 'Abfallkalender',                  col: 2, show: true, scope: 'home', cfgTab: 'energie' }
+    { id: 'alerts',           label: '🚨 Bedingte Warn-Karten',           col: 1, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'hero',             label: 'Raum-Banner (Hero & Kamera)',       col: 1, show: true, scope: 'all',  cfgTab: 'raeume' },
+    { id: 'presence',         label: '👥 Familien-Präsenz',               col: 1, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'quick_routines',   label: '⚡ Szenen & Routinen',               col: 1, show: true, scope: 'home', cfgTab: 'allgemein' },
+    { id: 'devices',          label: 'Geräteübersicht',                   col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'extra_tabs',       label: 'Zusätzliche Geräte-Reiter',         col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'appliances',       label: '🧺 Haushaltsgeräte-Monitor',        col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'covers',           label: 'Rolläden-Steuerung',                col: 1, show: true, scope: 'home', cfgTab: 'geraete' },
+    { id: 'calendar',         label: 'Familienkalender',                  col: 1, show: true, scope: 'home', cfgTab: 'energie' },
+    { id: 'status',           label: 'Sicherheits-Status & Türschloss',   col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'climate',          label: 'Raumklima & Wetter-Kachel',         col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'rain_timeline',    label: '🌧️ Regenradar (60-Minuten-Vorschau)', col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'ventilation',      label: '🌬️ Smarte Lüftungsempfehlung',     col: 2, show: true, scope: 'all',  cfgTab: 'klima' },
+    { id: 'favorites',        label: 'Schnellauswahl / Favoriten',        col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'energy_prices',    label: '💶 Dynamische Strompreise',         col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'metrics',          label: 'Metriken (Energie / Wasser)',       col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'battery_forecast', label: '⚡ Speicher-Restlaufzeit & Prognose', col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'wallbox',          label: '🚗 Wallbox & E-Auto',               col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'security',         label: 'Sicherheit (Schlösser/Fenster)',    col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
+    { id: 'lights',           label: 'Lichter-Gruppen',                   col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'system_health',    label: '🖥️ System-Health (Server/Docker)',  col: 2, show: false, scope: 'all', cfgTab: 'geraete' },
+    { id: 'trash',            label: 'Abfallkalender',                    col: 2, show: true, scope: 'home', cfgTab: 'energie' }
   ];
+}
+
+/* ---------- Fenster- & Tür-Offen-Timer & Auskühlungsschutz ---------- */
+function getOpenWindowsAndDoors(customWarnMinutes = null) {
+  const sec = CONFIG.security || {};
+  const vent = CONFIG.ventilation || {};
+  const warnMins = customWarnMinutes ?? (vent.openWarnMinutes || 10);
+  const outT = num(vent.outdoorTemp);
+  const isCold = outT != null ? outT <= (vent.warnOutdoorTempThreshold ?? 12) : true;
+
+  const itemsToCheck = [];
+  (sec.windows || []).forEach(w => {
+    if (w) itemsToCheck.push({ entity: w, type: 'window' });
+  });
+  (sec.doors || []).forEach(d => {
+    if (typeof d === 'string') itemsToCheck.push({ entity: d, type: 'door' });
+    else if (d && d.entity) itemsToCheck.push({ entity: d.entity, name: d.name, type: 'door' });
+  });
+
+  const now = Date.now();
+  const openList = [];
+
+  itemsToCheck.forEach(it => {
+    const s = S(it.entity);
+    if (!s) return;
+    const isOpen = s.state === 'on' || s.state === 'open' || s.state === 'unlocked';
+    if (!isOpen) return;
+
+    const fn = (s.attributes && s.attributes.friendly_name) || it.name || it.entity;
+    const since = s.last_changed ? Date.parse(s.last_changed) : now;
+    const durationMs = Math.max(0, now - since);
+    const minsOpen = Math.floor(durationMs / 60000);
+    const isOverdue = minsOpen >= warnMins;
+
+    openList.push({
+      entity: it.entity,
+      name: fn,
+      type: it.type,
+      since,
+      durationMs,
+      minsOpen,
+      isOverdue,
+      warnTriggered: isOverdue && isCold
+    });
+  });
+
+  openList.sort((a, b) => b.durationMs - a.durationMs);
+
+  return {
+    openItems: openList,
+    hasWarn: openList.some(x => x.warnTriggered),
+    warnMinutes: warnMins,
+    outdoorTemp: outT,
+    isCold
+  };
+}
+
+/* ---------- Speicher-Restlaufzeit & Ladeprognose ---------- */
+function calcBatteryForecast() {
+  const bf = CONFIG.batteryForecast || {};
+  const pf = CONFIG.powerFlow || [];
+
+  const findEnt = (regex) => {
+    const item = pf.find(x => regex.test(x.label || '') || regex.test(x.entity || ''));
+    return item ? item.entity : '';
+  };
+
+  const socEnt = bf.socEntity || findEnt(/speicher|akku|battery/i) || 'sensor.senec_battery_charge_percent';
+  const chgEnt = bf.chargePowerEntity || findEnt(/lad|charge/i) || 'sensor.senec_battery_charge_power';
+  const disEnt = bf.dischargePowerEntity || findEnt(/entlad|discharge/i) || 'sensor.senec_battery_discharge_power';
+  const houseEnt = bf.housePowerEntity || findEnt(/haus|home|verbr/i) || 'sensor.senec_house_power';
+  const pvEnt = bf.pvPowerEntity || findEnt(/pv|solar|prod/i) || 'sensor.senec_solar_generated_power';
+
+  const soc = num(socEnt);
+  if (soc == null) return null;
+
+  const capacityKwh = parseFloat(bf.capacityKwh) || 10.0;
+  const minSoC = parseFloat(bf.minSoC ?? 5);
+  const maxSoC = parseFloat(bf.maxSoC ?? 100);
+
+  const chgPower = Math.max(0, num(chgEnt) || 0);
+  const disPower = Math.max(0, num(disEnt) || 0);
+  const housePower = Math.max(0, num(houseEnt) || 450);
+  const pvPower = Math.max(0, num(pvEnt) || 0);
+
+  const totalWh = capacityKwh * 1000;
+  const currentWh = (soc / 100) * totalWh;
+  const usableWh = Math.max(0, ((soc - minSoC) / 100) * totalWh);
+  const neededWh = Math.max(0, ((maxSoC - soc) / 100) * totalWh);
+
+  const now = new Date();
+
+  // 1. Ladung aktiv (> 40 W)
+  if (chgPower >= 40) {
+    const hoursToFull = neededWh / chgPower;
+    const etaMs = Date.now() + Math.min(hoursToFull * 3600000, 48 * 3600000);
+    const eta = new Date(etaMs);
+    const h = Math.floor(hoursToFull);
+    const m = Math.round((hoursToFull - h) * 60);
+    const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const isToday = eta.getDate() === now.getDate();
+
+    return {
+      state: 'charging',
+      soc,
+      powerW: chgPower,
+      hoursRemaining: hoursToFull,
+      durationStr: durStr,
+      etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
+      desc: `Voll in ca. ${durStr} (${isToday ? etaStr : 'Morgen ' + etaStr} Uhr) bei ${fmt(chgPower, 0)} W Ladung`,
+      shortDesc: `Voll in ca. ${durStr}`,
+      targetTime: etaStr
+    };
+  }
+
+  // 2. Entladung aktiv (> 40 W)
+  if (disPower >= 40) {
+    const hoursToEmpty = usableWh / disPower;
+    const etaMs = Date.now() + Math.min(hoursToEmpty * 3600000, 72 * 3600000);
+    const eta = new Date(etaMs);
+    const h = Math.floor(hoursToEmpty);
+    const m = Math.round((hoursToEmpty - h) * 60);
+    const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const isToday = eta.getDate() === now.getDate();
+
+    return {
+      state: 'discharging',
+      soc,
+      powerW: disPower,
+      hoursRemaining: hoursToEmpty,
+      durationStr: durStr,
+      etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
+      desc: `Reicht ca. ${durStr} (${isToday ? etaStr : 'Morgen ' + etaStr} Uhr) bei ${fmt(disPower, 0)} W Entladung`,
+      shortDesc: `Reicht ca. ${durStr}`,
+      targetTime: etaStr
+    };
+  }
+
+  // 3. Standby / Idle -> Berechnung anhand Hausverbrauch bzw. Grundlast
+  const effectiveLoad = housePower > 50 ? housePower : (bf.defaultBaseLoad || 450);
+  const hoursToEmpty = usableWh / effectiveLoad;
+  const etaMs = Date.now() + Math.min(hoursToEmpty * 3600000, 72 * 3600000);
+  const eta = new Date(etaMs);
+  const h = Math.floor(hoursToEmpty);
+  const m = Math.round((hoursToEmpty - h) * 60);
+  const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const isToday = eta.getDate() === now.getDate();
+
+  return {
+    state: 'idle',
+    soc,
+    powerW: effectiveLoad,
+    hoursRemaining: hoursToEmpty,
+    durationStr: durStr,
+    etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
+    desc: `Reicht ca. ${durStr} (bei Ø ${fmt(effectiveLoad, 0)} W Grundlast)`,
+    shortDesc: `Reicht ca. ${durStr}`,
+    targetTime: etaStr
+  };
+}
+
+/* ---------- 60-Minuten Regenradar / Niederschlags-Timeline ---------- */
+function getRainTimeline60Min() {
+  const wCfg = CONFIG.weather || {};
+  const hourly = weatherForecastState.hourly || [];
+  const customRainEnt = wCfg.rainEntity ? S(wCfg.rainEntity) : null;
+
+  const slots = [];
+  const now = new Date();
+
+  let rainProb = 0;
+  let rainMm = 0;
+
+  if (hourly.length >= 1) {
+    const curHour = hourly[0] || {};
+    const nextHour = hourly[1] || curHour;
+
+    const curP = Number(curHour.precipitation || 0);
+    const nextP = Number(nextHour.precipitation || 0);
+    const curProb = Number(curHour.precipitation_probability || (curP > 0 ? 80 : 0));
+    const nextProb = Number(nextHour.precipitation_probability || (nextP > 0 ? 80 : 0));
+
+    rainProb = Math.max(curProb, nextProb);
+    rainMm = Math.max(curP, nextP);
+
+    for (let i = 0; i <= 6; i++) {
+      const frac = i / 6;
+      const slotTime = new Date(now.getTime() + i * 10 * 60000);
+      const slotLabel = i === 0 ? 'Jetzt' : `+${i * 10}m`;
+      const timeStr = `${pad(slotTime.getHours())}:${pad(slotTime.getMinutes())}`;
+      
+      const prob = Math.round(curProb + (nextProb - curProb) * frac);
+      const mm = +(curP + (nextP - curP) * frac).toFixed(1);
+
+      slots.push({
+        idx: i,
+        label: slotLabel,
+        time: timeStr,
+        prob,
+        mm
+      });
+    }
+  } else {
+    const isRainingNow = (S(wCfg.entity)?.state || '').includes('rain');
+    for (let i = 0; i <= 6; i++) {
+      const slotTime = new Date(now.getTime() + i * 10 * 60000);
+      const mm = isRainingNow ? Math.max(0, +(1.2 - i * 0.15).toFixed(1)) : 0;
+      const prob = isRainingNow ? Math.max(0, 90 - i * 12) : 5;
+      slots.push({
+        idx: i,
+        label: i === 0 ? 'Jetzt' : `+${i * 10}m`,
+        time: `${pad(slotTime.getHours())}:${pad(slotTime.getMinutes())}`,
+        prob,
+        mm
+      });
+    }
+    rainProb = slots[0].prob;
+    rainMm = slots[0].mm;
+  }
+
+  let advice = '';
+  let statusClass = 'dry';
+  const firstRainSlot = slots.find(s => s.prob >= 40 || s.mm > 0.1);
+
+  if (slots[0].mm > 0.1 || slots[0].prob >= 60) {
+    statusClass = 'raining';
+    const stopSlot = slots.find(s => s.mm <= 0.1 && s.prob < 40);
+    advice = stopSlot
+      ? `🌧️ Aktuell Niederschlag (~${slots[0].mm} mm) – Lässt gegen ${stopSlot.time} Uhr nach.`
+      : `🌧️ Aktuell Niederschlag (~${slots[0].mm} mm) in der nächsten Stunde.`;
+  } else if (firstRainSlot && firstRainSlot.idx > 0) {
+    statusClass = 'soon';
+    advice = `🌦️ Regen droht in ca. ${firstRainSlot.idx * 10} Min. (${firstRainSlot.time} Uhr) – Vor dem Gassigehen noch abwarten!`;
+  } else {
+    statusClass = 'dry';
+    advice = '🌤️ Nächste 60 Minuten trocken – Perfekt zum Lüften & Gassigehen 🐕';
+  }
+
+  return {
+    slots,
+    rainProb,
+    rainMm,
+    advice,
+    statusClass
+  };
 }
 
 function ensureConfigDefaults(cfg) {
@@ -236,6 +492,7 @@ function ensureConfigDefaults(cfg) {
     if (!l.batStyle) l.batStyle = 'badge';
   });
   if (!Array.isArray(cfg.security.windows)) cfg.security.windows = [];
+  if (!Array.isArray(cfg.security.doors)) cfg.security.doors = [];
   if (!Array.isArray(cfg.security.cameras)) cfg.security.cameras = [];
 
   if (!Array.isArray(cfg.alerts)) cfg.alerts = [];
@@ -244,6 +501,56 @@ function ensureConfigDefaults(cfg) {
   if (!Array.isArray(cfg.presence.members)) cfg.presence.members = [];
   if (!cfg.ventilation || typeof cfg.ventilation !== 'object') cfg.ventilation = { show: false, outdoorTemp: '', outdoorHum: '', rooms: [] };
   if (!Array.isArray(cfg.ventilation.rooms)) cfg.ventilation.rooms = [];
+  if (cfg.ventilation.showOpenTimer === undefined) cfg.ventilation.showOpenTimer = true;
+  if (cfg.ventilation.openWarnMinutes === undefined) cfg.ventilation.openWarnMinutes = 10;
+  if (cfg.ventilation.warnOutdoorTempThreshold === undefined) cfg.ventilation.warnOutdoorTempThreshold = 12;
+
+  if (!cfg.batteryForecast || typeof cfg.batteryForecast !== 'object') {
+    cfg.batteryForecast = {
+      show: true,
+      capacityKwh: 10,
+      minSoC: 5,
+      maxSoC: 100,
+      defaultBaseLoad: 450,
+      socEntity: '',
+      chargePowerEntity: '',
+      dischargePowerEntity: '',
+      housePowerEntity: '',
+      pvPowerEntity: ''
+    };
+  } else {
+    if (cfg.batteryForecast.show === undefined) cfg.batteryForecast.show = true;
+    if (!cfg.batteryForecast.capacityKwh) cfg.batteryForecast.capacityKwh = 10;
+    if (cfg.batteryForecast.minSoC === undefined) cfg.batteryForecast.minSoC = 5;
+    if (cfg.batteryForecast.maxSoC === undefined) cfg.batteryForecast.maxSoC = 100;
+    if (cfg.batteryForecast.defaultBaseLoad === undefined) cfg.batteryForecast.defaultBaseLoad = 450;
+  }
+
+  if (!cfg.energyPrices || typeof cfg.energyPrices !== 'object') {
+    cfg.energyPrices = { show: false, entity: '', title: 'Dynamische Strompreise', priceUnit: 'Cent' };
+  }
+  if (!cfg.wallbox || typeof cfg.wallbox !== 'object') {
+    cfg.wallbox = { show: false, title: 'Wallbox', socEntity: '', powerEntity: '', statusEntity: '', modeEntity: '' };
+  }
+  if (!cfg.appliances || typeof cfg.appliances !== 'object') {
+    cfg.appliances = { show: false, title: 'Haushaltsgeräte', items: [] };
+  }
+  if (!Array.isArray(cfg.appliances.items)) cfg.appliances.items = [];
+
+  if (!cfg.screensaver || typeof cfg.screensaver !== 'object') {
+    cfg.screensaver = { show: true, timeoutMins: 3 };
+  } else {
+    if (cfg.screensaver.show === undefined) cfg.screensaver.show = true;
+    if (cfg.screensaver.timeoutMins === undefined) cfg.screensaver.timeoutMins = 3;
+  }
+
+  if (!cfg.bellPopup || typeof cfg.bellPopup !== 'object') {
+    cfg.bellPopup = { show: false, triggerEntity: '', cameraEntity: '', title: 'Türklingel', durationSec: 30 };
+  } else {
+    if (cfg.bellPopup.show === undefined) cfg.bellPopup.show = false;
+    if (cfg.bellPopup.durationSec === undefined) cfg.bellPopup.durationSec = 30;
+  }
+
   if (!cfg.systemHealth || typeof cfg.systemHealth !== 'object') cfg.systemHealth = { show: false, title: 'Server & Docker', cpu: '', ram: '', disk: '', temp: '', containers: [] };
   if (!Array.isArray(cfg.systemHealth.containers)) cfg.systemHealth.containers = [];
 
@@ -287,6 +594,8 @@ function ensureConfigDefaults(cfg) {
   if (cfg.weather.label === undefined) cfg.weather.label = 'Zuhause';
   if (cfg.weather.tempUnit === undefined) cfg.weather.tempUnit = '°C';
   if (cfg.weather.showForecast === undefined) cfg.weather.showForecast = false;
+  if (cfg.weather.showRainTimeline === undefined) cfg.weather.showRainTimeline = true;
+  if (cfg.weather.rainEntity === undefined) cfg.weather.rainEntity = '';
   if (!cfg.weather.forecastTitle) cfg.weather.forecastTitle = 'Wettervorhersage · 7 Tage';
   if (!Array.isArray(cfg.weather.items)) {
     cfg.weather.items = [

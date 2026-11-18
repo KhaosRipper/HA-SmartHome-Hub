@@ -64,7 +64,13 @@ const EMPTY_CONFIG = {
   alerts: [],
   routines: [],
   presence: { show: false, members: [] },
-  ventilation: { show: false, outdoorTemp: "", outdoorHum: "", rooms: [] },
+  ventilation: { show: false, showOpenTimer: true, openWarnMinutes: 10, warnOutdoorTempThreshold: 12, outdoorTemp: "", outdoorHum: "", rooms: [] },
+  batteryForecast: { show: false, capacityKwh: 10, minSoC: 5, maxSoC: 100, defaultBaseLoad: 450, socEntity: "", chargePowerEntity: "", dischargePowerEntity: "", housePowerEntity: "", pvPowerEntity: "" },
+  energyPrices: { show: false, title: "Dynamische Strompreise", entity: "", priceUnit: "Cent", cheapThreshold: 20, expensiveThreshold: 32 },
+  wallbox: { show: false, title: "Wallbox", socEntity: "", powerEntity: "", statusEntity: "", modeEntity: "" },
+  appliances: { show: false, title: "Haushaltsgeräte", items: [] },
+  screensaver: { show: true, timeoutMins: 3 },
+  bellPopup: { show: false, triggerEntity: "", cameraEntity: "", title: "Türklingel", durationSec: 30 },
   systemHealth: { show: false, title: "Server & Docker", cpu: "", ram: "", disk: "", temp: "", containers: [] },
 
   powerFlow: [],
@@ -98,6 +104,8 @@ const EMPTY_CONFIG = {
     tempEntity: "",
     tempUnit: "°C",
     showForecast: true,
+    showRainTimeline: true,
+    rainEntity: "",
     forecastTitle: "Wettervorhersage · 7 Tage",
     forecastEntity: "",
     items: [
@@ -226,12 +234,62 @@ const TIMO_PRESET_CONFIG = {
   },
   ventilation: {
     show: true,
+    showOpenTimer: true,
+    openWarnMinutes: 10,
+    warnOutdoorTempThreshold: 12,
     outdoorTemp: "sensor.appenweier_temperatur",
     outdoorHum: "sensor.appenweier_luftfeuchtigkeit",
     rooms: [
       { name: "Schlafzimmer", temp: "sensor.temperatur_schlafzimmer_dachboden", hum: "sensor.heizung_wohnzimmer_luftfeuchtigkeit" },
       { name: "Bad", temp: "sensor.bad_temperatur", hum: "sensor.bad_temperatur" }
     ]
+  },
+  batteryForecast: {
+    show: true,
+    capacityKwh: 10,
+    minSoC: 5,
+    maxSoC: 100,
+    defaultBaseLoad: 450,
+    socEntity: "sensor.senec_battery_charge_percent",
+    chargePowerEntity: "sensor.senec_battery_charge_power",
+    dischargePowerEntity: "sensor.senec_battery_discharge_power",
+    housePowerEntity: "sensor.senec_house_power",
+    pvPowerEntity: "sensor.senec_solar_generated_power"
+  },
+  energyPrices: {
+    show: false,
+    title: "Dynamische Strompreise",
+    entity: "",
+    priceUnit: "Cent",
+    cheapThreshold: 20,
+    expensiveThreshold: 32
+  },
+  wallbox: {
+    show: false,
+    title: "Wallbox",
+    socEntity: "",
+    powerEntity: "",
+    statusEntity: "",
+    modeEntity: ""
+  },
+  appliances: {
+    show: true,
+    title: "Haushaltsgeräte",
+    items: [
+      { name: "Waschmaschine", icon: "washing", stateEntity: "sensor.waschmaschine_ende", progEntity: "", remainEntity: "sensor.waschmaschine_ende", powerEntity: "" },
+      { name: "Geschirrspüler", icon: "washing", stateEntity: "sensor.geschirrspuler_programm_fortschritt", progEntity: "sensor.geschirrspuler_programm_fortschritt", remainEntity: "sensor.geschirrspuler_programm_endzeit", powerEntity: "" }
+    ]
+  },
+  screensaver: {
+    show: true,
+    timeoutMins: 3
+  },
+  bellPopup: {
+    show: false,
+    triggerEntity: "",
+    cameraEntity: "camera.eingang",
+    title: "Türklingel",
+    durationSec: 30
   },
   systemHealth: {
     show: false,
@@ -335,6 +393,8 @@ const TIMO_PRESET_CONFIG = {
     tempEntity: "sensor.appenweier_temperatur",
     tempUnit: "°C",
     showForecast: true,
+    showRainTimeline: true,
+    rainEntity: "",
     forecastTitle: "Wettervorhersage · 7 Tage",
     forecastEntity: "weather.appenweier",
     items: [

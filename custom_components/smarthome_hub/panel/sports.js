@@ -370,7 +370,10 @@ function parseSummaryDetails(summaryJson) {
 
 async function fetchJsonSafe(url) {
   try {
-    const r = await fetch(url);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+    const r = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (timeout) clearTimeout(timeout);
     if (!r.ok) return null;
     return await r.json();
   } catch (e) {

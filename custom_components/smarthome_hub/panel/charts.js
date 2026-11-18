@@ -567,7 +567,7 @@ async function refreshSeries() {
   await Promise.all([...metricTasks, ...climateTasks]);
   await refreshCustomPageSeries(false);
   ui.seriesVer++;
-  if (sm.open && sm.mode === 'metric') renderChartModal();
+  if (sm.open && (sm.mode === 'chart' || sm.mode === 'metric')) renderChartModal();
   tick(true);
 }
 

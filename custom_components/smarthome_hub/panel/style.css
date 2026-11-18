@@ -2192,4 +2192,451 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   transform: translateY(0);
 }
 
+/* ==========================================================================
+   Smarte Erweiterungen 2: Screensaver, Energy Prices, Appliances, Bell Popup
+   ========================================================================== */
+
+/* 1. OLED Screensaver (Inaktivitäts-Overlay) */
+#screensaver {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: #000;
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1.5s ease-in-out;
+  cursor: pointer;
+}
+#screensaver .ss-clock {
+  font-size: 15vw;
+  font-weight: 200;
+  color: #fff;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+#screensaver .ss-date {
+  font-size: 3vw;
+  color: #888;
+  margin-top: 10px;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+#screensaver .ss-weather {
+  font-size: 4vw;
+  color: #ccc;
+  margin-top: 30px;
+  font-weight: 300;
+}
+#screensaver .ss-alerts {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#screensaver .ss-alert {
+  padding: 12px 20px;
+  border-radius: 99px;
+  font-size: 2vw;
+  border: 1px solid;
+}
+#screensaver .ss-alert.warn {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* 2. Dynamische Strompreise */
+.energy-prices-card .ep-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+.energy-prices-card .ep-bar {
+  width: 100%;
+  max-width: 12px;
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+}
+.energy-prices-card .ep-lbl {
+  font-size: 9px;
+  color: var(--mut);
+  height: 12px;
+  white-space: nowrap;
+}
+
+/* 3. Haushaltsgeräte & Wallbox */
+.wallbox-card .iconbtn:hover {
+  background: rgba(255,255,255,.1) !important;
+}
+
+/* 4. Türklingel / Kamera Popup (wird per JS dynamisch ins DOM injiziert) */
+.bell-popup-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.bell-popup-content {
+  width: 90vw;
+  max-width: 1200px;
+  background: #111;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  overflow: hidden;
+  position: relative;
+  transform: scale(0.95);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.bell-popup-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.bell-popup-hdr h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bell-popup-hdr h2 span { color: var(--acc2); animation: pulse-slow 2s infinite; }
+.bell-popup-cam {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+}
+.bell-popup-cam iframe, .bell-popup-cam img {
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: contain;
+}
+.bell-popup-close {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bell-popup-close:hover { background: rgba(255,255,255,0.2); }
+
+/* ==========================================================================
+   Smarte Erweiterungen 1: Fenster-Timer, Regenradar, Speicher-Prognose
+   ========================================================================== */
+
+/* 1. Fenster- & Tür-Offen-Timer & Auskühlungsschutz */
+.vent-timer-box {
+  margin: 10px 0 14px;
+}
+.vent-open-alert {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  border: 1px solid;
+}
+.vent-open-alert.warn {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  animation: pulse-warn-border 2.5s infinite;
+}
+.vent-open-alert.info {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+  color: #bae6fd;
+}
+.vent-timer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+.vent-timer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  transition: all .2s;
+}
+.vent-timer-item.warn {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.vent-timer-ico {
+  color: var(--acc2);
+}
+.vent-timer-item.warn .vent-timer-ico {
+  color: var(--warn);
+}
+.vent-timer-rt {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.vent-timer-rt.warn-pulse {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+.vent-timer-lbl {
+  font-size: 10px;
+  color: var(--mut);
+}
+.vent-timer-item.warn .vent-timer-lbl {
+  color: #f87171;
+  font-weight: 600;
+}
+.vent-rain-note {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #bae6fd;
+}
+.vent-rain-note.raining {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fde68a;
+}
+
+@keyframes pulse-warn-border {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.35); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50% { border-color: rgba(239, 68, 68, 0.7); box-shadow: 0 0 12px rgba(239, 68, 68, 0.25); }
+}
+
+/* 2. 60-Minuten Regenradar / Niederschlags-Timeline */
+.rain-timeline-card {
+  padding-bottom: 18px;
+}
+.rain-advice-banner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+  border: 1px solid var(--line);
+}
+.rain-advice-banner.dry {
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: #a7f3d0;
+}
+.rain-advice-banner.soon {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #bae6fd;
+}
+.rain-advice-banner.raining {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fde68a;
+}
+.rt-grid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 0;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  min-height: 110px;
+}
+.rt-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.rt-val {
+  font-size: 10px;
+  color: var(--mut);
+  height: 14px;
+}
+.rt-bar-wrap {
+  width: 100%;
+  max-width: 32px;
+  height: 60px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.rt-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height .3s cubic-bezier(.4, 0, .2, 1);
+}
+.rt-time {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--txt);
+  padding-bottom: 8px;
+  white-space: nowrap;
+}
+
+/* Mini-Timeline in der Wetter-Kachel */
+.rain-mini-wrap {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+}
+.rain-mini-hdr {
+  margin-bottom: 8px;
+}
+.rain-mini-advice {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.rain-mini-advice.dry { color: #a7f3d0; }
+.rain-mini-advice.soon { color: #bae6fd; }
+.rain-mini-advice.raining { color: #fde68a; }
+.rain-mini-grid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  height: 44px;
+}
+.rain-mini-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+.rain-mini-bar {
+  width: 100%;
+  max-width: 16px;
+  border-radius: 3px 3px 0 0;
+  transition: height .2s;
+}
+.rain-mini-t {
+  font-size: 9px;
+  color: var(--mut);
+}
+
+/* 3. Speicher-Restlaufzeit & Ladeprognose */
+.battery-forecast-card .bf-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 14px;
+  margin: 12px 0 16px;
+  border: 1px solid var(--line);
+}
+.bf-hero.charging {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+.bf-hero.discharging {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(124, 108, 240, 0.06) 100%);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+.bf-hero.idle {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--line);
+}
+.bf-hero-headline {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--txt);
+  margin-bottom: 4px;
+}
+.bf-hero-sub {
+  font-size: 12px;
+  color: var(--mut);
+}
+.bf-hero-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+.bf-hero-eta {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: monospace;
+  color: var(--txt);
+  line-height: 1.1;
+}
+.bf-prog-wrap {
+  margin-bottom: 16px;
+}
+.bf-prog-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.bf-prog-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .4s ease;
+}
+.bf-prog-fill.charging {
+  background: linear-gradient(90deg, #34d399, #38bdf8);
+}
+.bf-prog-fill.discharging {
+  background: linear-gradient(90deg, #38bdf8, #7c6cf0);
+}
+.bf-prog-fill.idle {
+  background: var(--acc2);
+}
+.bf-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.bf-stat-col {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+}
+.bf-stat-col b {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
 

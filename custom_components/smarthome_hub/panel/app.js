@@ -13,13 +13,18 @@ const DASH_CARD_EDITOR_TAB = {
   quick_routines: 'allgemein',
   devices: 'geraete',
   extra_tabs: 'geraete',
+  appliances: 'geraete',
   covers: 'geraete',
   calendar: 'energie',
   status: 'kameras',
   climate: 'allgemein',
+  rain_timeline: 'allgemein',
   ventilation: 'klima',
   favorites: 'geraete',
+  energy_prices: 'energie',
   metrics: 'energie',
+  battery_forecast: 'energie',
+  wallbox: 'energie',
   security: 'kameras',
   lights: 'geraete',
   system_health: 'geraete',
@@ -33,13 +38,18 @@ function renderDashCardHtml(id) {
     case 'quick_routines': return routinesCard();
     case 'devices': return devicesCard(null, 'Geräteübersicht', 'geraete');
     case 'extra_tabs': return extraDeviceTabsCards();
+    case 'appliances': return appliancesCard();
     case 'covers': return coversCard();
     case 'calendar': return homeCalendarCard();
     case 'status': return rightTopStatus();
     case 'climate': return climateCard();
+    case 'rain_timeline': return rainTimelineCard();
     case 'ventilation': return ventilationCard();
     case 'favorites': return favoritesCard();
+    case 'energy_prices': return energyPricesCard();
     case 'metrics': return (CONFIG.metrics || []).map(metricCard).join('');
+    case 'battery_forecast': return batteryForecastCard();
+    case 'wallbox': return wallboxCard();
     case 'security': return securityCard();
     case 'lights': return lightsCard();
     case 'system_health': return systemHealthCard();
@@ -434,8 +444,33 @@ function rebuildEntitiesList() {
   }
   (CONFIG.rooms || []).forEach(r => (r.climateTiles || []).forEach(t => ids.push(t.entity)));
   if (CONFIG.weather) {
-    ids.push(CONFIG.weather.entity, CONFIG.weather.tempEntity, CONFIG.weather.forecastEntity);
+    ids.push(CONFIG.weather.entity, CONFIG.weather.tempEntity, CONFIG.weather.forecastEntity, CONFIG.weather.rainEntity);
     (CONFIG.weather.items || []).forEach(it => ids.push(it.entity));
+  }
+  if (CONFIG.batteryForecast) {
+    ids.push(
+      CONFIG.batteryForecast.socEntity,
+      CONFIG.batteryForecast.chargePowerEntity,
+      CONFIG.batteryForecast.dischargePowerEntity,
+      CONFIG.batteryForecast.housePowerEntity,
+      CONFIG.batteryForecast.pvPowerEntity
+    );
+  }
+  if (CONFIG.energyPrices) {
+    ids.push(CONFIG.energyPrices.entity);
+  }
+  if (CONFIG.wallbox) {
+    ids.push(
+      CONFIG.wallbox.socEntity,
+      CONFIG.wallbox.powerEntity,
+      CONFIG.wallbox.statusEntity,
+      CONFIG.wallbox.modeEntity
+    );
+  }
+  if (CONFIG.appliances) {
+    (CONFIG.appliances.items || []).forEach(a => {
+      ids.push(a.stateEntity, a.progEntity, a.remainEntity, a.powerEntity);
+    });
   }
   (CONFIG.climateRooms || []).forEach(r => {
     (r.sensors || []).forEach(x => ids.push(x.entity));
@@ -449,6 +484,10 @@ function rebuildEntitiesList() {
   });
   if (CONFIG.security) {
     ids.push(CONFIG.security.lock, ...(CONFIG.security.windows || []), ...(CONFIG.security.cameras || []));
+    (CONFIG.security.doors || []).forEach(d => {
+      if (typeof d === 'string') ids.push(d);
+      else if (d && d.entity) ids.push(d.entity);
+    });
     getLocksList(CONFIG.security).forEach(l => ids.push(l.entity, l.battery));
   }
   (CONFIG.lights || []).forEach(g => ids.push(...(g.entities || [])));
@@ -1192,6 +1231,44 @@ document.addEventListener('click', ev => {
     return;
   }
 
+  /* Haushaltsgeräte */
+  if (act === 'cfgAddAppliance') {
+    if (!cfgDraft.appliances) cfgDraft.appliances = { show: true, items: [] };
+    if (!Array.isArray(cfgDraft.appliances.items)) cfgDraft.appliances.items = [];
+    cfgDraft.appliances.items.push({ name: 'Neues Gerät', icon: 'washing', stateEntity: '', progEntity: '', remainEntity: '', powerEntity: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelAppliance') {
+    if (cfgDraft.appliances && cfgDraft.appliances.items) {
+      cfgDraft.appliances.items.splice(+el.dataset.i, 1);
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgMoveAppliance') {
+    if (cfgDraft.appliances && cfgDraft.appliances.items) {
+      moveItem(cfgDraft.appliances.items, +el.dataset.i, +el.dataset.dir);
+      renderCfgModal(true);
+    }
+    return;
+  }
+
+  /* Zusätzliche Türen */
+  if (act === 'cfgAddSecDoor') {
+    if (!Array.isArray(cfgDraft.security.doors)) cfgDraft.security.doors = [];
+    cfgDraft.security.doors.push({ name: 'Tür', entity: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgDelSecDoor') {
+    if (cfgDraft.security && cfgDraft.security.doors) {
+      cfgDraft.security.doors.splice(+el.dataset.i, 1);
+      renderCfgModal(true);
+    }
+    return;
+  }
+
   /* Szenen & Routinen */
   if (act === 'cfgAddRoutine') {
     if (!Array.isArray(cfgDraft.routines)) cfgDraft.routines = [];
@@ -1682,6 +1759,169 @@ document.addEventListener('click', ev => {
   tick(true);
 });
 
+/* ---------- Event-gesteuertes Kamera-Popup (Klingel / Bewegung) ---------- */
+let activeBellPopup = null;
+let bellPopupTimeout = null;
+
+function checkBellPopupTrigger() {
+  if (ui.editMode || isScreensaverActive) return;
+  const cfg = CONFIG.bellPopup || {};
+  if (cfg.show !== false && cfg.triggerEntity && cfg.cameraEntity) {
+    const s = S(cfg.triggerEntity);
+    if (s && s.state === 'on') {
+      if (!activeBellPopup) {
+        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
+      }
+    }
+  }
+}
+
+function showBellPopup(cameraEntity, title) {
+  if (activeBellPopup) return;
+  activeBellPopup = true;
+  
+  let pEl = document.getElementById('bell-popup');
+  if (!pEl) {
+    pEl = document.createElement('div');
+    pEl.id = 'bell-popup';
+    pEl.className = 'bell-popup-overlay';
+    document.body.appendChild(pEl);
+  }
+  
+  const resolvedStream = resolveGo2rtcStream('', cameraEntity);
+  const resolvedEnt = resolveCamEntity(resolvedStream, cameraEntity);
+  const useGo2 = canUseGo2rtc() && !!resolvedStream;
+  const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
+  
+  const mediaHtml = useGo2
+    ? `<iframe src="${esc(`${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`
+    : (resolvedEnt && camUrl(resolvedEnt, true)
+      ? `<img src="${esc(camUrl(resolvedEnt, true))}" alt="Kamera">`
+      : `<div class="cam-placeholder">${ic('camera', 40)}<span>Kamera nicht erreichbar</span></div>`);
+      
+  pEl.innerHTML = `
+    <div class="bell-popup-content">
+      <div class="bell-popup-hdr">
+        <h2><span>${ic('bell', 24)}</span> ${esc(title)}</h2>
+        <button class="bell-popup-close" onclick="closeBellPopup()">✕</button>
+      </div>
+      <div class="bell-popup-cam">
+        ${mediaHtml}
+      </div>
+    </div>
+  `;
+  
+  pEl.style.display = 'flex';
+  setTimeout(() => {
+    pEl.style.opacity = '1';
+    pEl.querySelector('.bell-popup-content').style.transform = 'scale(1)';
+  }, 10);
+  
+  const duration = (CONFIG.bellPopup?.durationSec || 30) * 1000;
+  if (bellPopupTimeout) clearTimeout(bellPopupTimeout);
+  bellPopupTimeout = setTimeout(closeBellPopup, duration);
+}
+
+window.closeBellPopup = function() {
+  if (!activeBellPopup) return;
+  activeBellPopup = false;
+  if (bellPopupTimeout) clearTimeout(bellPopupTimeout);
+  const pEl = document.getElementById('bell-popup');
+  if (pEl) {
+    pEl.style.opacity = '0';
+    pEl.querySelector('.bell-popup-content').style.transform = 'scale(0.95)';
+    setTimeout(() => {
+      pEl.style.display = 'none';
+      pEl.innerHTML = ''; // iframe stoppen
+    }, 300);
+  }
+};
+
+/* ---------- Inaktivitäts- & Screensaver-Logik ---------- */
+let idleTimer = null;
+let isScreensaverActive = false;
+
+function resetIdleTimer() {
+  if (isScreensaverActive) {
+    isScreensaverActive = false;
+    const ssEl = document.getElementById('screensaver');
+    if (ssEl) {
+      ssEl.style.opacity = '0';
+      setTimeout(() => ssEl.style.display = 'none', 500);
+    }
+  }
+  
+  if (idleTimer) clearTimeout(idleTimer);
+  const cfg = CONFIG.screensaver || {};
+  if (cfg.show !== false && cfg.timeoutMins > 0 && !ui.editMode) {
+    idleTimer = setTimeout(() => {
+      activateScreensaver();
+    }, cfg.timeoutMins * 60000);
+  }
+}
+
+function activateScreensaver() {
+  if (ui.editMode || sm.open) return;
+  isScreensaverActive = true;
+  let ssEl = document.getElementById('screensaver');
+  if (!ssEl) {
+    ssEl = document.createElement('div');
+    ssEl.id = 'screensaver';
+    document.body.appendChild(ssEl);
+  }
+  
+  updateScreensaverContent();
+  ssEl.style.display = 'flex';
+  // Kurzer Timeout für CSS Transition
+  setTimeout(() => ssEl.style.opacity = '1', 10);
+}
+
+function updateScreensaverContent() {
+  if (!isScreensaverActive) return;
+  const ssEl = document.getElementById('screensaver');
+  if (!ssEl) return;
+  
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+  
+  let wIcon = '🌤️';
+  let tempStr = '–';
+  if (CONFIG.weather && CONFIG.weather.entity) {
+    const ws = S(CONFIG.weather.entity);
+    if (ws) {
+      wIcon = WEATHER_SYMBOLS[ws.state] || '🌤️';
+      if (CONFIG.weather.tempEntity) {
+        const ts = S(CONFIG.weather.tempEntity);
+        if (ts && !isNaN(ts.state)) tempStr = fmt(ts.state, 1) + '°C';
+      } else if (ws.attributes && ws.attributes.temperature != null) {
+        tempStr = fmt(ws.attributes.temperature, 1) + '°C';
+      }
+    }
+  }
+  
+  let alertsHtml = '';
+  const openInfo = getOpenWindowsAndDoors(CONFIG.ventilation?.openWarnMinutes || 10);
+  if (openInfo.openItems.length) {
+    alertsHtml = `<div class="ss-alerts"><div class="ss-alert warn">⚠️ ${openInfo.openItems.length} Fenster/Türen offen!</div></div>`;
+  }
+  
+  const pwrFlowHtml = ''; // Platzhalter für weitere Mini-Graphen falls gewünscht
+  
+  ssEl.innerHTML = `
+    <div class="ss-clock">${timeStr}</div>
+    <div class="ss-date">${dateStr}</div>
+    <div class="ss-weather">${wIcon} ${tempStr}</div>
+    ${alertsHtml}
+    ${pwrFlowHtml}
+  `;
+}
+
+// Event-Listener für Idle-Tracking (nur auf document level)
+['pointerdown', 'pointermove', 'keydown', 'wheel'].forEach(evName => {
+  document.addEventListener(evName, resetIdleTimer, { passive: true });
+});
+
 /* ---------- Initialisierung ---------- */
 (async function init() {
   try {
@@ -1699,10 +1939,15 @@ document.addEventListener('click', ev => {
   refreshSeries();
   refreshWeatherForecast(true);
   refreshHomeCalendars(true);
+  resetIdleTimer();
   if (typeof refreshAllSportsHubs === 'function') refreshAllSportsHubs(false);
   setInterval(tick, 1500);
   setInterval(updatePFC, 1500);
-  setInterval(runtimeTick, 1000);
+  setInterval(() => {
+    runtimeTick();
+    checkBellPopupTrigger();
+    if (isScreensaverActive) updateScreensaverContent();
+  }, 1000);
   setInterval(refreshSeries, 5 * 60 * 1000);
   setInterval(refreshMetricCompare, 60 * 1000);
   setInterval(() => refreshWeatherForecast(true), 30 * 60 * 1000);
