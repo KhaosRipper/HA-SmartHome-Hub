@@ -203,12 +203,18 @@ function heroOverlayContent() {
     return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}" title="${esc(btnName || 'Vollbild öffnen')}">${ic(btnIcon, 14)}${showTxt ? esc(btnName) : ''}</button>`;
   }).join('');
 
+  const th = CONFIG.theme || {};
+  const hiStyle = th.greetingColor ? `style="color:${esc(th.greetingColor)}"` : '';
+  const nameStyle = th.nameColor ? `style="color:${esc(th.nameColor)}"` : '';
+  const greetStyle = th.activityColor ? `style="color:${esc(th.activityColor)}"` : '';
+  const dtStyle = th.dateTimeColor ? `style="color:${esc(th.dateTimeColor)}"` : '';
+
   return `<div class="hero-top">
-      <div class="hi">${greet},</div>
-      <div class="name-row"><div class="name">${esc(name)} 👋</div></div>
-      <div class="greet">${esc(gtxt)}</div>
+      <div class="hi" ${hiStyle}>${greet},</div>
+      <div class="name-row"><div class="name" ${nameStyle}>${esc(name)} 👋</div></div>
+      <div class="greet" ${greetStyle}>${esc(gtxt)}</div>
       ${showHomeBadges ? homeHeaderBadges() : ''}
-      ${CONFIG.showDateTime ? `<div class="datetime"><span id="hub-date">${esc(dateText)}</span><span class="sep">•</span><span><span id="hub-time">${esc(timeText)}</span> Uhr</span></div>` : ''}
+      ${CONFIG.showDateTime ? `<div class="datetime" ${dtStyle}><span id="hub-date">${esc(dateText)}</span><span class="sep">•</span><span><span id="hub-time">${esc(timeText)}</span> Uhr</span></div>` : ''}
     </div>
     <div class="hero-bottom">
       <div class="pills">${pills}</div>

@@ -43,8 +43,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .grid.dash-grid-12 > * {
   min-width: 0;
 }
-.hi{color:#d5d7ea;font-size:16px}
-.name{font-size:32px;font-weight:700;letter-spacing:-.5px;margin:2px 0}
+.hi{color:var(--hero-greet-color,#d5d7ea);font-size:16px}
+.name{color:var(--hero-name-color,var(--txt));font-size:32px;font-weight:700;letter-spacing:-.5px;margin:2px 0}
 .name-row{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap}
 .home-header-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;max-width:100%;margin-top:8px}
 .home-header-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:rgba(10,11,22,.6);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);color:#c4c7dc;font-size:11px;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -57,8 +57,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .home-header-badge.trash{border-color:color-mix(in srgb,var(--trash-c,var(--acc2)) 45%,rgba(255,255,255,.1));background:color-mix(in srgb,var(--trash-c,var(--acc2)) 18%,rgba(10,11,22,.65));color:#f2f3fa}
 .home-header-badge.trash .ic{color:var(--trash-c,var(--acc2))}
 .mut{color:var(--mut)}.sm{font-size:12px}
-.greet{max-width:640px;font-size:14px;line-height:1.4;color:#c4c7dc}
-.datetime{display:flex;align-items:center;gap:8px;margin-top:8px;color:#c4c7dc;font-size:var(--dt-size,13px);font-variant-numeric:tabular-nums;flex-wrap:wrap}.datetime .sep{color:var(--acc2)}
+.greet{max-width:640px;font-size:14px;line-height:1.4;color:var(--hero-activity-color,#c4c7dc)}
+.datetime{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--hero-datetime-color,#c4c7dc);font-size:var(--dt-size,13px);font-variant-numeric:tabular-nums;flex-wrap:wrap}.datetime .sep{color:var(--acc2)}
 .stat{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:4px 0 2px;flex-wrap:wrap}
 .stat .t{text-align:right}
 .stat b{display:block;font-weight:600}

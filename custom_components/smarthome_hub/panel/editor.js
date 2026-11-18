@@ -292,6 +292,13 @@ function renderCfgModal(preserveScroll = true) {
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="showDateTime" ${cfgDraft.showDateTime !== false ? 'checked' : ''}> Datum & Live-Uhrzeit im Raum-Banner anzeigen</label>
       ${fld('Schriftgröße Datum & Uhrzeit (px, 10–48)', `min="10" max="48" data-cpath="dateTimeSize" value="${esc(cfgDraft.dateTimeSize || 13)}"`, 'number')}
+    </div>
+    <div class="cfg-row" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc" style="display:block;width:100%;font-weight:600;margin-bottom:4px">🎨 Farben für Begrüßung, Name, Status & Datum (Banner):</span>
+      ${fld('Farbe: Begrüßung ("Guten Tag")', `data-cpath="theme.greetingColor" value="${esc((cfgDraft.theme || {}).greetingColor || '#d5d7ea')}"`, 'color')}
+      ${fld('Farbe: Name ("Timo 👋")', `data-cpath="theme.nameColor" value="${esc((cfgDraft.theme || {}).nameColor || '#f2f3fa')}"`, 'color')}
+      ${fld('Farbe: "Das passiert gerade..."', `data-cpath="theme.activityColor" value="${esc((cfgDraft.theme || {}).activityColor || '#c4c7dc')}"`, 'color')}
+      ${fld('Farbe: Datum & Uhrzeit', `data-cpath="theme.dateTimeColor" value="${esc((cfgDraft.theme || {}).dateTimeColor || '#c4c7dc')}"`, 'color')}
     </div>`, true, '', 'allgemein_sidebar') +
     box('Wetter-Kachel & Vorhersage', 'Steuert die Wetter-Anzeige und die 7-Tage-Vorhersage.', `
     <div class="cfg-row">
@@ -1267,6 +1274,23 @@ document.addEventListener('input', e => {
   if (t.dataset.cpath) {
     setByPath(cfgDraft, t.dataset.cpath, t.value);
     if (t.dataset.cpath === 'dashboardLayoutMode') renderCfgModal(true);
+    if (t.dataset.cpath.startsWith('theme.')) {
+      const prop = t.dataset.cpath.slice(6);
+      const r = document.documentElement.style;
+      const map = {
+        greetingColor: '--hero-greet-color',
+        nameColor: '--hero-name-color',
+        activityColor: '--hero-activity-color',
+        dateTimeColor: '--hero-datetime-color',
+        acc: '--acc',
+        acc2: '--acc2',
+        bg: '--bg',
+        ok: '--ok',
+        warn: '--warn',
+        cool: '--cool'
+      };
+      if (map[prop]) r.setProperty(map[prop], t.value);
+    }
   }
   if (t.dataset.cbool) setByPath(cfgDraft, t.dataset.cbool, t.checked);
   if (t.dataset.customCols) {

@@ -30,7 +30,11 @@ const EMPTY_CONFIG = {
     acc2: "#a99bff",
     ok: "#34d399",
     warn: "#f59e0b",
-    cool: "#38bdf8"
+    cool: "#38bdf8",
+    greetingColor: "",
+    nameColor: "",
+    activityColor: "",
+    dateTimeColor: ""
   },
 
   dashboardLayoutMode: "columns",
@@ -187,7 +191,11 @@ const TIMO_PRESET_CONFIG = {
     acc2: "#a99bff",
     ok: "#34d399",
     warn: "#f59e0b",
-    cool: "#38bdf8"
+    cool: "#38bdf8",
+    greetingColor: "",
+    nameColor: "",
+    activityColor: "",
+    dateTimeColor: ""
   },
 
   dashboardLayoutMode: "columns",

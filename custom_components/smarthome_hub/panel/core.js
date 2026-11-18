@@ -448,6 +448,10 @@ function ensureConfigDefaults(cfg) {
   if (!cfg.theme.cool) cfg.theme.cool = '#38bdf8';
   if (!cfg.theme.radius) cfg.theme.radius = '20';
   if (!cfg.theme.density) cfg.theme.density = 'normal';
+  if (cfg.theme.greetingColor === undefined) cfg.theme.greetingColor = '';
+  if (cfg.theme.nameColor === undefined) cfg.theme.nameColor = '';
+  if (cfg.theme.activityColor === undefined) cfg.theme.activityColor = '';
+  if (cfg.theme.dateTimeColor === undefined) cfg.theme.dateTimeColor = '';
 
   if (!cfg.dateTimeSize) cfg.dateTimeSize = 13;
   if (!cfg.dashboardCols) cfg.dashboardCols = '2-asym';
@@ -710,6 +714,14 @@ function applyTheme() {
   if (th.ok) r.setProperty('--ok', th.ok);
   if (th.warn) r.setProperty('--warn', th.warn);
   if (th.cool) r.setProperty('--cool', th.cool);
+  if (th.greetingColor) r.setProperty('--hero-greet-color', th.greetingColor);
+  else r.removeProperty('--hero-greet-color');
+  if (th.nameColor) r.setProperty('--hero-name-color', th.nameColor);
+  else r.removeProperty('--hero-name-color');
+  if (th.activityColor) r.setProperty('--hero-activity-color', th.activityColor);
+  else r.removeProperty('--hero-activity-color');
+  if (th.dateTimeColor) r.setProperty('--hero-datetime-color', th.dateTimeColor);
+  else r.removeProperty('--hero-datetime-color');
   const rad = parseInt(String(th.radius || '22').replace('px', ''), 10);
   r.setProperty('--r', (Number.isFinite(rad) ? rad : 22) + 'px');
   const dtSize = clamp(parseInt(CONFIG.dateTimeSize, 10) || 13, 10, 48);
