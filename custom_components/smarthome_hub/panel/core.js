@@ -193,6 +193,7 @@ function ensureConfigDefaults(cfg) {
   if (!cfg.theme.radius) cfg.theme.radius = '20';
   if (!cfg.theme.density) cfg.theme.density = 'normal';
 
+  if (!cfg.dateTimeSize) cfg.dateTimeSize = 13;
   if (!cfg.dashboardCols) cfg.dashboardCols = '2-asym';
   if (!cfg.klimaCols) cfg.klimaCols = 'auto';
   if (!cfg.camCols) cfg.camCols = 'auto';
@@ -382,6 +383,8 @@ function applyTheme() {
   if (th.cool) r.setProperty('--cool', th.cool);
   const rad = parseInt(String(th.radius || '22').replace('px', ''), 10);
   r.setProperty('--r', (Number.isFinite(rad) ? rad : 22) + 'px');
+  const dtSize = clamp(parseInt(CONFIG.dateTimeSize, 10) || 13, 10, 48);
+  r.setProperty('--dt-size', dtSize + 'px');
   const dens = th.density || 'normal';
   const isRelaxed = dens === 'relaxed' || dens === 'spacious';
   const gapVal = dens === 'compact' ? '12px' : isRelaxed ? '22px' : '16px';
@@ -393,15 +396,15 @@ function applyTheme() {
 function syncHASidebarDOM(title, icon) {
   try {
     const ha = window.parent.document.querySelector('home-assistant');
-    if (ha && ha.hass && ha.hass.panels && ha.hass.panels.smarthome_hub) {
-      ha.hass.panels.smarthome_hub.title = title || 'Smart Home Hub';
-      ha.hass.panels.smarthome_hub.icon = icon || 'mdi:home-automation';
+    if (ha && ha.hass && ha.hass.panels && ha.hass.panels['smarthome-hub']) {
+      ha.hass.panels['smarthome-hub'].title = title || 'Smart Home Hub';
+      ha.hass.panels['smarthome-hub'].icon = icon || 'mdi:home-automation';
     }
     const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
     const drawer = main && main.shadowRoot && main.shadowRoot.querySelector('ha-drawer');
     const sidebar = (drawer && drawer.querySelector('ha-sidebar')) || (main && main.shadowRoot && main.shadowRoot.querySelector('ha-sidebar'));
     if (sidebar && sidebar.shadowRoot) {
-      const link = sidebar.shadowRoot.querySelector('a[href="/smarthome_hub"], paper-icon-item[data-panel="smarthome_hub"], ha-md-list-item[href="/smarthome_hub"]');
+      const link = sidebar.shadowRoot.querySelector('a[href="/smarthome-hub"], paper-icon-item[data-panel="smarthome-hub"], ha-md-list-item[href="/smarthome-hub"]');
       if (link) {
         const textEl = link.querySelector('.item-text, span[slot="headline"], span');
         if (textEl) textEl.textContent = title || 'Smart Home Hub';

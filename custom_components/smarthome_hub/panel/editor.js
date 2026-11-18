@@ -280,6 +280,7 @@ function renderCfgModal(preserveScroll = true) {
     </div>
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="showDateTime" ${cfgDraft.showDateTime !== false ? 'checked' : ''}> Datum & Live-Uhrzeit im Raum-Banner anzeigen</label>
+      ${fld('Schriftgröße Datum & Uhrzeit (px, 10–48)', `min="10" max="48" data-cpath="dateTimeSize" value="${esc(cfgDraft.dateTimeSize || 13)}"`, 'number')}
     </div>`, true, '', 'allgemein_sidebar') +
     box('Wetter-Kachel & Vorhersage', 'Steuert die Wetter-Anzeige und die 7-Tage-Vorhersage.', `
     <div class="cfg-row">
