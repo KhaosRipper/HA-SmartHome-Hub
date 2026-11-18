@@ -11,11 +11,20 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 - **Moderne Benutzeroberfläche:** Übersichtlich strukturierte Startseite (Dashboard) mit integriertem Hero-Hintergrund, Live-Kamera und Schnellstart-Pillen.
 - **Visueller In-App-Konfigurator:** Alle Räume, Entitäten, Metriken und Design-Farben lassen sich direkt im Browser über einen grafischen Editor anpassen – ganz ohne mühsames Bearbeiten von YAML-Dateien.
 - **Interaktive Verlaufs-Popups:** Jedes Diagramm (Metriken, Raumklima, benutzerdefinierte Statistiken) lässt sich antippen und bietet eine detaillierte 24h- sowie 7-Tage-Großansicht mit automatischen Höchst-, Tiefst- und Durchschnittswerten sowie Vergleichslinien zum Vortag/Vorwoche.
+- **Speicher-Restlaufzeit & Ladeprognose:** Automatische Berechnung der verbleibenden Akkulaufzeit (aktuelle Last / Grundlast) sowie der voraussichtlichen Vollladungs-Uhrzeit bei PV-Überschuss.
+- **Dynamische Strompreise (Tibber / EPEX Spot):** 24h-Balkendiagramm stündlicher Strompreise mit Ampelfarben (Grün/Günstig bis Rot/Teuer).
+- **Wallbox & E-Auto Kachel:** Übersicht von Fahrzeug-SoC (%), Ladeleistung (W/kW), Stecker-Status und Schnell-Umschaltung des Lademodus.
+- **Haushaltsgeräte-Monitor:** Zentrale Statuskachel für Waschmaschine, Spülmaschine oder Trockner mit Restlaufzeit, Programmfortschritt und Fertig-Hinweis.
+- **Regenradar (60-Minuten-Vorschau):** Visuelle Niederschlagsvorschau mit smartem Ratschlag fürs Gassigehen und Stoßlüften.
+- **Fenster- & Tür-Offen-Timer:** Live-Timer geöffneter Fenster/Türen mit Auskühlungswarnung bei kalter Außenluft.
+- **Vorabend-Müllerinnerung:** Automatische Erinnerungs-Karte am Vorabend ab 17:00 Uhr, wenn morgen eine Mülltonne geleert wird.
+- **OLED Ambient-Screensaver:** Minimalistischer Uhren- und Status-Screen bei Inaktivität als Burn-In-Schutz für Wandtablets.
+- **Event-Kamera-Popup:** Öffnet automatisch die Eingangskamera im Großbild-Popup, wenn die Türklingel oder ein Bewegungssensor auslöst.
 - **Konfigurierbare Klima-Kacheln:** Frei belegbare Kacheln für Betriebsmodus, Lüfterstufen oder eigene Helfer (z. B. `climate.*`, `fan.*`, `switch.*`, `select.*`) – global oder individuell pro Raum einstellbar.
 - **In-App Datei-Upload:** Lade eigene Hintergrundbilder für deine Räume direkt hoch; sie werden automatisch im Home-Assistant-Dateisystem gespeichert.
 - **Kiosk-Modus & PIN-Schutz:** Blende die originale Home Assistant Seitenleiste aus (Vollbild) und schütze den Editor, Systemlinks oder das Entriegeln von Haustüren mit einer PIN.
 - **WebRTC & Live-Kameras:** Nahtlose Integration von `go2rtc` (mit ressourcensparendem automatischem Pausieren außerhalb des Sichtfelds) sowie native HA-Kamerastreams und Lightbox-Großansicht.
-- **Modulare Zusatzseiten:** Integrierte Widgets für 7-Tage-Wettervorhersage (stündliche Kurven für Temperatur, Wind & Regen), Familienkalender, Abfallkalender, TaskMate/To-Do-Listen und Statistiken.
+- **Modulare Zusatzseiten:** Integrierte Widgets für Universal-Sport-Center (Fußball, NFL, Tennis etc.), Wettervorhersage, Familienkalender, Abfallkalender, TaskMate/To-Do-Listen und Statistiken.
 
 ---
 
