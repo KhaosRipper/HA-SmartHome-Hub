@@ -24,8 +24,25 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .me-btn:hover{background:var(--acc);color:#fff}
 /* Main */
 .main{overflow:auto;padding:22px 24px}
-.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
-.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--grid-gap,16px);align-items:start}
+.col{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--grid-gap,16px);align-items:flex-start;align-content:flex-start;min-width:0}
+.col > *, .col-part > * { width: 100%; min-width: 0; }
+.col > .w-100, .col-part > .w-100 { width: 100% !important; }
+.col > .w-50, .col-part > .w-50 { width: calc(50% - (var(--grid-gap, 16px) / 2)) !important; }
+.col > .w-33, .col-part > .w-33 { width: calc(33.333% - (var(--grid-gap, 16px) * 2 / 3)) !important; }
+.col > .w-66, .col-part > .w-66 { width: calc(66.666% - (var(--grid-gap, 16px) / 3)) !important; }
+.col > .w-25, .col-part > .w-25 { width: calc(25% - (var(--grid-gap, 16px) * 3 / 4)) !important; }
+.col > .w-75, .col-part > .w-75 { width: calc(75% - (var(--grid-gap, 16px) / 4)) !important; }
+
+.grid.dash-grid-12 {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: var(--grid-gap, 16px) !important;
+  align-items: start;
+}
+.grid.dash-grid-12 > * {
+  min-width: 0;
+}
 .hi{color:#d5d7ea;font-size:16px}
 .name{font-size:32px;font-weight:700;letter-spacing:-.5px;margin:2px 0}
 .name-row{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap}
@@ -304,6 +321,9 @@ select option, .cfg-in option, .sheet select option{background-color:#12132a;col
   .tr{grid-template-columns:2fr 1fr 56px}.tr>:nth-child(3),.tr>:nth-child(4),.tr>:nth-child(5){display:none}
   .cover-row{grid-template-columns:1.8fr 1fr 105px}.cover-row>:nth-child(3){display:none}
   .home-agenda-weather{white-space:normal;text-align:right}
+  .col > *, .col-part > * { width: 100% !important; }
+  .grid.dash-grid-12 { grid-template-columns: 1fr !important; }
+  .grid.dash-grid-12 > * { grid-column: span 1 !important; }
 }
 /* Interaktives Wettervorhersage-Modal (Temperatur / Niederschlag / Wind) */
 .sheet.wfc-wide{width:min(760px,100%);padding:22px 24px}
@@ -1234,9 +1254,13 @@ html, body {
 /* --- Persistente Spalten-Slots (verhindert Iframe-Reload beim Hero-Banner) --- */
 .col-part {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--grid-gap, 16px);
+  align-items: flex-start;
+  align-content: flex-start;
   min-width: 0;
+  width: 100%;
 }
 .col-part:empty {
   display: none;

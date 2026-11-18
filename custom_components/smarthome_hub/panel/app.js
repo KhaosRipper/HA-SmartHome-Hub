@@ -68,22 +68,56 @@ function renderDashCardHtml(id) {
 
 function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
   if (!ui.editMode) return '';
+  const isGrid12 = CONFIG.dashboardLayoutMode === 'grid12';
   const colVal = String(item.col || '1');
   const scopeVal = item.scope || 'all';
   const edTab = DASH_CARD_EDITOR_TAB[item.id] || 'layout';
   const edSubTab = DASH_CARD_EDITOR_SUBTAB[item.id] || '';
   const colOpts = [...Array.from({ length: btnColsCount }, (_, i) => String(i + 1)), 'full'];
+
+  const widthVal = String(item.width || '100');
+  const widthBtns = ['100', '50', '33', '66'].map(w => {
+    const lbl = w === '100' ? '1/1' : (w === '50' ? '1/2' : (w === '33' ? '1/3' : '2/3'));
+    return `<button class="qe-btn ${widthVal === w ? 'on' : ''}" data-act="qeDashWidth" data-i="${idx}" data-w="${w}" title="Breite in Spalte: ${lbl}">${lbl}</button>`;
+  }).join('');
+
+  const spanVal = String(item.span || (item.col === 'full' ? '12' : (item.width === '50' ? '6' : (item.width === '33' ? '4' : (item.width === '66' ? '8' : (item.col === '2' ? '4' : '8'))))));
+  const spanBtns = ['12', '8', '6', '4', '3'].map(s => {
+    const lbl = s === '12' ? '12 (Voll)' : (s === '8' ? '8 (2/3)' : (s === '6' ? '6 (1/2)' : (s === '4' ? '4 (1/3)' : '3 (1/4)')));
+    return `<button class="qe-btn ${spanVal === s ? 'on' : ''}" data-act="qeDashSpan" data-i="${idx}" data-span="${s}" title="${lbl}">${s}</button>`;
+  }).join('') + `
+    <label class="qe-col-custom" style="padding:2px 6px" title="Freie Spaltenbreite (1-12)">
+      <span>Span:</span>
+      <input type="number" min="1" max="12" class="qe-col-input" style="width:36px;padding:1px 4px" data-act="qeDashSpanInput" data-i="${idx}" value="${spanVal}">
+    </label>`;
+
   return `<div class="qe-bar">
     <span class="qe-title">${esc(item.label || item.id)}</span>
     <div class="qe-btns">
-      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Nach oben">↑</button>
-      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="Nach unten">↓</button>
-      ${colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
+      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Nach oben / links">↑</button>
+      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="Nach unten / rechts">↓</button>
+      ${!isGrid12 ? colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('') : ''}
+      ${!isGrid12 ? `<span style="opacity:0.3">|</span>` + widthBtns : `<span style="opacity:0.3">|</span>` + spanBtns}
       <button class="qe-btn ${scopeVal === 'home' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Zuständigkeit: Alle Räume vs. Nur Home">${scopeVal === 'home' ? '🏠 Nur Home' : '🌐 Alle Räume'}</button>
       <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="Ein-/Ausblenden">${item.show === false ? '🙈' : '👁️'}</button>
       <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="Im Editor anpassen">⚙️</button>
     </div>
   </div>`;
+}
+
+function parseColRatio(ratio) {
+  if (!ratio) return '';
+  const r = String(ratio).trim();
+  const map = {
+    '70/30': '70fr 30fr',
+    '65/35': '65fr 35fr',
+    '60/40': '60fr 40fr',
+    '50/50': '1fr 1fr',
+    '40/60': '40fr 60fr',
+    '30/70': '30fr 70fr',
+    '25/50/25': '1fr 2fr 1fr'
+  };
+  return map[r] || r;
 }
 
 function render() {
@@ -138,6 +172,7 @@ function render() {
       mtabsEl.innerHTML = nextMtabs;
     }
 
+    const isGrid12 = CONFIG.dashboardLayoutMode === 'grid12';
     const colsRaw = String(CONFIG.dashboardCols || '2-asym');
     const parsed = parseColsMode(colsRaw, 'asym', 2);
     const numCols = parsed.mode === 'cols' ? parsed.cols : 2;
@@ -145,17 +180,35 @@ function render() {
 
     const qeToolbar = document.getElementById('dash-qe-toolbar');
     if (qeToolbar) {
-      const nextToolbar = ui.editMode ? `<div class="qe-page-bar">
-        <span>✏️ <b>Quick-Edit</b> · Startseiten-Spalten:</span>
-        <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qeDashCols" data-cols="2-asym">2 Spalten (Links breit / Rechts kompakt)</button>
-        ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeDashCols" data-cols="${n}-col">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
-        <label class="qe-col-custom" title="Beliebige Spaltenanzahl eingeben (z. B. 5 oder 6)">
-          <span>Frei:</span>
-          <input type="number" min="1" max="12" class="qe-col-input" data-act="qeDashColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
-          <span>Sp.</span>
-        </label>
-        <button class="chip" data-act="cfgOpenTab" data-tab="layout">📐 Layout-Tab</button>
-        <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
+      const nextToolbar = ui.editMode ? `<div class="qe-page-bar" style="gap:8px 12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span>✏️ <b>Modus:</b></span>
+          <button class="chip ${!isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="columns">📐 Spalten (Sub-Grid)</button>
+          <button class="chip ${isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="grid12">▦ 12-Spalten-Raster</button>
+        </div>
+        ${!isGrid12 ? `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span>Verhältnis:</span>
+          ${[['', 'Standard'], ['70/30', '70/30'], ['65/35', '65/35'], ['60/40', '60/40'], ['50/50', '50/50']].map(([v, l]) =>
+            `<button class="chip ${(CONFIG.dashboardColRatio || '') === v ? 'on' : ''}" data-act="qeDashColRatio" data-ratio="${v}">${l}</button>`
+          ).join('')}
+          <span style="opacity:0.3">|</span>
+          <span>Spalten:</span>
+          <button class="chip ${parsed.mode === 'asym' && !CONFIG.dashboardColRatio ? 'on' : ''}" data-act="qeDashCols" data-cols="2-asym">2 asym</button>
+          ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeDashCols" data-cols="${n}-col">${n}</button>`).join('')}
+          <label class="qe-col-custom" title="Beliebige Spaltenanzahl (1–12)">
+            <span>Frei:</span>
+            <input type="number" min="1" max="12" class="qe-col-input" data-act="qeDashColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
+            <span>Sp.</span>
+          </label>
+        </div>` : `
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="mut sm">12-Spalten-Grid aktiv · Weise Kacheln Spalten 1–12 zu (z.B. 6 = 50%, 4 = 33%). Mobil automatisch 100%.</span>
+        </div>`}
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="chip" data-act="cfgOpenTab" data-tab="layout">⚙️ Layout-Tab</button>
+          <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
+        </div>
       </div>` : '';
       if (qeToolbar._lastHtml !== nextToolbar) {
         qeToolbar._lastHtml = nextToolbar;
@@ -170,32 +223,46 @@ function render() {
     const heroWrap = document.getElementById('hero-qe-wrap');
     const heroParking = document.getElementById('hero-parking');
     const dashGrid = document.getElementById('dash-grid');
-    const colSig = `${parsed.mode}:${numCols}`;
+    const colSig = isGrid12 ? 'grid12' : `${parsed.mode}:${numCols}:${CONFIG.dashboardColRatio || ''}`;
 
     // Spalten-Container im Grid NUR dann neu aufbauen, wenn sich Spaltenanzahl/Modus geändert hat!
-    // Dadurch wird ein laufendes Kamera-Iframe im Hero-Banner niemals unnötig im DOM verschoben!
     if (dashGrid && dashGrid.dataset.colSig !== colSig) {
       if (heroWrap && heroParking && dashGrid.contains(heroWrap)) {
         heroParking.appendChild(heroWrap);
       }
-      if (parsed.mode === 'asym') {
-        dashGrid.className = 'grid';
+      if (isGrid12) {
+        dashGrid.className = 'grid dash-grid-12';
         dashGrid.style.removeProperty('--custom-cols');
+        dashGrid.style.removeProperty('grid-template-columns');
+        dashGrid.innerHTML = '';
       } else {
-        dashGrid.className = 'grid cols-custom';
-        dashGrid.style.setProperty('--custom-cols', String(numCols));
+        const customRatio = parseColRatio(CONFIG.dashboardColRatio);
+        if (customRatio) {
+          dashGrid.className = 'grid';
+          dashGrid.style.gridTemplateColumns = customRatio;
+          dashGrid.style.removeProperty('--custom-cols');
+        } else if (parsed.mode === 'asym') {
+          dashGrid.className = 'grid';
+          dashGrid.style.removeProperty('--custom-cols');
+          dashGrid.style.removeProperty('grid-template-columns');
+        } else {
+          dashGrid.className = 'grid cols-custom';
+          dashGrid.style.removeProperty('grid-template-columns');
+          dashGrid.style.setProperty('--custom-cols', String(numCols));
+        }
+        let colsHtml = '';
+        for (let c = 1; c <= numCols; c++) {
+          colsHtml += `<div class="col" id="dash-col-${c}"></div>`;
+        }
+        dashGrid.innerHTML = colsHtml;
       }
-      let colsHtml = '';
-      for (let c = 1; c <= numCols; c++) {
-        colsHtml += `<div class="col" id="dash-col-${c}"></div>`;
-      }
-      dashGrid.innerHTML = colsHtml;
       dashGrid.dataset.colSig = colSig;
     }
 
     const fullTopEl = document.getElementById('dash-full-top');
     const buckets = { full: [] };
     for (let c = 1; c <= numCols; c++) buckets[c] = [];
+    const grid12Items = [];
     let heroVisible = false;
     let heroTargetKey = null;
 
@@ -210,51 +277,62 @@ function render() {
       if (targetCol !== 'full') targetCol = clamp(targetCol, 1, numCols);
 
       const qeBar = buildDashQuickEditBar(item, idx, layout.length, btnColsCount);
+      const wClass = 'w-' + (item.width || '100');
+      const span = clamp(parseInt(item.span, 10) || (item.col === 'full' ? 12 : (item.width === '50' ? 6 : (item.width === '33' ? 4 : (item.width === '66' ? 8 : (item.col === '2' ? 4 : 8))))), 1, 12);
+      const spanStyle = `grid-column: span ${span};`;
 
       if (item.id === 'hero') {
         heroVisible = isShown && inScope;
-        heroTargetKey = targetCol;
+        heroTargetKey = isGrid12 ? 'grid12' : targetCol;
         const heroQeSlot = document.getElementById('hero-qe-slot');
         if (heroQeSlot && heroQeSlot._lastHtml !== qeBar) {
           heroQeSlot._lastHtml = qeBar;
           heroQeSlot.innerHTML = qeBar;
         }
         if (heroWrap) {
-          const nextCls = `qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}`.trim();
+          const nextCls = `qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}`.trim();
           if (heroWrap.className !== nextCls) heroWrap.className = nextCls;
+          if (isGrid12) heroWrap.style.gridColumn = `span ${span}`;
+          else heroWrap.style.removeProperty('grid-column');
         }
-        buckets[targetCol].push('__HERO_PLACEHOLDER__');
+        if (isGrid12) grid12Items.push('__HERO_PLACEHOLDER__');
+        else buckets[targetCol].push('__HERO_PLACEHOLDER__');
       } else if (item.id === 'metrics') {
         const activeMetrics = (CONFIG.metrics || []).filter(m => m.show !== false);
         if (!activeMetrics.length && !ui.editMode) return;
         if (!activeMetrics.length) {
-          buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${qeBar}<section class="card"><div class="mut sm">Keine Metriken aktiv</div></section></div>`);
+          const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${qeBar}<section class="card"><div class="mut sm">Keine Metriken aktiv</div></section></div>`;
+          if (isGrid12) grid12Items.push(html); else buckets[targetCol].push(html);
         } else {
           activeMetrics.forEach((m, mIdx) => {
             const mHtml = metricCard(m);
             if (!mHtml) return;
             const bar = mIdx === 0 ? qeBar : (ui.editMode ? `<div class="qe-bar"><span class="qe-title">${esc(m.title || 'Metrik')}</span></div>` : '');
-            buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${bar}${mHtml}</div>`);
+            const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${bar}${mHtml}</div>`;
+            if (isGrid12) grid12Items.push(html); else buckets[targetCol].push(html);
           });
         }
       } else if (item.id === 'extra_tabs') {
         const extraTabs = (CONFIG.deviceTabs || []).filter(t => t.id !== 'geraete' && t.id !== 'covers');
         if (!extraTabs.length && !ui.editMode) return;
         if (!extraTabs.length) {
-          buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${qeBar}<section class="card"><div class="mut sm">Keine zusätzlichen Geräte-Reiter</div></section></div>`);
+          const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${qeBar}<section class="card"><div class="mut sm">Keine zusätzlichen Geräte-Reiter</div></section></div>`;
+          if (isGrid12) grid12Items.push(html); else buckets[targetCol].push(html);
         } else {
           extraTabs.forEach((t, tIdx) => {
             const card = devicesCard(null, t.name, t.id);
             if (!card && !ui.editMode) return;
             const bar = tIdx === 0 ? qeBar : (ui.editMode ? `<div class="qe-bar"><span class="qe-title">${esc(t.name)}</span></div>` : '');
-            buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${bar}${card}</div>`);
+            const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${bar}${card}</div>`;
+            if (isGrid12) grid12Items.push(html); else buckets[targetCol].push(html);
           });
         }
       } else {
         const cardHtml = renderDashCardHtml(item.id);
         if (!cardHtml && !ui.editMode) return;
         const inner = cardHtml || `<section class="card"><div class="mut sm">${esc(item.label || item.id)} (aktuell leer / nur im Home-Tab)</div></section>`;
-        buckets[targetCol].push(`<div class="qe-wrap ${(!isShown || !inScope) ? 'qe-hidden' : ''}">${qeBar}${inner}</div>`);
+        const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${qeBar}${inner}</div>`;
+        if (isGrid12) grid12Items.push(html); else buckets[targetCol].push(html);
       }
     });
 
@@ -263,62 +341,91 @@ function render() {
       heroParking.appendChild(heroWrap);
     }
 
-    const mountBucket = (el, arr) => {
-      if (!el) return;
-      const heroIdx = arr.indexOf('__HERO_PLACEHOLDER__');
-      if (heroIdx === -1) {
-        if (heroWrap && el.contains(heroWrap) && heroParking) {
-          heroParking.appendChild(heroWrap);
-        }
-        const joined = arr.join('');
-        if (el._lastHtml !== joined) {
-          el._lastHtml = joined;
-          el.innerHTML = joined;
-        }
-      } else {
-        const beforeHtml = arr.slice(0, heroIdx).join('');
-        const afterHtml = arr.slice(heroIdx + 1).join('');
-        let beforeSlot = document.getElementById('hero-before-slot');
-        let afterSlot = document.getElementById('hero-after-slot');
-        const alreadyMountedHere = !!(
-          heroWrap &&
-          heroWrap.parentElement === el &&
-          beforeSlot &&
-          beforeSlot.parentElement === el &&
-          afterSlot &&
-          afterSlot.parentElement === el
-        );
-
-        if (!alreadyMountedHere) {
-          // Nur beim allerersten Laden oder wenn der Nutzer die Spalte des Hero-Banners wechselt:
-          if (heroWrap && heroParking && el.contains(heroWrap)) {
-            heroParking.appendChild(heroWrap);
+    if (isGrid12) {
+      if (fullTopEl) fullTopEl.style.display = 'none';
+      if (dashGrid) {
+        const heroIdx = grid12Items.indexOf('__HERO_PLACEHOLDER__');
+        if (heroIdx === -1) {
+          if (heroWrap && dashGrid.contains(heroWrap) && heroParking) heroParking.appendChild(heroWrap);
+          const joined = grid12Items.join('');
+          if (dashGrid._lastHtml !== joined) { dashGrid._lastHtml = joined; dashGrid.innerHTML = joined; }
+        } else {
+          const beforeHtml = grid12Items.slice(0, heroIdx).join('');
+          const afterHtml = grid12Items.slice(heroIdx + 1).join('');
+          let beforeSlot = document.getElementById('hero-before-slot');
+          let afterSlot = document.getElementById('hero-after-slot');
+          const alreadyMounted = !!(heroWrap && heroWrap.parentElement === dashGrid && beforeSlot && afterSlot);
+          if (!alreadyMounted) {
+            if (heroWrap && heroParking && dashGrid.contains(heroWrap)) heroParking.appendChild(heroWrap);
+            dashGrid._lastHtml = null;
+            dashGrid.innerHTML = '<div id="hero-before-slot" style="display:contents"></div><div id="hero-mount-point"></div><div id="hero-after-slot" style="display:contents"></div>';
+            const mp = document.getElementById('hero-mount-point');
+            if (mp && heroWrap) mp.replaceWith(heroWrap);
+            beforeSlot = document.getElementById('hero-before-slot');
+            afterSlot = document.getElementById('hero-after-slot');
           }
-          el._lastHtml = null;
-          el.innerHTML = '<div class="col-part" id="hero-before-slot"></div><div id="hero-mount-point"></div><div class="col-part" id="hero-after-slot"></div>';
-          const mp = document.getElementById('hero-mount-point');
-          if (mp && heroWrap) mp.replaceWith(heroWrap);
-          beforeSlot = document.getElementById('hero-before-slot');
-          afterSlot = document.getElementById('hero-after-slot');
-        }
-        // In 99.9% aller Ticks bleibt heroWrap (samt Live-Kamera-Iframe) exakt an Ort und Stelle!
-        if (beforeSlot && beforeSlot._lastHtml !== beforeHtml) {
-          beforeSlot._lastHtml = beforeHtml;
-          beforeSlot.innerHTML = beforeHtml;
-        }
-        if (afterSlot && afterSlot._lastHtml !== afterHtml) {
-          afterSlot._lastHtml = afterHtml;
-          afterSlot.innerHTML = afterHtml;
+          if (beforeSlot && beforeSlot._lastHtml !== beforeHtml) { beforeSlot._lastHtml = beforeHtml; beforeSlot.innerHTML = beforeHtml; }
+          if (afterSlot && afterSlot._lastHtml !== afterHtml) { afterSlot._lastHtml = afterHtml; afterSlot.innerHTML = afterHtml; }
         }
       }
-    };
+    } else {
+      const mountBucket = (el, arr) => {
+        if (!el) return;
+        const heroIdx = arr.indexOf('__HERO_PLACEHOLDER__');
+        if (heroIdx === -1) {
+          if (heroWrap && el.contains(heroWrap) && heroParking) {
+            heroParking.appendChild(heroWrap);
+          }
+          const joined = arr.join('');
+          if (el._lastHtml !== joined) {
+            el._lastHtml = joined;
+            el.innerHTML = joined;
+          }
+        } else {
+          const beforeHtml = arr.slice(0, heroIdx).join('');
+          const afterHtml = arr.slice(heroIdx + 1).join('');
+          let beforeSlot = document.getElementById('hero-before-slot');
+          let afterSlot = document.getElementById('hero-after-slot');
+          const alreadyMountedHere = !!(
+            heroWrap &&
+            heroWrap.parentElement === el &&
+            beforeSlot &&
+            beforeSlot.parentElement === el &&
+            afterSlot &&
+            afterSlot.parentElement === el
+          );
 
-    if (fullTopEl) {
-      fullTopEl.style.display = buckets.full.length ? 'flex' : 'none';
-      mountBucket(fullTopEl, buckets.full);
-    }
-    for (let c = 1; c <= numCols; c++) {
-      mountBucket(document.getElementById(`dash-col-${c}`), buckets[c]);
+          if (!alreadyMountedHere) {
+            // Nur beim allerersten Laden oder wenn der Nutzer die Spalte des Hero-Banners wechselt:
+            if (heroWrap && heroParking && el.contains(heroWrap)) {
+              heroParking.appendChild(heroWrap);
+            }
+            el._lastHtml = null;
+            el.innerHTML = '<div class="col-part" id="hero-before-slot"></div><div id="hero-mount-point"></div><div class="col-part" id="hero-after-slot"></div>';
+            const mp = document.getElementById('hero-mount-point');
+            if (mp && heroWrap) mp.replaceWith(heroWrap);
+            beforeSlot = document.getElementById('hero-before-slot');
+            afterSlot = document.getElementById('hero-after-slot');
+          }
+          // In 99.9% aller Ticks bleibt heroWrap (samt Live-Kamera-Iframe) exakt an Ort und Stelle!
+          if (beforeSlot && beforeSlot._lastHtml !== beforeHtml) {
+            beforeSlot._lastHtml = beforeHtml;
+            beforeSlot.innerHTML = beforeHtml;
+          }
+          if (afterSlot && afterSlot._lastHtml !== afterHtml) {
+            afterSlot._lastHtml = afterHtml;
+            afterSlot.innerHTML = afterHtml;
+          }
+        }
+      };
+
+      if (fullTopEl) {
+        fullTopEl.style.display = buckets.full.length ? 'flex' : 'none';
+        mountBucket(fullTopEl, buckets.full);
+      }
+      for (let c = 1; c <= numCols; c++) {
+        mountBucket(document.getElementById(`dash-col-${c}`), buckets[c]);
+      }
     }
 
     if (heroVisible || ui.editMode) {
@@ -651,6 +758,13 @@ document.addEventListener('input', ev => {
     ddSliderTimer = setTimeout(() => {
       call('climate', 'set_temperature', { entity_id: el.dataset.e, temperature: v });
     }, 150);
+  } else if (act === 'qeDashSpanInput') {
+    const item = CONFIG.dashboardLayout[+el.dataset.i];
+    if (item) {
+      item.span = clamp(parseInt(el.value, 10) || 12, 1, 12);
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
   } else if (act === 'qeDashColsInput') {
     const n = clamp(parseInt(el.value, 10) || 0, 1, 12);
     if (n >= 1) {
@@ -786,6 +900,36 @@ document.addEventListener('click', ev => {
       saveConfigToServer(CONFIG);
       tick(true);
     }
+    return;
+  }
+  if (act === 'qeDashWidth') {
+    const item = CONFIG.dashboardLayout[+el.dataset.i];
+    if (item) {
+      item.width = el.dataset.w || '100';
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
+    return;
+  }
+  if (act === 'qeDashSpan') {
+    const item = CONFIG.dashboardLayout[+el.dataset.i];
+    if (item) {
+      item.span = clamp(parseInt(el.dataset.span, 10) || 12, 1, 12);
+      saveConfigToServer(CONFIG);
+      tick(true);
+    }
+    return;
+  }
+  if (act === 'qeDashLayoutMode') {
+    CONFIG.dashboardLayoutMode = el.dataset.mode || 'columns';
+    saveConfigToServer(CONFIG);
+    tick(true);
+    return;
+  }
+  if (act === 'qeDashColRatio') {
+    CONFIG.dashboardColRatio = el.dataset.ratio || '';
+    saveConfigToServer(CONFIG);
+    tick(true);
     return;
   }
   if (act === 'qeDashScope') {

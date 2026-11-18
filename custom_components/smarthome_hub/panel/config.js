@@ -33,6 +33,9 @@ const EMPTY_CONFIG = {
     cool: "#38bdf8"
   },
 
+  dashboardLayoutMode: "columns",
+  dashboardColRatio: "",
+
   systemLinks: [
     { label: "Geräte",        icon: "devices",  path: "/config/devices/dashboard" },
     { label: "Automationen",  icon: "auto",     path: "/config/automation/dashboard" },
@@ -186,6 +189,9 @@ const TIMO_PRESET_CONFIG = {
     warn: "#f59e0b",
     cool: "#38bdf8"
   },
+
+  dashboardLayoutMode: "columns",
+  dashboardColRatio: "",
 
   systemLinks: [
     { label: "Geräte",        icon: "devices",  path: "/config/devices/dashboard" },

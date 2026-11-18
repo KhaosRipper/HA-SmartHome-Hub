@@ -367,20 +367,51 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 2: LAYOUT & SPALTEN ----------
   const dLayout = cfgDraft.dashboardLayout || DEFAULT_DASHBOARD_LAYOUT();
+  const isGrid12 = cfgDraft.dashboardLayoutMode === 'grid12';
   const dashColsParsed = parseColsMode(cfgDraft.dashboardCols || '2-asym', 'asym', 2);
   const maxDashColOpts = clamp(Math.max(dashColsParsed.cols || 2, 6), 4, 12);
   const dashColSelectOpts = [
     ...Array.from({ length: maxDashColOpts }, (_, i) => [String(i + 1), `Spalte ${i + 1}`]),
     ['full', 'Volle Breite (über alle Spalten)']
   ];
+
+  const widthSelectOpts = [
+    ['100', '100% (Ganze Spalte)'],
+    ['50', '50% (Halb · 2 nebeneinander)'],
+    ['33', '33% (Drittel · 3 nebeneinander)'],
+    ['66', '66% (Zwei Drittel)'],
+    ['25', '25% (Viertel · 4 nebeneinander)'],
+    ['75', '75% (Drei Viertel)']
+  ];
+
+  const spanSelectOpts = [
+    ['12', '12 Spalten (Volle Breite)'],
+    ['8', '8 Spalten (2/3 Breite)'],
+    ['6', '6 Spalten (1/2 Breite · 2 nebeneinander)'],
+    ['4', '4 Spalten (1/3 Breite · 3 nebeneinander)'],
+    ['3', '3 Spalten (1/4 Breite · 4 nebeneinander)'],
+    ['9', '9 Spalten (3/4 Breite)'],
+    ['5', '5 Spalten'],
+    ['7', '7 Spalten'],
+    ['10', '10 Spalten'],
+    ['11', '11 Spalten'],
+    ['2', '2 Spalten (sehr schmal)'],
+    ['1', '1 Spalte (minimal)']
+  ];
+
   const layoutRows = dLayout.map((item, li) => `
     <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);align-items:center">
       <label style="min-width:110px;font-weight:600;cursor:pointer">
         <input type="checkbox" data-dl-i="${li}" data-dl-k="show" ${item.show !== false ? 'checked' : ''}>
         ${item.show !== false ? '👁️ Sichtbar' : '🙈 Ausgeblendet'}
       </label>
-      <div style="flex:1.4;min-width:200px;font-weight:600">${esc(DASHBOARD_CARD_LABELS[item.id] || item.label || item.id)}</div>
-      ${sel('Spalte auf Startseite', dashColSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="col"`)}
+      <div style="flex:1.4;min-width:180px;font-weight:600">${esc(DASHBOARD_CARD_LABELS[item.id] || item.label || item.id)}</div>
+      ${!isGrid12
+        ? sel('Spalte', dashColSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="col"`)
+        : ''}
+      ${!isGrid12
+        ? sel('Kachelbreite', widthSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.width || '100') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="width"`)
+        : sel('Breite (Grid-Span 1–12)', spanSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.span || (item.col === 'full' ? '12' : '6')) === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="span"`)}
       ${sel('Sichtbar in Raum-Tab', [
         ['all', 'In allen Raum-Tabs'],
         ['home', 'Nur im 1. Tab (Home)']
@@ -391,20 +422,40 @@ function renderCfgModal(preserveScroll = true) {
       </div>
     </div>`).join('');
 
-  let tLayout = box('Startseiten-Spalten & Kachel-Anordnung', 'Bestimme frei, wie viele Spalten die Startseite hat (Vorlagen 1–4 oder freie Zahl 1–12) und welche Karte in welcher Spalte und Reihenfolge erscheint.', `
+  let tLayout = box('Startseiten-Layout & Kachel-Anordnung', 'Wähle dein bevorzugtes Layout-System (Spalten-Modus mit Kachelbreiten ODER 12-Spalten-Raster) und bestimme Kachel-Größen und Positionen.', `
+    <div class="cfg-row" style="margin-bottom:12px">
+      ${sel('Layout-System (Startseite)', [
+        ['columns', '📐 Spalten-Modus (Spalten mit flexiblen Kachelbreiten 100%, 50%, 33%...)'],
+        ['grid12', '▦ 12-Spalten-Raster (Freies Raster über das gesamte Dashboard, 1–12 Spalten pro Kachel)']
+      ].map(([v, l]) => `<option value="${v}" ${(cfgDraft.dashboardLayoutMode || 'columns') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="dashboardLayoutMode"`)}
+      <button type="button" class="iconbtn" data-act="cfgResetDL" style="align-self:center">↺ Standard-Reihenfolge wiederherstellen</button>
+    </div>
+    ${!isGrid12 ? `
     <div class="cfg-row" style="margin-bottom:12px">
       ${sel('Spalten-Vorlage (Startseite)', [
-        ['2-asym', '2 Spalten asymmetrisch – Links breit (1.55fr), Rechts kompakt (1fr) [Standard]'],
+        ['2-asym', '2 Spalten asymmetrisch (Links breit / Rechts kompakt)'],
         ['1-col', '1 Spalte (alles untereinander)'],
-        ['2-col', '2 Spalten gleich breit'],
+        ['2-col', '2 Spalten gleich breit (50% / 50%)'],
         ['3-col', '3 Spalten gleich breit'],
         ['4-col', '4 Spalten gleich breit'],
         ['5-col', '5 Spalten gleich breit'],
         ['6-col', '6 Spalten gleich breit']
       ].map(([v, l]) => `<option value="${v}" ${(cfgDraft.dashboardCols || '2-asym') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="dashboardCols"`)}
+      ${sel('Spalten-Breitenverhältnis (2 Spalten)', [
+        ['', 'Standard (automatisch / Vorlage)'],
+        ['70/30', '70% Links / 30% Rechts'],
+        ['65/35', '65% Links / 35% Rechts'],
+        ['60/40', '60% Links / 40% Rechts'],
+        ['50/50', '50% Links / 50% Rechts (Gleich groß)'],
+        ['40/60', '40% Links / 60% Rechts'],
+        ['30/70', '30% Links / 70% Rechts']
+      ].map(([v, l]) => `<option value="${v}" ${(cfgDraft.dashboardColRatio || '') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="dashboardColRatio"`)}
       ${fld('Oder freie Spaltenanzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="dashboardCols" value="${dashColsParsed.mode === 'cols' ? dashColsParsed.cols : ''}"`)}
-      <button type="button" class="iconbtn" data-act="cfgResetDL" style="align-self:center">↺ Standard-Reihenfolge wiederherstellen</button>
-    </div>
+      ${fld('Eigene CSS-Spalten (z.B. 2fr 1fr)', `data-cpath="dashboardColRatio" value="${esc(cfgDraft.dashboardColRatio || '')}" placeholder="z. B. 65% 35% oder 2fr 1fr"`)}
+    </div>` : `
+    <div class="cfg-row" style="margin-bottom:12px">
+      <div class="mut sm">12-Spalten-Modus aktiv: Jede Kachel kann unten frei von 1 bis 12 Spalten breit eingestellt werden (z. B. 6 = halbe Breite / 2 Kacheln nebeneinander, 4 = Drittel / 3 nebeneinander, 8/4 = asymmetrisch 2 nebeneinander). Auf Smartphones schalten alle Kacheln automatisch auf 100% Breite um.</div>
+    </div>`}
     <div style="display:flex;flex-direction:column;gap:8px">${layoutRows}</div>
   `, true) +
   box('Spalten-Anzahl für Klima & Kameras', 'Wähle eine Vorgabe (Auto / 1–4) oder gib eine freie Spaltenanzahl (1–12) ein.', `
@@ -1213,7 +1264,10 @@ document.addEventListener('input', e => {
     if (lab) lab.textContent = `${fmt(parseFloat(t.value), 2)} ${t.dataset.unit || ''}`;
   }
   if (!cfgDraft) return;
-  if (t.dataset.cpath) setByPath(cfgDraft, t.dataset.cpath, t.value);
+  if (t.dataset.cpath) {
+    setByPath(cfgDraft, t.dataset.cpath, t.value);
+    if (t.dataset.cpath === 'dashboardLayoutMode') renderCfgModal(true);
+  }
   if (t.dataset.cbool) setByPath(cfgDraft, t.dataset.cbool, t.checked);
   if (t.dataset.customCols) {
     const n = clamp(parseInt(t.value, 10) || 0, 1, 12);
@@ -1234,6 +1288,7 @@ document.addEventListener('input', e => {
     const k = t.dataset.dlK;
     if (k === 'show') { item.show = t.checked; renderCfgModal(true); }
     else if (k === 'col') item.col = t.value === 'full' ? 'full' : (parseInt(t.value, 10) || 1);
+    else if (k === 'span') item.span = parseInt(t.value, 10) || 12;
     else item[k] = t.value;
   }
 

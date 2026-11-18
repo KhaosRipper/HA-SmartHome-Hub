@@ -451,6 +451,8 @@ function ensureConfigDefaults(cfg) {
 
   if (!cfg.dateTimeSize) cfg.dateTimeSize = 13;
   if (!cfg.dashboardCols) cfg.dashboardCols = '2-asym';
+  if (!cfg.dashboardLayoutMode) cfg.dashboardLayoutMode = 'columns';
+  if (cfg.dashboardColRatio === undefined) cfg.dashboardColRatio = '';
   if (!cfg.klimaCols) cfg.klimaCols = 'auto';
   if (!cfg.camCols) cfg.camCols = 'auto';
 
@@ -472,6 +474,19 @@ function ensureConfigDefaults(cfg) {
       }
     });
   }
+
+  cfg.dashboardLayout.forEach(item => {
+    if (!item.width) item.width = '100';
+    if (!item.span) {
+      if (item.col === 'full') item.span = 12;
+      else if (item.width === '50') item.span = 6;
+      else if (item.width === '33') item.span = 4;
+      else if (item.width === '66') item.span = 8;
+      else if (item.width === '25') item.span = 3;
+      else if (item.col === '2') item.span = 4;
+      else item.span = 8;
+    }
+  });
 
   if (!cfg.security) cfg.security = { lock: '', locks: [], windows: [], cameras: [] };
   if (!Array.isArray(cfg.security.locks)) {
