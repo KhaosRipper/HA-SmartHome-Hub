@@ -277,7 +277,8 @@ const TIMO_PRESET_CONFIG = {
     title: "Haushaltsgeräte",
     items: [
       { name: "Waschmaschine", icon: "washing", stateEntity: "sensor.waschmaschine_ende", progEntity: "", remainEntity: "sensor.waschmaschine_ende", powerEntity: "" },
-      { name: "Geschirrspüler", icon: "washing", stateEntity: "sensor.geschirrspuler_programm_fortschritt", progEntity: "sensor.geschirrspuler_programm_fortschritt", remainEntity: "sensor.geschirrspuler_programm_endzeit", powerEntity: "" }
+      { name: "Trockner", icon: "washing", stateEntity: "sensor.trockner_betriebszustand", progEntity: "sensor.trockner_programm_fortschritt", remainEntity: "sensor.trockner_restlaufzeit", powerEntity: "" },
+      { name: "Spülmaschine", icon: "dishwasher", stateEntity: "sensor.geschirrspuler_programm_fortschritt", progEntity: "sensor.geschirrspuler_programm_fortschritt", remainEntity: "sensor.geschirrspuler_programm_endzeit", powerEntity: "" }
     ]
   },
   screensaver: {

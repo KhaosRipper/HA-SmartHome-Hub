@@ -1650,33 +1650,90 @@ function wallboxCard(customTitle) {
 /* ---------- HAUSHALTSGERÄTE-MONITOR ---------- */
 function appliancesCard(customTitle) {
   const cfg = CONFIG.appliances || {};
-  if (cfg.show === false || !(cfg.items && cfg.items.length)) return '';
+  if ((customTitle == null && cfg.show === false) || !(cfg.items && cfg.items.length)) return '';
   
   const rows = cfg.items.map(a => {
     const sState = S(a.stateEntity);
     const sProg = S(a.progEntity);
     const sRem = S(a.remainEntity);
     const pwr = num(a.powerEntity);
+
+    const stateStr = (sState && stateIsUsable(sState) ? String(sState.state) : '').toLowerCase();
+    const pVal = sProg && stateIsUsable(sProg) ? parseFloat(sProg.state) : NaN;
     
-    const stateStr = (sState ? sState.state : '').toLowerCase();
-    const isRunning = stateStr === 'on' || stateStr === 'run' || stateStr === 'running' || stateStr === 'active' || (pwr > 5);
-    const isDone = stateStr === 'done' || stateStr === 'finished' || stateStr === 'fertig';
+    // Countdown / Restzeit-Prüfung
+    let cdRem = '';
+    if (a.remainEntity && stateIsUsable(sRem)) {
+      if (/^\d{4}-\d{2}-\d{2}/.test(sRem.state) || sRem.attributes?.device_class === 'timestamp') {
+        cdRem = formatCountdown(a.remainEntity);
+      }
+    }
     
+    // Status-Timestamp-Prüfung (z. B. wenn stateEntity ein Endzeit-Sensor ist)
+    const isStateTimestamp = /^\d{4}-\d{2}-\d{2}/.test(stateStr);
+    const stateTsMs = isStateTimestamp ? Date.parse(sState.state) : NaN;
+    const isStateFuture = !isNaN(stateTsMs) && stateTsMs > Date.now();
+    const isStateRecentPast = !isNaN(stateTsMs) && stateTsMs <= Date.now() && (Date.now() - stateTsMs < 2 * 3600 * 1000);
+
+    const runningKeywords = ['on', 'run', 'running', 'active', 'in_progress', 'wash', 'washing', 'rinse', 'rinsing', 'spin', 'spinning', 'drying', 'clean', 'cleaning', 'in betrieb', 'betrieb', 'läuft', 'aktiv', 'waschen', 'spülen', 'schleudern', 'trocknen'];
+    const isRunningKeyword = runningKeywords.some(k => stateStr.includes(k));
+    const isProgRunning = !isNaN(pVal) && pVal > 0 && pVal < 100;
+    const isRemActive = cdRem && cdRem !== 'Jetzt';
+
+    const isRunning = isRunningKeyword || (pwr != null && pwr > 5) || isStateFuture || isRemActive || isProgRunning;
+
+    const doneKeywords = ['done', 'finished', 'complete', 'completed', 'fertig', 'ausräumen', 'bereit zum ausräumen', 'ende'];
+    const isDoneKeyword = doneKeywords.some(k => stateStr.includes(k));
+    const isDone = !isRunning && (isDoneKeyword || (!isNaN(pVal) && pVal >= 100) || cdRem === 'Jetzt' || isStateRecentPast);
+
+    let progStr = '';
+    if (sProg && stateIsUsable(sProg)) {
+      if (!isNaN(pVal)) {
+        const u = sProg.attributes?.unit_of_measurement || '%';
+        progStr = `${fmt(pVal, 0)}${u === '%' ? '%' : ' ' + u}`;
+      } else {
+        progStr = sProg.state;
+      }
+    }
+
+    let remStr = '';
+    if (sRem && stateIsUsable(sRem)) {
+      if (/^\d{4}-\d{2}-\d{2}/.test(sRem.state) || sRem.attributes?.device_class === 'timestamp') {
+        const cd = formatCountdown(a.remainEntity);
+        remStr = cd === 'Jetzt' ? 'Fertig' : (cd ? `Noch ${cd}` : '');
+      } else if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(sRem.state).trim())) {
+        remStr = `Noch ${String(sRem.state).trim().replace(/:00$/, '')}`;
+      } else {
+        const u = sRem.attributes?.unit_of_measurement || '';
+        remStr = `Noch ${sRem.state}${u ? ' ' + u : ''}`;
+      }
+    }
+
+    let subTxt = '';
+    if (isDone) {
+      subTxt = 'Bereit zum Ausräumen';
+    } else if (isRunning) {
+      subTxt = [progStr, remStr].filter(Boolean).join(' · ') || 'Läuft';
+    } else if (stateStr === 'standby' || stateStr === 'idle') {
+      subTxt = 'Standby / Bereit';
+    } else {
+      subTxt = 'Ausgeschaltet';
+    }
+
+    const rowCls = isDone ? 'done' : (isRunning ? 'running' : 'off');
     const iconCol = isDone ? 'var(--ok)' : (isRunning ? 'var(--warn)' : 'var(--mut)');
-    const iconAnim = isRunning ? 'pulse-slow 2s infinite' : 'none';
-    
-    const progStr = sProg ? (sProg.attributes?.friendly_name || sProg.state) : '';
-    const remStr = sRem ? (sRem.state !== 'unknown' && sRem.state !== 'unavailable' ? sRem.state : '') : '';
-    
-    const subTxt = isDone ? 'Bereit zum Ausräumen' : (isRunning ? [progStr, remStr].filter(Boolean).join(' · ') || 'Läuft' : 'Ausgeschaltet');
-    
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;background:rgba(255,255,255,.02);border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
-      <div style="color:${iconCol};animation:${iconAnim}">${ic(a.icon || 'washing', 24)}</div>
+    const subCol = isDone ? 'var(--ok)' : (isRunning ? 'var(--txt)' : 'var(--mut)');
+    const hasProgBar = isRunning && !isNaN(pVal) && pVal > 0 && pVal < 100;
+    const progBarHtml = hasProgBar ? `<div class="appliance-prog-track"><div class="appliance-prog-fill" style="width:${Math.min(100, Math.max(0, pVal))}%"></div></div>` : '';
+
+    return `<div class="appliance-row ${rowCls}">
+      <div class="appliance-ico ${isRunning ? 'pulse' : ''}" style="color:${iconCol}">${ic(a.icon || 'washing', 24)}</div>
       <div style="flex:1;min-width:0">
         <b style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.name)}</b>
-        <div class="mut sm" style="margin-top:2px;color:${isDone ? 'var(--ok)' : 'var(--mut)'}">${esc(subTxt)}</div>
+        <div class="mut sm" style="margin-top:2px;color:${subCol}">${esc(subTxt)}</div>
+        ${progBarHtml}
       </div>
-      ${pwr > 0 ? `<div style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.05);padding:3px 6px;border-radius:6px">${fmt(pwr, 0)}W</div>` : ''}
+      ${pwr != null && pwr > 0 ? `<div class="appliance-power">${fmt(pwr, 0)}W</div>` : ''}
     </div>`;
   }).join('');
   

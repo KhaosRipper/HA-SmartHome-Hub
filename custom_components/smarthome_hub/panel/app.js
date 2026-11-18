@@ -31,6 +31,14 @@ const DASH_CARD_EDITOR_TAB = {
   trash: 'energie'
 };
 
+const DASH_CARD_EDITOR_SUBTAB = {
+  favorites: 'favorites',
+  system_health: 'system',
+  appliances: 'appliances',
+  lights: 'lichter',
+  covers: 'covers'
+};
+
 function renderDashCardHtml(id) {
   switch (id) {
     case 'alerts': return conditionalAlertsCard();
@@ -63,6 +71,7 @@ function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
   const colVal = String(item.col || '1');
   const scopeVal = item.scope || 'all';
   const edTab = DASH_CARD_EDITOR_TAB[item.id] || 'layout';
+  const edSubTab = DASH_CARD_EDITOR_SUBTAB[item.id] || '';
   const colOpts = [...Array.from({ length: btnColsCount }, (_, i) => String(i + 1)), 'full'];
   return `<div class="qe-bar">
     <span class="qe-title">${esc(item.label || item.id)}</span>
@@ -72,7 +81,7 @@ function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
       ${colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
       <button class="qe-btn ${scopeVal === 'home' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Zuständigkeit: Alle Räume vs. Nur Home">${scopeVal === 'home' ? '🏠 Nur Home' : '🌐 Alle Räume'}</button>
       <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="Ein-/Ausblenden">${item.show === false ? '🙈' : '👁️'}</button>
-      <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" title="Im Editor anpassen">⚙️</button>
+      <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="Im Editor anpassen">⚙️</button>
     </div>
   </div>`;
 }
@@ -755,7 +764,7 @@ document.addEventListener('click', ev => {
     return;
   }
   if (act === 'cfgOpenTab') {
-    openCfgEditor(el.dataset.tab || 'allgemein');
+    openCfgEditor(el.dataset.tab || 'allgemein', el.dataset.subtab || null);
     return;
   }
   if (act === 'qeDashCols') {
@@ -1235,6 +1244,7 @@ document.addEventListener('click', ev => {
   if (act === 'cfgAddAppliance') {
     if (!cfgDraft.appliances) cfgDraft.appliances = { show: true, items: [] };
     if (!Array.isArray(cfgDraft.appliances.items)) cfgDraft.appliances.items = [];
+    cfgDraft.appliances.show = true;
     cfgDraft.appliances.items.push({ name: 'Neues Gerät', icon: 'washing', stateEntity: '', progEntity: '', remainEntity: '', powerEntity: '' });
     renderCfgModal(true);
     return;

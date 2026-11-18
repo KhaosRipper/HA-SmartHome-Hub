@@ -2273,6 +2273,63 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
 }
 
 /* 3. Haushaltsgeräte & Wallbox */
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0)); }
+  50% { transform: scale(1.14); opacity: 0.85; filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.45)); }
+}
+
+.appliances-card .appliance-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, .02);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+  transition: background .2s, border-color .2s;
+}
+.appliances-card .appliance-row:last-child {
+  margin-bottom: 0;
+}
+.appliances-card .appliance-row.running {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.04);
+}
+.appliances-card .appliance-row.done {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.04);
+}
+.appliances-card .appliance-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.appliances-card .appliance-ico.pulse {
+  animation: pulse-slow 2s infinite;
+}
+.appliances-card .appliance-power {
+  font-family: monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, .05);
+  padding: 3px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.appliances-card .appliance-prog-track {
+  height: 3px;
+  background: rgba(255, 255, 255, .08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+.appliances-card .appliance-prog-fill {
+  height: 100%;
+  background: var(--warn);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+
 .wallbox-card .iconbtn:hover {
   background: rgba(255,255,255,.1) !important;
 }

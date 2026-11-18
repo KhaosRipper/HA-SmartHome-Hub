@@ -26,6 +26,8 @@ const CHIP_ICON_OPTIONS = [
   ['radiator', '♨️ Heizkörper (radiator)'],
   ['ac', '❄️ Klimaanlage (ac)'],
   ['tv', '📺 TV / Media (tv)'],
+  ['washing', '🧺 Waschmaschine / Haushalt (washing)'],
+  ['dishwasher', '🍽️ Spülmaschine (dishwasher)'],
   ['mower', '🚜 Mähroboter (mower)'],
   ['blinds', '🪟 Rolladen (blinds)'],
   ['lock', '🔒 Schloss (lock)'],
@@ -144,7 +146,7 @@ function climateTilesEditorHtml(scope) {
     <div><button class="iconbtn" data-act="cfgAddCT" data-s="${scope}">+ Kachel hinzufügen</button></div>`;
 }
 
-function openCfgEditor(initialTab = null) {
+function openCfgEditor(initialTab = null, initialSubTab = null) {
   const tabMap = {
     gen: 'allgemein', allgemein: 'allgemein',
     layout: 'layout',
@@ -154,12 +156,18 @@ function openCfgEditor(initialTab = null) {
     metrics: 'energie', energie: 'energie', badges: 'energie',
     sec: 'kameras', kameras: 'kameras',
     pages: 'seiten', seiten: 'seiten',
-    backup: 'backup'
+    backup: 'backup',
+    appliances: 'geraete'
   };
   if (initialTab && tabMap[initialTab]) cfgTab = tabMap[initialTab];
+  if (initialTab === 'appliances') cfgDevSubTab = 'appliances';
+  if (initialSubTab) cfgDevSubTab = initialSubTab;
   requirePin('editor', () => {
     cfgDraft = ensureConfigDefaults(JSON.parse(JSON.stringify(CONFIG)));
-    if (!cfgDraft.deviceTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = cfgDraft.deviceTabs[0].id;
+    const validDevSubTabs = ['favorites', 'system', 'lichter', 'appliances', 'covers'];
+    if (!validDevSubTabs.includes(cfgDevSubTab) && !cfgDraft.deviceTabs.some(t => t.id === cfgDevSubTab)) {
+      cfgDevSubTab = (cfgDraft.deviceTabs[0] && cfgDraft.deviceTabs[0].id) || 'favorites';
+    }
     cfgOpenBoxes.clear();
     cfgOpenBoxesInit = false;
     renderCfgModal(false);
@@ -479,7 +487,8 @@ function renderCfgModal(preserveScroll = true) {
 
   // ---------- TAB 4: GERÄTE, LICHT & ROLLÄDEN ----------
   const dTabs = cfgDraft.deviceTabs || [];
-  if (!dTabs.some(t => t.id === cfgDevSubTab) && cfgDevSubTab !== 'lichter' && cfgDevSubTab !== 'favorites' && cfgDevSubTab !== 'system') cfgDevSubTab = 'favorites';
+  const validFixedDevTabs = ['favorites', 'system', 'lichter', 'appliances', 'covers'];
+  if (!validFixedDevTabs.includes(cfgDevSubTab) && !dTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = 'favorites';
 
   let tGeraete = `<div class="cfg-subtabs">
     <button class="pill ${cfgDevSubTab === 'favorites' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="favorites">⭐ Schnellauswahl / Favoriten</button>

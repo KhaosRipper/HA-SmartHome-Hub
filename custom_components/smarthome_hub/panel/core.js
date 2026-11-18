@@ -536,6 +536,11 @@ function ensureConfigDefaults(cfg) {
     cfg.appliances = { show: false, title: 'Haushaltsgeräte', items: [] };
   }
   if (!Array.isArray(cfg.appliances.items)) cfg.appliances.items = [];
+  if (cfg.appliances.show === undefined) cfg.appliances.show = cfg.appliances.items.length > 0;
+  cfg.appliances.items.forEach(a => {
+    if (!a.name) a.name = 'Haushaltsgerät';
+    if (!a.icon) a.icon = 'washing';
+  });
 
   if (!cfg.screensaver || typeof cfg.screensaver !== 'object') {
     cfg.screensaver = { show: true, timeoutMins: 3 };
