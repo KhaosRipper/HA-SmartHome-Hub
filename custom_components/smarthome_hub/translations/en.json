@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Home Hub",
+        "description": "Do you want to set up the Smart Home Hub dashboard?"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance of Smart Home Hub is allowed."
+    }
+  }
+}
