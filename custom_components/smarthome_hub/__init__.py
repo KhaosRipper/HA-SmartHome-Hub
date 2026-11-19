@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import os
 import re
+import time
 from typing import Any
 import uuid
 import voluptuous as vol
@@ -21,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "3.1.1"
+VERSION = "3.2.0"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
@@ -31,15 +33,31 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB max. Bildgröße
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
+def _get_assets_hash() -> str:
+    """Berechnet einen kurzen Hash über die Panel-Dateien für zuverlässiges Cache-Busting."""
+    panel_dir = os.path.join(os.path.dirname(__file__), "panel")
+    h = hashlib.md5()
+    try:
+        for fname in sorted(os.listdir(panel_dir)):
+            if fname.endswith((".js", ".css", ".html")):
+                fpath = os.path.join(panel_dir, fname)
+                st = os.stat(fpath)
+                h.update(f"{fname}:{int(st.st_mtime)}:{st.st_size};".encode())
+        return h.hexdigest()[:10]
+    except OSError:
+        return VERSION
+
+
 def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
     """Registriert oder aktualisiert das Seitenleisten-Panel via update=True."""
+    asset_hash = _get_assets_hash()
     frontend.async_register_built_in_panel(
         hass,
         component_name="iframe",
         sidebar_title=title or "Smart Home Hub",
         sidebar_icon=icon or "mdi:home-automation",
         frontend_url_path=PANEL_URL_PATH,
-        config={"url": f"{STATIC_URL}/index.html?v={VERSION}"},
+        config={"url": f"{STATIC_URL}/index.html?v={VERSION}&b={asset_hash}"},
         require_admin=False,
         update=True,
     )
@@ -102,7 +120,14 @@ async def ws_get_config(
     """Lädt die gespeicherte Dashboard-Konfiguration aus .storage."""
     store: Store = hass.data[DOMAIN]["store"]
     data = await store.async_load()
-    connection.send_result(msg["id"], {"config": data})
+    connection.send_result(
+        msg["id"],
+        {
+            "config": data,
+            "version": VERSION,
+            "asset_hash": _get_assets_hash(),
+        },
+    )
 
 
 @websocket_api.websocket_command(
@@ -117,9 +142,11 @@ async def ws_save_config(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Speichert die Konfiguration und aktualisiert Name/Icon der HA-Seitenleiste."""
+    """Speichert die Konfiguration, aktualisiert die HA-Seitenleiste und benachrichtigt alle Clients live."""
     store: Store = hass.data[DOMAIN]["store"]
-    cfg = msg["config"]
+    cfg = dict(msg["config"])
+    updated_at = int(time.time() * 1000)
+    cfg["_updatedAt"] = updated_at
     await store.async_save(cfg)
 
     _register_panel(
@@ -127,7 +154,15 @@ async def ws_save_config(
         cfg.get("sidebarTitle", "Smart Home Hub"),
         cfg.get("sidebarIcon", "mdi:home-automation"),
     )
-    connection.send_result(msg["id"], {"status": "ok"})
+    hass.bus.async_fire(
+        f"{DOMAIN}_config_updated",
+        {
+            "updated_at": updated_at,
+            "sidebar_title": cfg.get("sidebarTitle", "Smart Home Hub"),
+            "sidebar_icon": cfg.get("sidebarIcon", "mdi:home-automation"),
+        },
+    )
+    connection.send_result(msg["id"], {"status": "ok", "updated_at": updated_at})
 
 
 def _validate_image_magic(data: bytes, ext: str) -> bool:
