@@ -15,20 +15,21 @@ const DASH_CARD_EDITOR_TAB = {
   extra_tabs: 'geraete',
   appliances: 'geraete',
   covers: 'geraete',
-  calendar: 'energie',
+  calendar: 'kalender',
   status: 'kameras',
-  climate: 'allgemein',
-  rain_timeline: 'allgemein',
+  climate: 'klima',
+  rain_timeline: 'klima',
   ventilation: 'klima',
   favorites: 'geraete',
   energy_prices: 'energie',
   metrics: 'energie',
+  power_flow: 'energie',
   battery_forecast: 'energie',
   wallbox: 'energie',
   security: 'kameras',
   lights: 'geraete',
   system_health: 'geraete',
-  trash: 'energie'
+  trash: 'kalender'
 };
 
 const DASH_CARD_EDITOR_SUBTAB = {
@@ -39,31 +40,54 @@ const DASH_CARD_EDITOR_SUBTAB = {
   covers: 'covers'
 };
 
-function renderDashCardHtml(id) {
+function renderDashCardHtml(id, item = null) {
+  if (item && item.isCustomWidget && item.widget) {
+    return renderCustomWidget(item.widget, 'dash_' + item.id);
+  }
+  const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home' }];
+  const r = rooms[ui.room] || rooms[0];
+  const isHome = ui.room === 0;
+  const rName = (!isHome && r && r.name) ? r.name : null;
+  const hasRoomCovers = rName && (CONFIG.covers || []).some(c => c.room && c.room.toLowerCase() === rName.toLowerCase());
+  const hasRoomFavs = rName && (CONFIG.favorites || []).some(f => f.room && f.room.toLowerCase() === rName.toLowerCase());
+
   switch (id) {
     case 'alerts': return conditionalAlertsCard();
-    case 'presence': return presenceCard();
+    case 'presence': return presenceCard(true);
     case 'quick_routines': return routinesCard();
     case 'devices': return devicesCard(null, 'Geräteübersicht', 'geraete');
     case 'extra_tabs': return extraDeviceTabsCards();
-    case 'appliances': return appliancesCard();
-    case 'covers': return coversCard();
+    case 'appliances': return appliancesCard(null, true);
+    case 'covers': return coversCard(hasRoomCovers ? rName : null);
     case 'calendar': return homeCalendarCard();
     case 'status': return rightTopStatus();
     case 'climate': return climateCard();
-    case 'rain_timeline': return rainTimelineCard();
-    case 'ventilation': return ventilationCard();
-    case 'favorites': return favoritesCard();
-    case 'energy_prices': return energyPricesCard();
+    case 'rain_timeline': return rainTimelineCard(null, true);
+    case 'ventilation': return ventilationCard(true);
+    case 'favorites': return favoritesCard(hasRoomFavs ? rName : null);
+    case 'energy_prices': return energyPricesCard(null, true);
     case 'metrics': return (CONFIG.metrics || []).map(metricCard).join('');
-    case 'battery_forecast': return batteryForecastCard();
-    case 'wallbox': return wallboxCard();
+    case 'power_flow': return renderCustomWidget({ type: 'power_flow', title: (item && item.title) || 'Power Flow', mode: (item && item.mode) || 'auto' }, 'dash_pf');
+    case 'battery_forecast': return batteryForecastCard(null, true);
+    case 'wallbox': return wallboxCard(null, true);
     case 'security': return securityCard();
     case 'lights': return lightsCard();
-    case 'system_health': return systemHealthCard();
+    case 'system_health': return systemHealthCard(true);
     case 'trash': return homeTrashCard();
     default: return '';
   }
+}
+
+function getScopeBadgeLabel(item) {
+  const sc = (item && item.scope) || 'all';
+  if (sc === 'all') return '🌐 Alle Räume';
+  if (sc === 'home') return '🏠 Nur Home';
+  if (sc === 'none') return '🚫 Ausgeblendet';
+  if (sc.startsWith('room:')) return `📍 Nur ${sc.slice(5)}`;
+  if (sc === 'custom' && Array.isArray(item.scopeRooms)) {
+    return item.scopeRooms.length ? `🎯 ${item.scopeRooms.join(', ')}` : '🎯 Keine Räume';
+  }
+  return '🌐 Alle Räume';
 }
 
 function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
@@ -98,7 +122,7 @@ function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
       <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="Nach unten / rechts">↓</button>
       ${!isGrid12 ? colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('') : ''}
       ${!isGrid12 ? `<span style="opacity:0.3">|</span>` + widthBtns : `<span style="opacity:0.3">|</span>` + spanBtns}
-      <button class="qe-btn ${scopeVal === 'home' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Zuständigkeit: Alle Räume vs. Nur Home">${scopeVal === 'home' ? '🏠 Nur Home' : '🌐 Alle Räume'}</button>
+      <button class="qe-btn ${scopeVal !== 'all' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Anzeige-Ort durchschalten (Alle Räume ⇄ Nur Home ⇄ Aktueller Raum)">${esc(getScopeBadgeLabel(item))}</button>
       <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="Ein-/Ausblenden">${item.show === false ? '🙈' : '👁️'}</button>
       <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="Im Editor anpassen">⚙️</button>
     </div>
@@ -206,6 +230,7 @@ function render() {
           <span class="mut sm">12-Spalten-Grid aktiv · Weise Kacheln Spalten 1–12 zu (z.B. 6 = 50%, 4 = 33%). Mobil automatisch 100%.</span>
         </div>`}
         <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="chip" data-act="forceReloadApp" title="Cache leeren & Ansicht frisch vom Server laden">🔄 Neu laden</button>
           <button class="chip" data-act="cfgOpenTab" data-tab="layout">⚙️ Layout-Tab</button>
           <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
         </div>
@@ -268,7 +293,7 @@ function render() {
 
     layout.forEach((item, idx) => {
       if (!item || !item.id) return;
-      const inScope = (item.scope || 'all') !== 'home' || isHome;
+      const inScope = isCardInRoomScope(item, r, isHome);
       if (!inScope && !ui.editMode) return;
       const isShown = item.show !== false;
       if (!isShown && !ui.editMode) return;
@@ -328,7 +353,7 @@ function render() {
           });
         }
       } else {
-        const cardHtml = renderDashCardHtml(item.id);
+        const cardHtml = renderDashCardHtml(item.id, item);
         if (!cardHtml && !ui.editMode) return;
         const inner = cardHtml || `<section class="card"><div class="mut sm">${esc(item.label || item.id)} (aktuell leer / nur im Home-Tab)</div></section>`;
         const html = `<div class="qe-wrap ${wClass} ${(!isShown || !inScope) ? 'qe-hidden' : ''}" style="${isGrid12 ? spanStyle : ''}">${qeBar}${inner}</div>`;
@@ -610,19 +635,27 @@ function rebuildEntitiesList() {
   if (CONFIG.lightsMain && CONFIG.lightsMain.mode === 'custom') {
     ids.push(...(CONFIG.lightsMain.entities || []));
   }
-  (CONFIG.customPages || []).forEach(p => (p.widgets || []).forEach(w => {
+  const collectWidgetEntities = w => {
+    if (!w) return;
     if (w.type === 'buli_table') ids.push(w.entity || 'sensor.bund_scoreboard2');
     else if (w.type === 'f1_next') ids.push(w.entity || 'sensor.f1_next_race', 'sensor.f1_race_f1_next_race');
     else if (w.type === 'f1_standings') ids.push(w.entity || 'sensor.f1_driver_standings', 'sensor.f1_championship_f1_driver_standings');
     else if (w.entity) ids.push(w.entity);
     if (Array.isArray(w.entities)) ids.push(...w.entities);
     if (w.items) w.items.forEach(it => ids.push(it.entity));
-  }));
+  };
+  (CONFIG.customPages || []).forEach(p => (p.widgets || []).forEach(collectWidgetEntities));
+  (CONFIG.dashboardLayout || []).forEach(it => {
+    if (it && it.isCustomWidget && it.widget) collectWidgetEntities(it.widget);
+  });
   ENTITIES = [...new Set(ids.filter(Boolean))];
 }
 
 let lastSig = '';
 function tick(force) {
+  if (DEMO && getHass()) {
+    ensureHassLiveSync();
+  }
   if (ui.view === 'kameras') {
     const camSig = `#kameras:${canUseGo2rtc()}:${go2rtcState.modeOverride}:${ui.editMode}:${CONFIG.camCols}`;
     if (force || lastSig !== camSig) { lastSig = camSig; render(); }
@@ -932,13 +965,179 @@ document.addEventListener('click', ev => {
     tick(true);
     return;
   }
+  if (act === 'forceReloadApp') {
+    forceReloadApp(false);
+    return;
+  }
   if (act === 'qeDashScope') {
     const item = CONFIG.dashboardLayout[+el.dataset.i];
     if (item) {
-      item.scope = item.scope === 'home' ? 'all' : 'home';
+      const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home' }];
+      const curRoom = rooms[ui.room] || rooms[0];
+      const curRoomScope = (ui.room > 0 && curRoom && curRoom.name) ? `room:${curRoom.name}` : null;
+      if (item.scope === 'all') {
+        item.scope = 'home';
+      } else if (item.scope === 'home' && curRoomScope) {
+        item.scope = curRoomScope;
+      } else {
+        item.scope = 'all';
+      }
       saveConfigToServer(CONFIG);
       tick(true);
     }
+    return;
+  }
+  if (act === 'cfgScopeRoomToggle') {
+    const cardId = el.dataset.card;
+    const roomName = el.dataset.room;
+    const item = (cfgDraft && cfgDraft.dashboardLayout || []).find(x => x && x.id === cardId);
+    if (item && roomName) {
+      if (!Array.isArray(item.scopeRooms)) item.scopeRooms = ['Home'];
+      const idx = item.scopeRooms.indexOf(roomName);
+      if (idx >= 0) item.scopeRooms.splice(idx, 1);
+      else item.scopeRooms.push(roomName);
+      item.scope = 'custom';
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgTogglePageWidget') {
+    const pi = +el.dataset.pi;
+    const wType = el.dataset.wtype;
+    const wTitle = el.dataset.wtitle || '';
+    const pg = cfgDraft && cfgDraft.customPages && cfgDraft.customPages[pi];
+    if (pg && wType) {
+      if (!Array.isArray(pg.widgets)) pg.widgets = [];
+      const existingIdx = pg.widgets.findIndex(w => w && w.type === wType);
+      if (existingIdx >= 0) {
+        pg.widgets.splice(existingIdx, 1);
+        toast(`„${wTitle || wType}“ von Unterseite „${pg.label}“ entfernt`);
+      } else {
+        pg.widgets.push({ type: wType, title: wTitle, col: 'auto', show: true });
+        toast(`„${wTitle || wType}“ zu Unterseite „${pg.label}“ hinzugefügt`);
+      }
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgAddDashWidget') {
+    if (!cfgDraft || !Array.isArray(cfgDraft.dashboardLayout)) return;
+    const newId = 'cw_' + Date.now();
+    cfgDraft.dashboardLayout.push({
+      id: newId,
+      isCustomWidget: true,
+      label: '🧩 Eigenes Widget (Power Flow)',
+      col: 2,
+      width: '100',
+      span: 6,
+      show: true,
+      scope: 'home',
+      cfgTab: 'layout',
+      widget: { type: 'power_flow', title: 'Power Flow', mode: 'auto', show: true }
+    });
+    renderCfgModal(true);
+    toast('Neues Startseiten-Widget am Ende der Liste hinzugefügt');
+    return;
+  }
+  if (act === 'cfgDelDashWidget') {
+    if (!cfgDraft || !Array.isArray(cfgDraft.dashboardLayout)) return;
+    cfgDraft.dashboardLayout.splice(+el.dataset.i, 1);
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgAddDashWStatItem') {
+    const item = cfgDraft && cfgDraft.dashboardLayout && cfgDraft.dashboardLayout[+el.dataset.i];
+    if (item && item.widget) {
+      if (!Array.isArray(item.widget.items)) item.widget.items = [];
+      item.widget.items.push({ name: 'Kurve', entity: '', attr: '', color: '#a99bff' });
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgDelDashWStatItem') {
+    const item = cfgDraft && cfgDraft.dashboardLayout && cfgDraft.dashboardLayout[+el.dataset.i];
+    if (item && item.widget && Array.isArray(item.widget.items)) {
+      item.widget.items.splice(+el.dataset.si, 1);
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgGenRoomPage') {
+    if (!cfgDraft) return;
+    let rName = el.dataset.room || '';
+    if (!rName || rName === '__prompt__') {
+      const entered = prompt('Für welchen Raum soll eine eigene Menü-Unterseite erstellt werden? (z. B. Büro, Wohnzimmer, Werkstatt):', 'Büro');
+      if (!entered || !entered.trim()) return;
+      rName = entered.trim();
+    }
+    if (!Array.isArray(cfgDraft.rooms)) cfgDraft.rooms = [];
+    let roomObj = cfgDraft.rooms.find(r => r && r.name && r.name.toLowerCase() === rName.toLowerCase());
+    if (!roomObj) {
+      roomObj = { name: rName, image: '', color: '#2a2350', showLiveBadge: true, camButtons: [], chips: [] };
+      cfgDraft.rooms.push(roomObj);
+    }
+    if (!Array.isArray(cfgDraft.customPages)) cfgDraft.customPages = [];
+    const pageId = 'room_' + safeId(rName).toLowerCase();
+    let page = cfgDraft.customPages.find(p => p && (p.id === pageId || (p.label && p.label.toLowerCase() === rName.toLowerCase())));
+    const defaultWidgets = [
+      { type: 'devices', title: `Geräte · ${rName}`, room: rName, entity: rName, col: '1', show: true },
+      { type: 'lights', title: `Lichter · ${rName}`, room: rName, entity: rName, col: '1', show: true },
+      { type: 'covers', title: `Rolläden · ${rName}`, room: rName, entity: rName, col: '1', show: true },
+      { type: 'climate_room', title: `Raumklima · ${rName}`, room: rName, entity: rName, col: '2', show: true },
+      { type: 'ventilation', title: `Lüftung · ${rName}`, room: rName, entity: rName, col: '2', show: true }
+    ];
+    if (roomObj.camera || roomObj.webrtc) {
+      defaultWidgets.push({ type: 'camera', title: `Kamera · ${rName}`, entity: roomObj.camera || '', stream: roomObj.webrtc || '', col: '2', show: true });
+    }
+    if (!page) {
+      page = {
+        id: pageId,
+        label: rName,
+        icon: 'home',
+        eyebrow: 'Raum-Dashboard',
+        title: rName,
+        intro: `Alle Geräte, Lichter, Rolläden und Klimadaten für ${rName} auf einen Blick.`,
+        layout: '2col-asym',
+        widgets: defaultWidgets
+      };
+      cfgDraft.customPages.push(page);
+      toast(`✨ Raum-Unterseite „${rName}“ inkl. 5 Raum-Widgets erstellt!`);
+    } else {
+      if (!Array.isArray(page.widgets)) page.widgets = [];
+      defaultWidgets.forEach(dw => {
+        if (!page.widgets.some(w => w && w.type === dw.type)) {
+          page.widgets.push(dw);
+        }
+      });
+      toast(`✨ Raum-Unterseite „${rName}“ aktualisiert & geöffnet!`);
+    }
+    cfgTab = 'kalender';
+    if (typeof cfgOpenBoxes !== 'undefined') cfgOpenBoxes.add(`page_${page.id}`);
+    renderCfgModal(false);
+    return;
+  }
+  if (act === 'cfgPinCurrentAsDeviceStart') {
+    const rooms = (CONFIG && CONFIG.rooms) || [{ name: 'Home' }];
+    const curRoomName = (rooms[ui.room] && rooms[ui.room].name) || 'Home';
+    saveDeviceProfile({
+      startView: ui.view || 'dashboard',
+      startRoom: (ui.view === 'dashboard') ? curRoomName : ''
+    });
+    renderCfgModal(true);
+    toast(`📌 Aktuelle Ansicht (${ui.view === 'dashboard' ? 'Raum: ' + curRoomName : ui.view}) als Startansicht für dieses Gerät gespeichert`);
+    return;
+  }
+  if (act === 'cfgResetDeviceProfile') {
+    saveDeviceProfile({
+      deviceName: '',
+      startView: '',
+      startRoom: '',
+      returnToStartMins: 0,
+      kioskOverride: 'global',
+      screensaverOverride: 'global'
+    });
+    renderCfgModal(true);
+    toast('Endgeräte-Profil auf globale Standardwerte zurückgesetzt');
     return;
   }
   if (act === 'qeDashVis') {
@@ -1991,8 +2190,9 @@ window.closeBellPopup = function() {
   }
 };
 
-/* ---------- Inaktivitäts- & Screensaver-Logik ---------- */
+/* ---------- Inaktivitäts-, Auto-Rückkehr- & Screensaver-Logik ---------- */
 let idleTimer = null;
+let idleReturnTimer = null;
 let isScreensaverActive = false;
 
 function resetIdleTimer() {
@@ -2006,11 +2206,23 @@ function resetIdleTimer() {
   }
   
   if (idleTimer) clearTimeout(idleTimer);
+  if (idleReturnTimer) clearTimeout(idleReturnTimer);
+
   const cfg = CONFIG.screensaver || {};
-  if (cfg.show !== false && cfg.timeoutMins > 0 && !ui.editMode) {
+  const showSS = typeof getEffectiveScreensaverShow === 'function' ? getEffectiveScreensaverShow() : (cfg.show !== false);
+  if (showSS && cfg.timeoutMins > 0 && !ui.editMode) {
     idleTimer = setTimeout(() => {
       activateScreensaver();
     }, cfg.timeoutMins * 60000);
+  }
+
+  const prof = typeof getDeviceProfile === 'function' ? getDeviceProfile() : null;
+  if (prof && prof.returnToStartMins > 0 && !ui.editMode) {
+    idleReturnTimer = setTimeout(() => {
+      const cfgModal = document.getElementById('cfgmodal');
+      if (cfgModal && cfgModal.classList.contains('show')) return;
+      if (typeof applyDeviceStartView === 'function') applyDeviceStartView(true);
+    }, prof.returnToStartMins * 60000);
   }
 }
 
@@ -2106,4 +2318,9 @@ function updateScreensaverContent() {
   setInterval(refreshMetricCompare, 60 * 1000);
   setInterval(() => refreshWeatherForecast(true), 30 * 60 * 1000);
   setInterval(() => { if (typeof refreshAllSportsHubs === 'function') refreshAllSportsHubs(false); }, 2 * 60 * 1000);
+  setInterval(checkRemoteConfigUpdate, 12 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkRemoteConfigUpdate();
+  });
+  window.addEventListener('focus', () => checkRemoteConfigUpdate());
 })();

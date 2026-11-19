@@ -267,15 +267,22 @@ function extraDeviceTabsCards() {
   return extraTabs.map(t => devicesCard(null, t.name, t.id)).join('');
 }
 
-function coversCard() {
-  const list = CONFIG.covers || [];
-  if (!list.length) return '';
+function coversCard(filterRoom = null, customTitle = null) {
+  let list = CONFIG.covers || [];
+  if (filterRoom) {
+    list = list.filter(c => !c.room || c.room.toLowerCase() === String(filterRoom).toLowerCase());
+  }
+  if (!list.length) {
+    return ui.editMode
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Rolläden')}</b></div><div class="page-note">Keine Rolläden für diese Ansicht konfiguriert.</div></section>`
+      : '';
+  }
   const openCount = list.filter(c => devInfo(c).on).length;
   const rows = list.map(c => {
     const i = devInfo(c);
     const pos = i.s && i.s.attributes && i.s.attributes.current_position != null ? i.s.attributes.current_position : null;
     const barWidth = pos != null ? pos : (i.on ? 100 : 0);
-    const subTxt = pos != null ? `${pos} %` : i.label;
+    const subTxt = (pos != null ? `${pos} %` : i.label) + (c.room ? ` · ${c.room}` : '');
     return `<div class="cover-row">
       <div class="dv"><div class="dvi ${i.on ? 'open' : ''}">${ic('blinds', 17)}</div><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc(subTxt)}</small></div></div>
       <div class="st ${i.cls}"><i></i>${esc(i.label)}</div>
@@ -287,7 +294,7 @@ function coversCard() {
       </div>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><div><b>Rolladen</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${openCount} offen</span></div></div>
+  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Rolladen')}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${openCount} offen</span></div></div>
     <div class="cover-row h"><div>Rolladen</div><div>Status</div><div>Position</div><div style="text-align:right">Steuerung</div></div>
     ${rows}</section>`;
 }
@@ -586,11 +593,14 @@ function metricCard(m) {
     ${chartHtml}</div>${extraHTML}</section>`;
 }
 
-function favoritesCard() {
-  const list = (CONFIG.favorites || []).filter(f => f.show !== false);
+function favoritesCard(filterRoom = null, customTitle = null) {
+  let list = (CONFIG.favorites || []).filter(f => f.show !== false);
+  if (filterRoom) {
+    list = list.filter(f => !f.room || f.room.toLowerCase() === String(filterRoom).toLowerCase());
+  }
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>Schnellauswahl / Favoriten</b></div><div class="page-note">Noch keine Favoriten hinzugefügt. Öffne den Konfigurator (⚙️) → Geräte → Favoriten.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Schnellauswahl / Favoriten')}</b></div><div class="page-note">Noch keine Favoriten hinzugefügt. Öffne den Konfigurator (⚙️) → Geräte → Favoriten.</div></section>`
       : '';
   }
   const tiles = list.map((f, i) => {
@@ -644,14 +654,15 @@ function favoritesCard() {
     return s.state === 'on';
   }).length;
 
-  return `<section class="card"><div class="ch"><div><b>Schnellauswahl</b><span class="mut sm" style="color:var(--acc2)">&nbsp;${activeCount} aktiv</span></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Schnellauswahl')}</b><span class="mut sm" style="color:var(--acc2)">&nbsp;${activeCount} aktiv</span></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
-function securityCard() {
+function securityCard(customTitle = null) {
   const sec = CONFIG.security || {};
   const locks = getLocksList(sec);
-  if (!locks.length && !(sec.windows && sec.windows.length) && !(sec.cameras && sec.cameras.length)) return '';
-  const openW = (sec.windows || []).filter(w => { const s = S(w); return s && (s.state === 'on' || s.state === 'open'); }).length;
+  const winAndDoors = [...(sec.windows || []), ...((sec.doors || []).map(d => typeof d === 'string' ? d : (d && d.entity)).filter(Boolean))];
+  if (!locks.length && !winAndDoors.length && !(sec.cameras && sec.cameras.length)) return '';
+  const openW = winAndDoors.filter(w => { const s = S(w); return s && (s.state === 'on' || s.state === 'open'); }).length;
   const camOn = (sec.cameras || []).filter(c => { const s = S(c); return s && s.state !== 'unavailable' && s.state !== 'off'; }).length;
   const allLocksOk = locks.every(l => { const s = S(l.entity); return !s || s.state === 'locked'; });
   const allOk = allLocksOk && !openW;
@@ -663,10 +674,10 @@ function securityCard() {
     return `<button class="tile ${locked ? '' : 'warn'}" data-act="doorEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}">${ic(locked ? 'lock' : 'unlock', 18)}<span style="min-width:0"><b>${esc(l.name || 'Tür')}</b><small>${locked ? 'Verriegelt' : 'Entriegelt'}${cardBatHtml}</small></span></button>`;
   }).join('');
 
-  return `<section class="card"><div class="ch"><div><b>Sicherheit</b><div class="sm" style="color:${allOk ? 'var(--ok)' : 'var(--warn)'}">${allOk ? 'Alle Systeme aktiv' : 'Bitte prüfen'}</div></div></div>
+  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Sicherheit')}</b><div class="sm" style="color:${allOk ? 'var(--ok)' : 'var(--warn)'}">${allOk ? 'Alle Systeme aktiv' : 'Bitte prüfen'}</div></div></div>
     <div class="tiles">
       ${lockTiles}
-      <div class="tile ${openW ? 'warn' : ''}">${ic('window', 18)}<span><b>Fenster</b><small>${openW ? openW + ' offen' : 'Geschlossen'}</small></span></div>
+      <div class="tile ${openW ? 'warn' : ''}">${ic('window', 18)}<span><b>Fenster &amp; Türen</b><small>${openW ? openW + ' offen' : 'Geschlossen'}</small></span></div>
       <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>Kameras</b><small>${camOn} aktiv</small></span></button></div></section>`;
 }
 
@@ -737,13 +748,13 @@ function conditionalAlertsCard() {
 }
 
 /* ---------- FAMILIEN-PRÄSENZ ---------- */
-function presenceCard() {
+function presenceCard(forceShow = false, customTitle = null) {
   const p = CONFIG.presence || {};
-  if (p.show === false) return '';
+  if (!forceShow && p.show === false) return '';
   const members = (p.members || []).filter(m => m.entity);
   if (!members.length) {
-    return ui.editMode
-      ? `<section class="card"><div class="ch"><b>👥 Familien-Präsenz</b></div><div class="page-note">Keine Familienmitglieder konfiguriert. Konfigurator → Allgemein → Familien-Präsenz.</div></section>`
+    return (ui.editMode || forceShow)
+      ? `<section class="card"><div class="ch"><b>👥 ${esc(customTitle || 'Familien-Präsenz')}</b></div><div class="page-note">Keine Familienmitglieder konfiguriert. Konfigurator → Allgemein → Familien-Präsenz.</div></section>`
       : '';
   }
 
@@ -772,15 +783,15 @@ function presenceCard() {
 
   const homeCount = members.filter(m => { const s = S(m.entity); return s && (s.state === 'home' || s.state === 'zuhause'); }).length;
 
-  return `<section class="card"><div class="ch"><b>👥 Anwesenheit</b><span class="mut sm">${homeCount} / ${members.length} zuhause</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div></section>`;
+  return `<section class="card"><div class="ch"><b>👥 ${esc(customTitle || 'Anwesenheit')}</b><span class="mut sm">${homeCount} / ${members.length} zuhause</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div></section>`;
 }
 
 /* ---------- SZENEN- & ROUTINEN-SCHNELLZUGRIFF ---------- */
-function routinesCard() {
+function routinesCard(customTitle = null) {
   const list = CONFIG.routines || [];
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>⚡ Szenen & Routinen</b></div><div class="page-note">Keine Routinen konfiguriert. Konfigurator → Allgemein → Szenen & Routinen.</div></section>`
+      ? `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Szenen & Routinen')}</b></div><div class="page-note">Keine Routinen konfiguriert. Konfigurator → Allgemein → Szenen & Routinen.</div></section>`
       : '';
   }
 
@@ -798,18 +809,22 @@ function routinesCard() {
     </button>`;
   }).join('');
 
-  return `<section class="card"><div class="ch"><b>⚡ Szenen & Routinen</b><span class="mut sm">Schnellzugriff</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
+  return `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Szenen & Routinen')}</b><span class="mut sm">Schnellzugriff</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
 }
 
 /* ---------- SMARTE LÜFTUNGSEMPFEHLUNG & AUSKÜHLUNGSSCHUTZ ---------- */
-function ventilationCard() {
+function ventilationCard(forceShow = false, filterRoom = null, customTitle = null) {
   const cfg = CONFIG.ventilation || {};
-  if (cfg.show === false) return '';
+  if (!forceShow && cfg.show === false) return '';
   const outT = num(cfg.outdoorTemp);
   const outH = num(cfg.outdoorHum);
   const outAH = calcAbsoluteHumidity(outT, outH);
 
-  const rooms = (cfg.rooms || []).map(rm => {
+  const rawRooms = filterRoom
+    ? (cfg.rooms || []).filter(rm => rm.name && rm.name.toLowerCase() === String(filterRoom).toLowerCase())
+    : (cfg.rooms || []);
+
+  const rooms = rawRooms.map(rm => {
     const inT = num(rm.temp);
     const inH = num(rm.hum);
     const inAH = calcAbsoluteHumidity(inT, inH);
@@ -886,7 +901,7 @@ function ventilationCard() {
     <div class="ch">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">${generalOk ? '🍃' : '🛑'}</span>
-        <b>Smarte Lüftungsempfehlung</b>
+        <b>${esc(customTitle || 'Smarte Lüftungsempfehlung')}</b>
       </div>
       <span class="mut sm">Außen: ${outT != null ? fmt(outT, 1) + '°C' : '–'} · ${outH != null ? fmt(outH, 0) + '%' : '–'} ${outAH != null ? '(' + outAH + ' g/m³)' : ''}</span>
     </div>
@@ -897,9 +912,9 @@ function ventilationCard() {
 }
 
 /* ---------- REGENRADAR (60-MINUTEN-VORSCHAU) ---------- */
-function rainTimelineCard(customTitle) {
+function rainTimelineCard(customTitle, forceShow = false) {
   const wCfg = CONFIG.weather || {};
-  if (wCfg.showRainTimeline === false) return '';
+  if (!forceShow && wCfg.showRainTimeline === false) return '';
   const rain = getRainTimeline60Min();
   const title = customTitle || 'Regenradar · 60 Min. Vorschau';
 
@@ -938,11 +953,11 @@ function rainTimelineCard(customTitle) {
 }
 
 /* ---------- SPEICHER-RESTLAUFZEIT & LADEPROGNOSE ---------- */
-function batteryForecastCard(customTitle) {
+function batteryForecastCard(customTitle, forceShow = false) {
   const bfCfg = CONFIG.batteryForecast || {};
-  if (bfCfg.show === false) return '';
+  if (!forceShow && bfCfg.show === false) return '';
   const bf = calcBatteryForecast();
-  if (!bf) return ui.editMode ? `<section class="card"><div class="ch"><b>⚡ Speicher-Prognose</b></div><div class="page-note">Keine Batterie- oder SoC-Sensoren hinterlegt. Konfigurator → Energie → Batteriespeicher.</div></section>` : '';
+  if (!bf) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Speicher-Prognose')}</b></div><div class="page-note">Keine Batterie- oder SoC-Sensoren hinterlegt. Konfigurator → Energie → Batteriespeicher.</div></section>` : '';
 
   const title = customTitle || 'Speicher-Laufzeit & Prognose';
   const isChg = bf.state === 'charging';
@@ -1000,9 +1015,11 @@ function batteryForecastCard(customTitle) {
 }
 
 /* ---------- SYSTEM-HEALTH (Server & Docker) ---------- */
-function systemHealthCard() {
+function systemHealthCard(forceShow = false, customTitle = null) {
   const sh = CONFIG.systemHealth || {};
-  if (sh.show === false) return '';
+  if (!forceShow && sh.show === false) return '';
+  const hasAny = sh.cpu || sh.ram || sh.disk || sh.temp || (sh.containers && sh.containers.length);
+  if (!hasAny && !ui.editMode && !forceShow) return '';
   const cpu = num(sh.cpu);
   const ram = num(sh.ram);
   const disk = num(sh.disk);
@@ -1036,14 +1053,14 @@ function systemHealthCard() {
   }).join('');
 
   return `<section class="card">
-    <div class="ch"><b>🖥️ ${esc(sh.title || 'System-Health')}</b><span class="mut sm">Server &amp; Docker</span></div>
+    <div class="ch"><b>🖥️ ${esc(customTitle || sh.title || 'System-Health')}</b><span class="mut sm">Server &amp; Docker</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       ${sh.cpu ? gaugeBar('CPU', cpu, '%') : ''}
       ${sh.ram ? gaugeBar('RAM', ram, '%') : ''}
       ${sh.disk ? gaugeBar('Disk', disk, '%') : ''}
       ${sh.temp ? gaugeBar('Temp', temp, '°C', 90, 75) : ''}
     </div>
-    ${containerList ? `<div style="margin-top:8px">${containerList}</div>` : ''}
+    ${containerList ? `<div style="margin-top:8px">${containerList}</div>` : (!hasAny ? '<div class="page-note">Keine Server-Sensoren oder Container hinterlegt. Konfigurator → Geräte → Server & Docker.</div>' : '')}
   </section>`;
 }
 
@@ -1089,23 +1106,34 @@ function getMainLightEntities() {
   return [...new Set(ents)].filter(e => !globalExMain.has(e));
 }
 
-function lightsCard() {
-  const gs = CONFIG.lights || [];
-  if (!gs.length) return '';
-  const mainEnts = getMainLightEntities();
+function lightsCard(filterGroup = null, customTitle = null) {
+  const allGs = CONFIG.lights || [];
+  const indexed = allGs.map((g, idx) => ({ g, idx })).filter(({ g }) => {
+    if (!filterGroup) return true;
+    const q = String(filterGroup).toLowerCase();
+    return (g.name && g.name.toLowerCase() === q) || (g.room && g.room.toLowerCase() === q);
+  });
+  if (!indexed.length) {
+    return ui.editMode
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b></div><div class="page-note">Keine Licht-Gruppen für diese Ansicht gefunden.</div></section>`
+      : '';
+  }
+  const mainEnts = filterGroup
+    ? [...new Set(indexed.flatMap(({ g }) => getGroupToggleEntities(g)))]
+    : getMainLightEntities();
   const main = groupInfo({ entities: mainEnts });
-  const tiles = gs.map((g, i) => {
+  const tiles = indexed.map(({ g, idx }) => {
     const gi = groupInfo(g);
-    return `<div class="tile tile-light ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${i}" title="Klick: Gruppe schalten · Gedrückthalten: Details & Ausnahmen">
+    return `<div class="tile tile-light ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${idx}" title="Klick: Gruppe schalten · Gedrückthalten: Details & Ausnahmen">
       ${ic('bulb', 18)}
       <span class="tile-light-txt">
         <b>${esc(g.name)}</b>
         <small>${gi.on}/${gi.total} an</small>
       </span>
-      <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${i}" title="Details, Helligkeit & Ausnahmen">⋯</button>
+      <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${idx}" title="Details, Helligkeit & Ausnahmen">⋯</button>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><b>Lichter</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function getCoreNav() {
@@ -1485,6 +1513,38 @@ function taskmateChildCard(entity, child) {
     ${taskRows ? `<div class="match-list">${taskRows}</div>` : `<div class="page-note">Keine offenen Aufgaben gefunden.</div>`}</section>`;
 }
 
+function klimaRoomSingleCard(filterRoom = '', customTitle = null) {
+  const allRooms = (CONFIG.climateRooms || []).map((r, i) => ({ r, i }));
+  const matches = filterRoom
+    ? allRooms.filter(({ r }) => r && r.name && r.name.toLowerCase() === String(filterRoom).toLowerCase())
+    : allRooms.filter(({ r }) => r && r.show !== false);
+  if (!matches.length) {
+    return `<section class="card"><div class="ch"><b>🌡️ ${esc(customTitle || filterRoom || 'Klima-Raum')}</b></div><div class="page-note">Kein passender Klima-Raum im Klima-Baukasten gefunden.</div></section>`;
+  }
+  return matches.map(({ r, i }) => {
+    const sens = (r.sensors || []).map(x => {
+      const s = S(x.entity);
+      const rawVal = s ? (x.attr ? (s.attributes && s.attributes[x.attr]) : s.state) : undefined;
+      const n = rawVal != null ? parseFloat(rawVal) : NaN;
+      return `<span class="chip">${ic(x.icon || 'thermo', 14)}${isNaN(n) ? '—' : fmt(n, x.decimals ?? 1) + ' ' + esc(x.unit || '')}</span>`;
+    }).join('');
+    let boost = '';
+    if (r.boost && r.boost.entity) { const b = S(r.boost.entity); boost = `<button class="boost ${b && b.state === 'on' ? 'on' : ''}" data-act="kboost" data-e="${esc(r.boost.entity)}">${ic('fire', 14)}${esc(r.boost.name || 'Boost')}</button>`; }
+    const set = r.settings && r.settings.groups && r.settings.groups.length ? `<button class="iconbtn" data-act="smOpen" data-i="${i}">${ic('settings', 14)}Einstellungen</button>` : '';
+    const devs = (r.devices || []).map(kDevice).join('');
+    const charts = (r.charts || []).map(c => {
+      const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');
+      const s = S(c.entity), a = (s && s.attributes) || {};
+      const unit = (c.title || '').includes('Luftfeucht') ? '%' : (a.unit_of_measurement || '°C');
+      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(c.title || '')}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="Antippen für Großansicht">
+        <div class="kct" style="pointer-events:none"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>
+        <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals, unit })}</div></div>`;
+    }).join('');
+    return `<section class="card"><div class="kh"><div class="khl"><div class="kic">${ic(r.icon || 'home', 20)}</div><b>${esc(customTitle || r.name)}</b></div><div class="khr">${boost}${set}</div></div>
+      ${sens ? `<div class="chips" style="margin-top:12px">${sens}</div>` : ''}${devs}${charts}</section>`;
+  }).join('');
+}
+
 function renderCustomWidget(w, widgetKey = 'sh_default') {
   if (w.type === 'sports_hub') return sportsHubCard(w, widgetKey);
   if (w.type === 'entity_info') {
@@ -1500,14 +1560,30 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return useCard ? powerFlowHacsCard(w) : powerFlowTilesCard(w.title || 'PV Anlage');
   }
   if (w.type === 'weather_forecast') return weatherForecastCard(w.title);
-  if (w.type === 'rain_timeline') return rainTimelineCard(w.title);
-  if (w.type === 'battery_forecast') return batteryForecastCard(w.title);
-  if (w.type === 'energy_prices') return energyPricesCard(w.title);
-  if (w.type === 'wallbox') return wallboxCard(w.title);
-  if (w.type === 'appliances') return appliancesCard(w.title);
-  if (w.type === 'devices') return devicesCard(w.room || '', w.title || 'Geräte', '');
-  if (w.type === 'calendar') return homeCalendarCard(w.days || 14, w.title);
-  if (w.type === 'trash') return homeTrashCard(w.days || 30, w.maxItems || 25, w.subtitle || 'Nächste 30 Tage');
+  if (w.type === 'rain_timeline') return rainTimelineCard(w.title, true);
+  if (w.type === 'battery_forecast') return batteryForecastCard(w.title, true);
+  if (w.type === 'energy_prices') return energyPricesCard(w.title, true);
+  if (w.type === 'wallbox') return wallboxCard(w.title, true);
+  if (w.type === 'appliances') return appliancesCard(w.title, true);
+  if (w.type === 'devices') return devicesCard(w.room || w.entity || '', w.title || 'Geräte', w.tab || '');
+  if (w.type === 'lights') return lightsCard(w.room || w.entity || '', w.title || 'Lichter');
+  if (w.type === 'covers') return coversCard(w.room || w.entity || '', w.title || 'Rolläden');
+  if (w.type === 'favorites') return favoritesCard(w.room || w.entity || '', w.title || 'Schnellauswahl');
+  if (w.type === 'quick_routines' || w.type === 'routines') return routinesCard(w.title);
+  if (w.type === 'presence') return presenceCard(true, w.title);
+  if (w.type === 'ventilation') return ventilationCard(true, w.room || w.entity || '', w.title);
+  if (w.type === 'system_health') return systemHealthCard(true, w.title);
+  if (w.type === 'security') return securityCard(w.title);
+  if (w.type === 'status') return rightTopStatus();
+  if (w.type === 'alerts') return conditionalAlertsCard();
+  if (w.type === 'climate') return climateCard();
+  if (w.type === 'climate_room') return klimaRoomSingleCard(w.room || w.entity || '', w.title);
+  if (w.type === 'metrics') {
+    const mList = (CONFIG.metrics || []).filter(m => !w.entity || m.id === w.entity || m.title === w.entity);
+    return (mList.length ? mList : (CONFIG.metrics || [])).map(metricCard).join('');
+  }
+  if (w.type === 'calendar') return homeCalendarCard(w.daysCount || w.days || 14, w.title);
+  if (w.type === 'trash') return homeTrashCard(w.maxDays || w.days || 30, w.maxItems || 25, w.subtitle || 'Nächste 30 Tage');
   if (w.type === 'todo') {
     if (w.mode === 'taskmate') {
       return (w.children || []).map(c => taskmateChildCard(w.entity, c)).join('');
@@ -1515,7 +1591,7 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return entityInfoCard(w.entity, w.title || 'To-Do Liste');
   }
   if (w.type === 'iframe') {
-    const rawUrl = String(w.url || '').trim();
+    const rawUrl = String(w.url || w.entity || '').trim();
     const safeUrl = (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('/')) ? rawUrl : '';
     return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div>${safeUrl ? `<iframe class="iframe-widget" src="${esc(safeUrl)}" allow="autoplay; fullscreen" allowfullscreen></iframe>` : '<div class="page-note">Ungültige oder unsichere Einbettungs-URL (nur http/https erlaubt).</div>'}</section>`;
   }
@@ -1544,11 +1620,11 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
 }
 
 /* ---------- DYNAMISCHE STROMPREISE (Tibber / EPEX Spot) ---------- */
-function energyPricesCard(customTitle) {
+function energyPricesCard(customTitle, forceShow = false) {
   const cfg = CONFIG.energyPrices || {};
-  if (cfg.show === false) return '';
+  if (!forceShow && cfg.show === false) return '';
   const s = S(cfg.entity);
-  if (!s || !s.attributes) return ui.editMode ? `<section class="card"><div class="ch"><b>💶 ${esc(cfg.title || 'Strompreise')}</b></div><div class="page-note">Strompreis-Entität fehlt (z.B. sensor.tibber_prices).</div></section>` : '';
+  if (!s || !s.attributes) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>💶 ${esc(customTitle || cfg.title || 'Strompreise')}</b></div><div class="page-note">Strompreis-Entität fehlt (z.B. sensor.tibber_prices).</div></section>` : '';
   
   const attr = s.attributes;
   const today = attr.today || attr.prices_today || [];
@@ -1607,9 +1683,11 @@ function energyPricesCard(customTitle) {
 }
 
 /* ---------- WALLBOX & E-AUTO ---------- */
-function wallboxCard(customTitle) {
+function wallboxCard(customTitle, forceShow = false) {
   const cfg = CONFIG.wallbox || {};
-  if (cfg.show === false) return '';
+  if (!forceShow && cfg.show === false) return '';
+  const hasAny = cfg.socEntity || cfg.powerEntity || cfg.statusEntity || cfg.modeEntity;
+  if (!hasAny && !ui.editMode && !forceShow) return '';
   
   const soc = num(cfg.socEntity);
   const pwr = Math.max(0, num(cfg.powerEntity) || 0);
@@ -1654,9 +1732,13 @@ function wallboxCard(customTitle) {
 }
 
 /* ---------- HAUSHALTSGERÄTE-MONITOR ---------- */
-function appliancesCard(customTitle) {
+function appliancesCard(customTitle, forceShow = false) {
   const cfg = CONFIG.appliances || {};
-  if ((customTitle == null && cfg.show === false) || !(cfg.items && cfg.items.length)) return '';
+  if ((!forceShow && customTitle == null && cfg.show === false) || !(cfg.items && cfg.items.length)) {
+    return (ui.editMode || forceShow) && !(cfg.items && cfg.items.length)
+      ? `<section class="card"><div class="ch"><b>🧺 ${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b></div><div class="page-note">Keine Haushaltsgeräte hinterlegt. Konfigurator → Geräte → Haushaltsgeräte.</div></section>`
+      : '';
+  }
   
   const rows = cfg.items.map(a => {
     const sState = S(a.stateEntity);

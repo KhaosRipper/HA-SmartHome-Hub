@@ -1328,6 +1328,11 @@ function refreshAllSportsHubs(force = false) {
       }
     });
   });
+  (CONFIG.dashboardLayout || []).forEach(it => {
+    if (it && it.isCustomWidget && it.widget && it.widget.type === 'sports_hub' && it.show !== false) {
+      ensureSportsHubData(it.widget, force);
+    }
+  });
 }
 
 

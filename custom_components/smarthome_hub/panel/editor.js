@@ -62,18 +62,209 @@ const DASHBOARD_CARD_LABELS = {
   quick_routines: '⚡ Szenen & Routinen (Schnellzugriff)',
   devices: '🔌 Geräteübersicht (Haupt-Reiter)',
   extra_tabs: '📑 Zusätzliche Geräte-Reiter',
+  appliances: '🧺 Haushaltsgeräte-Monitor (Waschmaschine & Co.)',
   covers: '🪟 Rolladen-Steuerung',
   calendar: '📅 Familienkalender (7 Tage)',
   status: '🛡️ Sicherheits-Status & Türschloss-Pills',
   climate: '🌡️ Raumklima / Wetter-Kachel',
-  ventilation: '🌬️ Smarte Lüftungsempfehlung',
+  rain_timeline: '🌧️ Regenradar (60-Minuten-Vorschau)',
+  ventilation: '🌬️ Smarte Lüftungsempfehlung & Fenster-Timer',
   favorites: '⭐ Schnellauswahl / Favoriten',
+  energy_prices: '💶 Dynamische Strompreise (Tibber / EPEX)',
   metrics: '⚡ Energie- & Verbrauchs-Metriken',
+  power_flow: '🔄 Power Flow (Energiefluss-Grafik / Kacheln)',
+  battery_forecast: '🔋 Batteriespeicher-Restlaufzeit & Prognose',
+  wallbox: '🚗 Wallbox & E-Auto',
   security: '🔒 Sicherheits-Kachel (Schlösser/Fenster/Kameras)',
   lights: '💡 Lichter-Gruppen & Hauptschalter',
   system_health: '🖥️ System-Health (Server & Docker)',
   trash: '🗑️ Abfallkalender'
 };
+
+const WIDGET_TYPE_GROUPS = [
+  {
+    group: '🏠 Smart-Home, Räume & Geräte',
+    items: [
+      ['devices', '🔌 Geräteliste (alle oder nach Raum gefiltert)'],
+      ['lights', '💡 Lichter-Gruppen (alle oder einzelne Gruppe)'],
+      ['covers', '🪟 Rolläden-Steuerung (alle oder nach Raum)'],
+      ['favorites', '⭐ Schnellauswahl / Favoriten'],
+      ['quick_routines', '⚡ Szenen & Routinen (1-Klick Buttons)'],
+      ['presence', '👥 Familien-Präsenz (Anwesenheit)'],
+      ['appliances', '🧺 Haushaltsgeräte-Monitor (Waschmaschine & Co.)']
+    ]
+  },
+  {
+    group: '🌡️ Klima, Wetter & Lüftung',
+    items: [
+      ['climate_room', '🌡️ Klima-Raumkarte (aus Klima-Baukasten, z.B. Büro)'],
+      ['climate', '🌡️ Raumklima & Wetter-Kachel (Startseiten-Bogen)'],
+      ['ventilation', '🌬️ Smarte Lüftungsempfehlung & Fenster-Timer'],
+      ['weather_forecast', '☀️ Wettervorhersage (7 Tage)'],
+      ['rain_timeline', '🌧️ Regenradar (60-Minuten-Vorschau)']
+    ]
+  },
+  {
+    group: '⚡ Energie, PV & Technik',
+    items: [
+      ['power_flow', '🔄 Power Flow (Energiefluss-Grafik / Kacheln)'],
+      ['metrics', '⚡ Energie- & Verbrauchs-Metriken (24h & Vergleich)'],
+      ['battery_forecast', '🔋 Speicher-Restlaufzeit & Ladeprognose'],
+      ['energy_prices', '💶 Dynamische Strompreise (Tibber / EPEX)'],
+      ['wallbox', '🚗 Wallbox & E-Auto'],
+      ['stat_group', '📈 24h Statistik-Kurven (Freie Sensorgruppe)'],
+      ['system_health', '🖥️ System-Health (Server & Docker)']
+    ]
+  },
+  {
+    group: '🔒 Sicherheit & Kameras',
+    items: [
+      ['camera', '📷 Live-Kamera (go2rtc Stream / Home Assistant)'],
+      ['security', '🔒 Sicherheits-Kachel (Schlösser, Fenster & Kameras)'],
+      ['status', '🛡️ Sicherheits-Status & Türschloss-Pills'],
+      ['alerts', '🚨 Bedingte Warn-Karten (Alerts)']
+    ]
+  },
+  {
+    group: '📅 Kalender, Familie, Sport & Web',
+    items: [
+      ['calendar', '📅 Familienkalender'],
+      ['trash', '🗑️ Abfallkalender'],
+      ['todo', '📋 Aufgaben / To-Do (TaskMate / Home Assistant)'],
+      ['sports_hub', '🏆 Universal Sport-Center (Fußball, NFL, Tennis & mehr)'],
+      ['entity_info', 'ℹ️ Entitäts-Info (Attribute-Liste)'],
+      ['iframe', '🌐 Webseite / Iframe einbetten'],
+      ['f1_next', '🏎️ Formel 1 – Nächstes Rennen'],
+      ['f1_standings', '🏎️ Formel 1 – WM-Stand'],
+      ['buli_team', '⚽ Mein Verein (HA Teamtracker)'],
+      ['buli_table', '⚽ Bundesliga Tabelle (HA Sensor)'],
+      ['buli_matchday', '⚽ Spieltag Übersicht (HA Sensor)']
+    ]
+  }
+];
+
+function buildScopeSelectOptions(currentScope) {
+  const rooms = (cfgDraft && cfgDraft.rooms) || [];
+  const baseOpts = [
+    ['all', '🌐 In allen Raum-Tabs anzeigen'],
+    ['home', '🏠 Nur auf Startseite (Home)']
+  ];
+  rooms.forEach((rm, idx) => {
+    if (idx > 0 && rm && rm.name) {
+      baseOpts.push([`room:${rm.name}`, `📍 Nur im Raum-Tab: ${rm.name}`]);
+    }
+  });
+  baseOpts.push(['custom', '🎯 Mehrere Räume gezielt auswählen…']);
+  return baseOpts.map(([v, l]) => `<option value="${esc(v)}" ${(currentScope || 'all') === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
+}
+
+function placementStatusBadgeHtml(cardId, widgetType = null, extraInfo = '') {
+  if (!cfgDraft) return '';
+  const badges = [];
+  if (extraInfo) {
+    badges.push(`<span class="cfg-badge-info">${esc(extraInfo)}</span>`);
+  }
+  if (cardId) {
+    const item = (cfgDraft.dashboardLayout || []).find(x => x && x.id === cardId);
+    if (item && item.show !== false) {
+      const sc = item.scope || 'all';
+      let locTxt = 'Alle Räume';
+      if (sc === 'home') locTxt = 'Home';
+      else if (sc.startsWith('room:')) locTxt = sc.slice(5);
+      else if (sc === 'custom') locTxt = (item.scopeRooms && item.scopeRooms.length) ? item.scopeRooms.join(', ') : 'Keine Räume';
+      const colTxt = item.col === 'full' ? 'Voll' : `Sp.${item.col || 1}`;
+      badges.push(`<span class="cfg-badge-on" title="Auf Haupt-Dashboard aktiv">🟢 ${esc(locTxt)} · ${esc(colTxt)}</span>`);
+    } else {
+      badges.push(`<span class="cfg-badge-off" title="Auf Haupt-Dashboard ausgeblendet">⚪ Dashboard: Aus</span>`);
+    }
+  }
+  if (widgetType && Array.isArray(cfgDraft.customPages)) {
+    const activePages = cfgDraft.customPages.filter(pg => (pg.widgets || []).some(w => w && w.type === widgetType && w.show !== false));
+    if (activePages.length) {
+      badges.push(`<span class="cfg-badge-page" title="Auf eigenen Unterseiten platziert">📄 ${esc(activePages.map(p => p.label).join(', '))}</span>`);
+    }
+  }
+  return `<div class="cfg-sum-badges" data-act="noop">${badges.join('')}</div>`;
+}
+
+function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
+  if (!cfgDraft) return '';
+  const dLayout = cfgDraft.dashboardLayout || [];
+  const li = cardId ? dLayout.findIndex(x => x && x.id === cardId) : -1;
+  const item = li >= 0 ? dLayout[li] : null;
+  const isGrid12 = cfgDraft.dashboardLayoutMode === 'grid12';
+  const dashColsParsed = parseColsMode(cfgDraft.dashboardCols || '2-asym', 'asym', 2);
+  const maxDashColOpts = clamp(Math.max(dashColsParsed.cols || 2, 6), 4, 12);
+  const dashColOpts = [
+    ...Array.from({ length: maxDashColOpts }, (_, i) => [String(i + 1), `Spalte ${i + 1}`]),
+    ['full', 'Volle Breite']
+  ];
+
+  let dashControls = '';
+  if (item) {
+    const customRoomPills = item.scope === 'custom'
+      ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.08)">
+          <span class="mut sm">Sichtbar in diesen Raum-Tabs:</span>
+          ${(cfgDraft.rooms || []).map(rm => {
+            const on = Array.isArray(item.scopeRooms) && item.scopeRooms.includes(rm.name);
+            return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgScopeRoomToggle" data-card="${esc(cardId)}" data-room="${esc(rm.name)}" style="font-size:11px;padding:3px 9px">${on ? '✓ ' : '+ '}${esc(rm.name)}</button>`;
+          }).join('')}
+        </div>`
+      : '';
+
+    dashControls = `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
+        <label style="font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:${item.show !== false ? 'rgba(52,211,153,.12)' : 'rgba(255,255,255,.04)'};border:1px solid ${item.show !== false ? 'rgba(52,211,153,.35)' : 'var(--line)'}">
+          <input type="checkbox" data-dl-i="${li}" data-dl-k="show" ${item.show !== false ? 'checked' : ''}>
+          <span>${item.show !== false ? '👁️ Im Dashboard sichtbar' : '🙈 Im Dashboard ausgeblendet'}</span>
+        </label>
+        ${item.show !== false ? `
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <span class="mut sm">Wo:</span>
+            <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="scope">
+              ${buildScopeSelectOptions(item.scope || 'all')}
+            </select>
+          </div>
+          ${!isGrid12 ? `
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <span class="mut sm">Spalte:</span>
+            <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="col">
+              ${dashColOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>` : `
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <span class="mut sm">Raster-Breite:</span>
+            <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="span">
+              ${[['12','12 (Voll)'],['8','8 (2/3)'],['6','6 (1/2)'],['4','4 (1/3)'],['3','3 (1/4)']].map(([v, l]) => `<option value="${v}" ${String(item.span || '6') === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>`}
+        ` : ''}
+      </div>
+      ${customRoomPills}`;
+  }
+
+  let subpageControls = '';
+  if (widgetType && Array.isArray(cfgDraft.customPages) && cfgDraft.customPages.length) {
+    const pagePills = cfgDraft.customPages.map((pg, pi) => {
+      const hasW = (pg.widgets || []).some(w => w && w.type === widgetType && w.show !== false);
+      return `<button type="button" class="chip ${hasW ? 'on' : ''}" data-act="cfgTogglePageWidget" data-pi="${pi}" data-wtype="${esc(widgetType)}" data-wtitle="${esc(defaultTitle)}" style="font-size:11px;padding:3px 9px" title="1-Klick: Diese Kachel auf der Unterseite „${esc(pg.label)}“ ${hasW ? 'entfernen' : 'hinzufügen'}">${hasW ? '✓ ' : '+ '}📄 ${esc(pg.label)}</button>`;
+    }).join('');
+    subpageControls = `
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;${item ? 'margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.08)' : ''}">
+        <span class="mut sm" style="font-weight:600">📄 Auch auf Unterseite anzeigen:</span>
+        ${pagePills}
+      </div>`;
+  }
+
+  if (!dashControls && !subpageControls) return '';
+  return `<div class="cfg-placement-bar">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11.5px;font-weight:700;color:var(--acc2);letter-spacing:.02em">📍 ANZEIGE-ORT &amp; PLATZIERUNG</span>
+      ${dashControls}
+    </div>
+    ${subpageControls}
+  </div>`;
+}
 
 /* ---------- Visueller Multi-Entitäts Chip-Picker (ohne Komma-Listen!) ---------- */
 function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = 'Entität suchen & auswählen…') {
@@ -153,9 +344,9 @@ function openCfgEditor(initialTab = null, initialSubTab = null) {
     rooms: 'raeume', raeume: 'raeume',
     devs: 'geraete', geraete: 'geraete',
     klima: 'klima',
-    metrics: 'energie', energie: 'energie', badges: 'energie',
+    metrics: 'energie', energie: 'energie', badges: 'allgemein',
     sec: 'kameras', kameras: 'kameras',
-    pages: 'seiten', seiten: 'seiten',
+    pages: 'kalender', seiten: 'kalender', kalender: 'kalender',
     backup: 'backup',
     appliances: 'geraete'
   };
@@ -189,16 +380,17 @@ function renderCfgModal(preserveScroll = true) {
   }
 
   const tabs = [
-    ['allgemein', '🎨 Allgemein & Design'],
-    ['layout', '📐 Layout & Spalten'],
-    ['raeume', '🏠 Räume & Badges'],
+    ['allgemein', '🎨 Design & Start-Banner'],
+    ['layout', '📐 Layout & Platzierung'],
+    ['raeume', '🏠 Räume'],
     ['geraete', '🔌 Geräte, Licht & Rollos'],
-    ['klima', '🌡️ Klima-Baukasten'],
-    ['energie', '⚡ Energie & Kalender'],
-    ['kameras', '📷 Kameras & Sicherheit'],
-    ['seiten', '📄 Eigene Seiten'],
-    ['backup', '💾 Import / Backup']
+    ['klima', '🌡️ Klima, Wetter & Lüftung'],
+    ['energie', '⚡ Energie, PV & Wallbox'],
+    ['kameras', '🔒 Sicherheit, Kameras & Alerts'],
+    ['kalender', '📅 Kalender & Eigene Seiten'],
+    ['backup', '💾 System & Backup']
   ];
+  if (cfgTab === 'seiten') cfgTab = 'kalender';
   const tabBtns = tabs.map(([id, label]) => `<button class="pill ${cfgTab === id ? 'on' : ''}" data-act="cfgtab" data-tab="${id}">${label}</button>`).join('');
 
   const fld = (lbl, attrs, type = 'text') => `<div class="cfg-field float"><input type="${type}" class="cfg-in" placeholder=" " ${attrs}><label>${esc(lbl)}</label></div>`;
@@ -217,7 +409,7 @@ function renderCfgModal(preserveScroll = true) {
   const pp = cfgDraft.pinProtect || {};
   const w = cfgDraft.weather || {};
 
-  // ---------- TAB 1: ALLGEMEIN & DESIGN ----------
+  // ---------- TAB 1: DESIGN & START-BANNER ----------
   const presetBtns = Object.entries(THEME_PRESETS || {}).map(([key, p]) => `
     <button type="button" class="theme-preset-btn ${th.preset === key ? 'on' : ''}" data-act="cfgThemePreset" data-preset="${esc(key)}">
       <span class="tp-dots">
@@ -244,7 +436,7 @@ function renderCfgModal(preserveScroll = true) {
   ];
   const quickColorsHtml = ACCENT_SWATCHES.map(([c, n]) => `<button type="button" class="quick-color-dot" style="background:${c}" data-act="cfgQuickAcc" data-color="${c}" title="${n} (${c})"></button>`).join('');
 
-  let tAllgemein = box('Design-Vorlagen, Farben & Form', 'Wähle ein fertiges Farbschema per 1-Klick oder passe Farben, Rundungen und Abstände frei an.', `
+  let tAllgemein = box('🎨 Design-Vorlagen, Farben & Form', 'Wähle ein fertiges Farbschema per 1-Klick oder passe Farben, Rundungen und Abstände frei an.', `
     <div style="margin-bottom:14px">
       <span class="cfg-desc" style="display:block;margin-bottom:8px;font-weight:600">✨ 1-Klick Farb- & Design-Presets:</span>
       <div class="theme-presets-grid">${presetBtns}</div>
@@ -277,7 +469,7 @@ function renderCfgModal(preserveScroll = true) {
         ['relaxed', 'Luftig (großzügige Abstände & Polster)']
       ].map(([v, l]) => `<option value="${v}" ${(th.density || 'normal') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="theme.density"`)}
     </div>`, true, '', 'allgemein_design') +
-    box('Seitenleiste & Dashboard-Infos', 'Grundlegende Texte, Begrüßung und Zeitanzeige.', `
+    box('🏠 Seitenleiste, Begrüßung & Uhrzeit', 'Grundlegende Texte, Begrüßung und Zeitanzeige im Start-Banner.', `
     <div class="cfg-row">
       ${fld('HA-Seitenleisten-Titel', `data-cpath="sidebarTitle" value="${esc(cfgDraft.sidebarTitle)}"`)}
       ${fld('HA-Seitenleisten-Icon', `data-cpath="sidebarIcon" value="${esc(cfgDraft.sidebarIcon)}"`)}
@@ -299,36 +491,105 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Farbe: Name ("Timo 👋")', `data-cpath="theme.nameColor" value="${esc((cfgDraft.theme || {}).nameColor || '#f2f3fa')}"`, 'color')}
       ${fld('Farbe: "Das passiert gerade..."', `data-cpath="theme.activityColor" value="${esc((cfgDraft.theme || {}).activityColor || '#c4c7dc')}"`, 'color')}
       ${fld('Farbe: Datum & Uhrzeit', `data-cpath="theme.dateTimeColor" value="${esc((cfgDraft.theme || {}).dateTimeColor || '#c4c7dc')}"`, 'color')}
-    </div>`, true, '', 'allgemein_sidebar') +
-    box('Wetter-Kachel & Vorhersage', 'Steuert die Wetter-Anzeige und die 7-Tage-Vorhersage.', `
-    <div class="cfg-row">
-      <label><input type="checkbox" data-cbool="weather.showCard" ${w.showCard !== false ? 'checked' : ''}> Aktuelle Wetter-Kachel anzeigen</label>
-      <label><input type="checkbox" data-cbool="weather.showForecast" ${w.showForecast ? 'checked' : ''}> 7-Tage-Vorhersage (Popup) aktivieren</label>
-      <label><input type="checkbox" data-cbool="weather.showRainTimeline" ${w.showRainTimeline !== false ? 'checked' : ''}> 🌧️ 60-Minuten Regenradar anzeigen</label>
-    </div>
-    <div class="cfg-row">
-      ${fld('Kachel-Titel', `data-cpath="weather.title" value="${esc(w.title || 'Wetter')}"`)}
-      ${fld('Ort / Zusatz (z.B. Berlin)', `data-cpath="weather.label" value="${esc(w.label || '')}"`)}
-      ${fld('Haupt-Wetter (weather.*)', `list="ha-entities-list" data-cpath="weather.entity" value="${esc(w.entity || '')}"`)}
-      ${fld('Eigene Temp.-Entität', `list="ha-entities-list" data-cpath="weather.tempEntity" value="${esc(w.tempEntity || '')}"`)}
-      ${fld('Vorhersage-Entität', `list="ha-entities-list" data-cpath="weather.forecastEntity" value="${esc(w.forecastEntity || '')}"`)}
-      ${fld('Eigener Regen-/DWD-Sensor (optional)', `list="ha-entities-list" data-cpath="weather.rainEntity" value="${esc(w.rainEntity || '')}"`)}
-    </div>
-    <div style="margin-top:6px">
-      <span class="cfg-desc" style="margin-bottom:8px">Zusätzliche Detail-Werte (z.B. Luftfeuchte, Wind) in der Wetter-Kachel:</span>
-      ${(w.items || []).map((it, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px">
-        ${fld('Bezeichnung', `data-wi-i="${wi}" data-wi-k="label" value="${esc(it.label || '')}"`)}
-        ${fld('Entität (leer = Wetter-Attr.)', `list="ha-entities-list" data-wi-i="${wi}" data-wi-k="entity" value="${esc(it.entity || '')}"`)}
-        ${fld('Attribut (z.B. wind_speed)', `data-wi-i="${wi}" data-wi-k="attr" value="${esc(it.attr || '')}"`)}
-        ${fld('Einheit', `data-wi-i="${wi}" data-wi-k="unit" value="${esc(it.unit || '')}"`)}
-        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(it.icon || 'drop') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-wi-i="${wi}" data-wi-k="icon"`)}
-        <div class="order-btns"><button class="btn-danger" data-act="cfgDelWItem" data-i="${wi}">✕</button></div>
+    </div>`, false, '', 'allgemein_sidebar') +
+    box('🏷️ Header-Badges im Startseiten-Banner', 'Dynamische Status-Chips unter der Begrüßung im Home-Banner (z.B. Akku leer/voll, Waschmaschine, Spülmaschine, Müll).', `
+    ${(cfgDraft.headerBadgeItems || []).map((b, bi) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+      <div class="cfg-row">
+        ${sel('Typ', `<option value="entity" ${b.type !== 'calendar' ? 'selected' : ''}>Entität / Status</option><option value="calendar" ${b.type === 'calendar' ? 'selected' : ''}>Abfallkalender-Badge</option>`, `data-hb-i="${bi}" data-hb-k="type"`)}
+        ${fld('Titel / Präfix', `data-hb-i="${bi}" data-hb-k="title" value="${esc(b.title || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(b.icon || 'plug') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-hb-i="${bi}" data-hb-k="icon"`)}
+        ${b.type === 'calendar'
+          ? fld('Vorschau in Tagen', `type="number" data-hb-i="${bi}" data-hb-k="maxDays" value="${b.maxDays || 2}"`)
+          : fld('Entität 1 [W1]', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity1" value="${esc(b.entity1 || '')}"`)}
+        ${b.type !== 'calendar' ? fld('Entität 2 [W2] (optional)', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity2" value="${esc(b.entity2 || '')}"`) : ''}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="-1" ${bi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="1" ${bi === (cfgDraft.headerBadgeItems || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelHB" data-i="${bi}">✕</button></div>
+      </div>
+      ${b.type !== 'calendar' ? `<div class="cfg-row" style="margin-top:6px">
+        ${fld('Anzeige-Format (z.B. [W1] W · [W2]%)', `data-hb-i="${bi}" data-hb-k="format" value="${esc(b.format || '[W1]')}"`)}
+        ${fld('Nur anzeigen wenn Entität…', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="conditionEnt" value="${esc(b.conditionEnt || '')}"`)}
+        ${sel('Bedingung', [
+          ['', 'Immer anzeigen'],
+          ['==', 'ist gleich (==)'],
+          ['!=', 'ist nicht (!=)'],
+          ['>', 'größer als (>)'],
+          ['<', 'kleiner als (<)'],
+          ['not_empty', 'nicht leer / verfügbar']
+        ].map(([v, l]) => `<option value="${v}" ${(b.conditionOp || '') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-hb-i="${bi}" data-hb-k="conditionOp"`)}
+        ${fld('Vergleichswert (z.B. on / 50)', `data-hb-i="${bi}" data-hb-k="conditionVal" value="${esc(b.conditionVal || '')}"`)}
+        ${fld('Farb-Regel (z.B. >100:green, default:blue)', `data-hb-i="${bi}" data-hb-k="colorLogic" value="${esc(b.colorLogic || 'default:blue')}"`)}
+      </div>` : ''}
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgAddHB" style="margin-top:6px">+ Header-Badge hinzufügen</button>
+    `, false, `<span class="cfg-badge-info">${(cfgDraft.headerBadgeItems || []).length} Badges</span>`, 'energie_badges') +
+    box('⚡ Szenen & Routinen (Schnellzugriff)', 'Prominente 1-Klick Buttons für tägliche Szenen (z. B. Gute Nacht, Haus verlassen, Alle Lichter aus).', `
+      ${placementBarHtml('quick_routines', 'quick_routines', 'Szenen & Routinen')}
+      ${(cfgDraft.routines || []).map((rt, ri) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+        ${fld('Name / Text', `data-rt-i="${ri}" data-rt-k="name" value="${esc(rt.name || '')}"`)}
+        ${fld('Szene oder Skript (scene.*, script.*)', `list="ha-entities-list" data-rt-i="${ri}" data-rt-k="entity" value="${esc(rt.entity || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(rt.icon || 'scenes') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="icon"`)}
+        ${sel('Farbe', [['acc', 'Lila (Standard)'], ['ok', 'Grün'], ['warn', 'Orange'], ['cool', 'Blau'], ['amber', 'Gold'], ['rose', 'Rot']].map(([v, l]) => `<option value="${v}" ${(rt.color || 'acc') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="color"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="-1" ${ri === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="1" ${ri === (cfgDraft.routines || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoutine" data-i="${ri}">✕</button></div>
       </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddWItem" style="margin-top:8px">+ Detailwert hinzufügen</button>
-    </div>`, false, '', 'allgemein_weather') +
-    box('Sicherheit & Kiosk-Modus', 'PIN-Schutz und Vollbild-Einstellungen für Wandtablets.', `
+      <button class="iconbtn" data-act="cfgAddRoutine" style="margin-top:6px">+ Routine hinzufügen</button>
+    `, false, placementStatusBadgeHtml('quick_routines', 'quick_routines', `${(cfgDraft.routines || []).length} Routinen`), 'allgemein_routines') +
+    box('👥 Familien-Präsenz (Status & Avatare)', 'Zeigt Familienmitglieder als kleine Profil-Chips mit Status (Zuhause, Unterwegs) an.', `
+      ${placementBarHtml('presence', 'presence', 'Anwesenheit')}
+      ${((cfgDraft.presence && cfgDraft.presence.members) || []).map((pm, pi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+        ${fld('Name', `data-pm-i="${pi}" data-pm-k="name" value="${esc(pm.name || '')}"`)}
+        ${fld('Person-Entität (person.* oder device_tracker.*)', `list="ha-entities-list" data-pm-i="${pi}" data-pm-k="entity" value="${esc(pm.entity || '')}"`)}
+        ${fld('Foto-URL (leer = Initialen-Badge)', `data-pm-i="${pi}" data-pm-k="avatar" value="${esc(pm.avatar || '')}"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="1" ${pi === ((cfgDraft.presence && cfgDraft.presence.members) || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPresence" data-i="${pi}">✕</button></div>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgAddPresence" style="margin-top:6px">+ Person hinzufügen</button>
+    `, false, placementStatusBadgeHtml('presence', 'presence', `${((cfgDraft.presence && cfgDraft.presence.members) || []).length} Personen`), 'allgemein_presence') +
+    box('📱 Endgeräte-Profil (Nur für dieses Gerät / Tablet)', 'Speichert Startansicht, Start-Raum und Kiosk-/Screensaver-Verhalten lokal nur für dieses Gerät (z. B. Wandtablet Flur vs. Tablet Büro vs. PC), während alle Kacheln & Entitäten global synchron bleiben.', (() => {
+      const dp = typeof getDeviceProfile === 'function' ? getDeviceProfile() : { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global' };
+      const startViewOpts = [
+        ['', '🔄 Automatisch (zuletzt geöffnete Ansicht merken)'],
+        ['dashboard', '🏠 Haupt-Dashboard (Startseite / Raum-Tabs)'],
+        ['klima', '🌡️ Klima-Unterseite'],
+        ['kameras', '📷 Kamera-Unterseite'],
+        ...(cfgDraft.customPages || []).map(p => [`page:${p.id}`, `📄 Eigene Unterseite: ${p.label}`])
+      ];
+      const startRoomOpts = [
+        ['', '🏠 Standard (1. Raum / Home)'],
+        ...(cfgDraft.rooms || []).map(r => [r.name, `📍 Raum-Tab: ${r.name}`])
+      ];
+      return `
+      <div class="cfg-row">
+        ${fld('Gerätename (optional, z.B. Tablet Büro, Wandtablet Flur, PC)', `data-devprof-k="deviceName" value="${esc(dp.deviceName || '')}"`)}
+        ${sel('Start-Ansicht auf diesem Gerät', startViewOpts.map(([v, l]) => `<option value="${esc(v)}" ${(dp.startView || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-devprof-k="startView"`)}
+        ${(!dp.startView || dp.startView === 'dashboard')
+          ? sel('Start-Raum-Tab (auf Haupt-Dashboard)', startRoomOpts.map(([v, l]) => `<option value="${esc(v)}" ${(dp.startRoom || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-devprof-k="startRoom"`)
+          : ''}
+      </div>
+      <div class="cfg-row" style="margin-top:8px">
+        ${sel('Kiosk-Vollbildmodus auf diesem Gerät', [
+          ['global', `🌐 Globale Einstellung nutzen (${cfgDraft.kioskMode ? 'Aktuell: An' : 'Aktuell: Aus'})`],
+          ['on', '⛶ Auf diesem Gerät IMMER Kiosk-Vollbild (Ideal für Wandtablet)'],
+          ['off', '🖥️ Auf diesem Gerät NIE Kiosk-Vollbild (Ideal für PC / Laptop)']
+        ].map(([v, l]) => `<option value="${v}" ${(dp.kioskOverride || 'global') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-devprof-k="kioskOverride"`)}
+        ${sel('OLED-Screensaver auf diesem Gerät', [
+          ['global', '🌐 Globale Einstellung nutzen'],
+          ['on', '🌙 Auf diesem Gerät IMMER aktiv'],
+          ['off', '🚫 Auf diesem Gerät DEAKTIVIERT (z.B. am PC)']
+        ].map(([v, l]) => `<option value="${v}" ${(dp.screensaverOverride || 'global') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-devprof-k="screensaverOverride"`)}
+        ${fld('Auto-Rückkehr zur Startansicht nach Inaktivität (Minuten, 0 = Aus)', `type="number" min="0" max="120" data-devprof-k="returnToStartMins" value="${dp.returnToStartMins || 0}"`)}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn-pri" data-act="cfgPinCurrentAsDeviceStart">📌 Aktuell geöffnete Ansicht als Startseite für dieses Gerät festlegen</button>
+        <button type="button" class="iconbtn" data-act="cfgResetDeviceProfile">↺ Endgeräte-Profil zurücksetzen</button>
+      </div>`;
+    })(), true, (() => {
+      const dp = typeof getDeviceProfile === 'function' ? getDeviceProfile() : {};
+      const hasCustom = dp.deviceName || dp.startView || dp.startRoom || (dp.kioskOverride && dp.kioskOverride !== 'global') || (dp.screensaverOverride && dp.screensaverOverride !== 'global');
+      return hasCustom
+        ? `<span class="cfg-badge-page">📱 ${esc(dp.deviceName || 'Geräte-Profil aktiv')}</span>`
+        : `<span class="cfg-badge-off">🌐 Globaler Standard</span>`;
+    })(), 'allgemein_device_profile') +
+    box('🔐 Globale Sicherheit, PIN-Schutz & Screensaver', 'Globale PIN- und Vollbild-Vorgaben für alle Geräte ohne eigenes Endgeräte-Profil.', `
     <div class="cfg-row">
-      <label><input type="checkbox" data-cbool="kioskMode" ${cfgDraft.kioskMode ? 'checked' : ''}> Kiosk-Vollbildmodus (HA-Sidebar ausblenden)</label>
+      <label><input type="checkbox" data-cbool="kioskMode" ${cfgDraft.kioskMode ? 'checked' : ''}> Globaler Kiosk-Vollbildmodus (HA-Sidebar ausblenden)</label>
       <label><input type="checkbox" data-cbool="hideSystemLinks" ${cfgDraft.hideSystemLinks ? 'checked' : ''}> HA-Systemlinks ausblenden</label>
       ${fld('Master PIN-Code', `data-cpath="pinCode" value="${esc(cfgDraft.pinCode)}"`, 'password')}
     </div>
@@ -341,38 +602,21 @@ function renderCfgModal(preserveScroll = true) {
     <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)">
       <span class="cfg-desc">OLED Screensaver (Burn-In-Schutz für Wandtablets):</span>
       <div class="cfg-row" style="margin-top:6px">
-        <label><input type="checkbox" data-cbool="screensaver.show" ${(cfgDraft.screensaver || {}).show !== false ? 'checked' : ''}> Screensaver aktivieren</label>
+        <label><input type="checkbox" data-cbool="screensaver.show" ${(cfgDraft.screensaver || {}).show !== false ? 'checked' : ''}> Screensaver global aktivieren</label>
         ${fld('Inaktivitäts-Zeit (Minuten, 0 = Aus)', `type="number" min="0" max="120" data-cpath="screensaver.timeoutMins" value="${(cfgDraft.screensaver || {}).timeoutMins != null ? (cfgDraft.screensaver || {}).timeoutMins : 3}"`)}
       </div>
     </div>
-    <div style="margin-top:10px">
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="iconbtn" data-act="cfgSetDefaultPanel">🏠 Smart Home Hub als Standard-Dashboard festlegen</button>
-      <span class="cfg-desc" style="margin-top:4px">Rückgängig: In HA unter Profil → Dashboard wieder auf „Auto“ stellen.</span>
-    </div>`, false, '', 'allgemein_security') +
-    box('⚡ Szenen & Routinen (Schnellzugriff)', 'Prominente 1-Klick Buttons auf der Startseite für tägliche Szenen (z. B. Gute Nacht, Haus verlassen, Alle Lichter aus).', `
-      ${(cfgDraft.routines || []).map((rt, ri) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-        ${fld('Name / Text', `data-rt-i="${ri}" data-rt-k="name" value="${esc(rt.name || '')}"`)}
-        ${fld('Szene oder Skript (scene.*, script.*)', `list="ha-entities-list" data-rt-i="${ri}" data-rt-k="entity" value="${esc(rt.entity || '')}"`)}
-        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(rt.icon || 'scenes') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="icon"`)}
-        ${sel('Farbe', [['acc', 'Lila (Standard)'], ['ok', 'Grün'], ['warn', 'Orange'], ['cool', 'Blau'], ['amber', 'Gold'], ['rose', 'Rot']].map(([v, l]) => `<option value="${v}" ${(rt.color || 'acc') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-rt-i="${ri}" data-rt-k="color"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="-1" ${ri === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoutine" data-i="${ri}" data-dir="1" ${ri === (cfgDraft.routines || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoutine" data-i="${ri}">✕</button></div>
-      </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddRoutine" style="margin-top:6px">+ Routine hinzufügen</button>
-    `, false, '', 'allgemein_routines') +
-    box('👥 Familien-Präsenz (Status & Avatare)', 'Zeigt Familienmitglieder als kleine Profil-Chips mit Status (Zuhause, Unterwegs) auf der Startseite an.', `
-      <div class="cfg-row" style="margin-bottom:10px">
-        <label><input type="checkbox" data-cbool="presence.show" ${cfgDraft.presence && cfgDraft.presence.show !== false ? 'checked' : ''}> Präsenzanzeige auf Startseite aktivieren</label>
-      </div>
-      ${((cfgDraft.presence && cfgDraft.presence.members) || []).map((pm, pi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-        ${fld('Name', `data-pm-i="${pi}" data-pm-k="name" value="${esc(pm.name || '')}"`)}
-        ${fld('Person-Entität (person.* oder device_tracker.*)', `list="ha-entities-list" data-pm-i="${pi}" data-pm-k="entity" value="${esc(pm.entity || '')}"`)}
-        ${fld('Foto-URL (leer = Initialen-Badge)', `data-pm-i="${pi}" data-pm-k="avatar" value="${esc(pm.avatar || '')}"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePresence" data-i="${pi}" data-dir="1" ${pi === ((cfgDraft.presence && cfgDraft.presence.members) || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPresence" data-i="${pi}">✕</button></div>
-      </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddPresence" style="margin-top:6px">+ Person hinzufügen</button>
-    `, false, '', 'allgemein_presence');
+      <button class="iconbtn" data-act="forceReloadApp">🔄 Tablet-Cache leeren &amp; neu laden</button>
+      <span class="cfg-desc">Rückgängig: In HA unter Profil → Dashboard wieder auf „Auto“ stellen.</span>
+    </div>`, false, '', 'allgemein_security');
 
-  // ---------- TAB 2: LAYOUT & SPALTEN ----------
+  // ---------- TAB 2: LAYOUT & PLATZIERUNG ----------
+  const widgetTypeOptgroupsHtml = currentType => WIDGET_TYPE_GROUPS.map(grp =>
+    `<optgroup label="${esc(grp.group)}">${grp.items.map(([v, l]) => `<option value="${esc(v)}" ${currentType === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`
+  ).join('');
+
   const dLayout = cfgDraft.dashboardLayout || DEFAULT_DASHBOARD_LAYOUT();
   const isGrid12 = cfgDraft.dashboardLayoutMode === 'grid12';
   const dashColsParsed = parseColsMode(cfgDraft.dashboardCols || '2-asym', 'asym', 2);
@@ -406,30 +650,84 @@ function renderCfgModal(preserveScroll = true) {
     ['1', '1 Spalte (minimal)']
   ];
 
-  const layoutRows = dLayout.map((item, li) => `
-    <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);align-items:center">
-      <label style="min-width:110px;font-weight:600;cursor:pointer">
+  const layoutRows = dLayout.map((item, li) => {
+    const isCW = !!(item.isCustomWidget && item.widget);
+    const edTab = (typeof DASH_CARD_EDITOR_TAB !== 'undefined' && DASH_CARD_EDITOR_TAB[item.id]) || item.cfgTab || 'allgemein';
+    const edSubTab = (typeof DASH_CARD_EDITOR_SUBTAB !== 'undefined' && DASH_CARD_EDITOR_SUBTAB[item.id]) || '';
+    const customRoomRow = item.scope === 'custom'
+      ? `<div style="width:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:6px;border-top:1px dashed rgba(255,255,255,.08)">
+          <span class="mut sm">Sichtbar in:</span>
+          ${(cfgDraft.rooms || []).map(rm => {
+            const on = Array.isArray(item.scopeRooms) && item.scopeRooms.includes(rm.name);
+            return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgScopeRoomToggle" data-card="${esc(item.id)}" data-room="${esc(rm.name)}" style="font-size:11px;padding:3px 9px">${on ? '✓ ' : '+ '}${esc(rm.name)}</button>`;
+          }).join('')}
+        </div>`
+      : '';
+
+    let cwExtraRow = '';
+    if (isCW) {
+      const cw = item.widget;
+      let cwTargetFld = '';
+      if (['devices', 'covers', 'favorites', 'ventilation', 'lights', 'climate_room'].includes(cw.type)) {
+        cwTargetFld = fld('Raum / Gruppe (z.B. Büro)', `list="cfg-room-names" data-dlw-i="${li}" data-dlw-k="room" value="${esc(cw.room || cw.entity || '')}"`);
+      } else if (cw.type === 'iframe') {
+        cwTargetFld = fld('Webseiten-URL (https://…)', `data-dlw-i="${li}" data-dlw-k="url" value="${esc(cw.url || cw.entity || '')}"`);
+      } else if (cw.type === 'camera') {
+        cwTargetFld = fld('HA Kamera (camera.*)', `list="ha-entities-list" data-dlw-i="${li}" data-dlw-k="entity" value="${esc(cw.entity || '')}"`) +
+          fld('go2rtc Stream (optional)', `data-dlw-i="${li}" data-dlw-k="stream" value="${esc(cw.stream || '')}"`);
+      } else if (['entity_info', 'todo', 'f1_next', 'f1_standings', 'buli_team', 'buli_table', 'buli_matchday'].includes(cw.type)) {
+        cwTargetFld = fld('Entität (sensor.*, todo.* …)', `list="ha-entities-list" data-dlw-i="${li}" data-dlw-k="entity" value="${esc(cw.entity || '')}"`);
+      }
+      const statCurvesHtml = cw.type === 'stat_group'
+        ? `<div style="width:100%;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.08)">
+            <span class="cfg-desc">24h-Kurven in diesem Startseiten-Widget:</span>
+            ${(cw.items || []).map((sit, sii) => `<div class="cfg-row" style="margin-top:4px">
+              ${fld('Name', `data-dlwsi-i="${li}" data-dlwsi-si="${sii}" data-dlwsi-k="name" value="${esc(sit.name || '')}"`)}
+              ${fld('Entität', `list="ha-entities-list" data-dlwsi-i="${li}" data-dlwsi-si="${sii}" data-dlwsi-k="entity" value="${esc(sit.entity || '')}"`)}
+              ${fld('Farbe', `data-dlwsi-i="${li}" data-dlwsi-si="${sii}" data-dlwsi-k="color" value="${esc(sit.color || '#a99bff')}"`, 'color')}
+              <button class="btn-danger" data-act="cfgDelDashWStatItem" data-i="${li}" data-si="${sii}">✕</button>
+            </div>`).join('')}
+            <button class="iconbtn" data-act="cfgAddDashWStatItem" data-i="${li}" style="margin-top:6px">+ 24h-Kurve hinzufügen</button>
+          </div>`
+        : '';
+
+      cwExtraRow = `<div style="width:100%;padding-top:8px;margin-top:4px;border-top:1px dashed rgba(255,255,255,.1)">
+        <div class="cfg-row">
+          ${sel('Widget-Typ', widgetTypeOptgroupsHtml(cw.type), `data-dlw-i="${li}" data-dlw-k="type"`)}
+          ${fld('Widget-Titel', `data-dlw-i="${li}" data-dlw-k="title" value="${esc(cw.title || '')}"`)}
+          ${cwTargetFld}
+        </div>
+        ${statCurvesHtml}
+      </div>`;
+    }
+
+    return `
+    <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid ${item.show !== false ? 'rgba(124,108,240,.28)' : 'var(--line)'};align-items:center;opacity:${item.show !== false ? '1' : '.68'}">
+      <label style="min-width:120px;font-weight:600;cursor:pointer">
         <input type="checkbox" data-dl-i="${li}" data-dl-k="show" ${item.show !== false ? 'checked' : ''}>
         ${item.show !== false ? '👁️ Sichtbar' : '🙈 Ausgeblendet'}
       </label>
-      <div style="flex:1.4;min-width:180px;font-weight:600">${esc(DASHBOARD_CARD_LABELS[item.id] || item.label || item.id)}</div>
+      <div style="flex:1.4;min-width:190px;font-weight:600">${esc(DASHBOARD_CARD_LABELS[item.id] || item.label || item.id)}</div>
       ${!isGrid12
         ? sel('Spalte', dashColSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="col"`)
         : ''}
       ${!isGrid12
         ? sel('Kachelbreite', widthSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.width || '100') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="width"`)
         : sel('Breite (Grid-Span 1–12)', spanSelectOpts.map(([v, l]) => `<option value="${v}" ${String(item.span || (item.col === 'full' ? '12' : '6')) === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="span"`)}
-      ${sel('Sichtbar in Raum-Tab', [
-        ['all', 'In allen Raum-Tabs'],
-        ['home', 'Nur im 1. Tab (Home)']
-      ].map(([v, l]) => `<option value="${v}" ${(item.scope || 'all') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-dl-i="${li}" data-dl-k="scope"`)}
+      ${sel('Wo im Dashboard anzeigen?', buildScopeSelectOptions(item.scope || 'all'), `data-dl-i="${li}" data-dl-k="scope"`)}
       <div class="order-btns">
+        ${!isCW
+          ? `<button type="button" class="iconbtn" style="padding:5px 9px;font-size:11px" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="Zu den Einstellungen dieser Kachel springen">⚙️ Modul</button>`
+          : `<button type="button" class="btn-danger" data-act="cfgDelDashWidget" data-i="${li}" title="Eigenes Widget entfernen">✕</button>`}
         <button class="btn-move" data-act="cfgMoveDL" data-i="${li}" data-dir="-1" ${li === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
         <button class="btn-move" data-act="cfgMoveDL" data-i="${li}" data-dir="1" ${li === dLayout.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
       </div>
-    </div>`).join('');
+      ${customRoomRow}
+      ${cwExtraRow}
+    </div>`;
+  }).join('');
 
-  let tLayout = box('Startseiten-Layout & Kachel-Anordnung', 'Wähle dein bevorzugtes Layout-System (Spalten-Modus mit Kachelbreiten ODER 12-Spalten-Raster) und bestimme Kachel-Größen und Positionen.', `
+  let tLayout = box('📐 Startseiten-Layout & Kachel-Platzierung (Home & Raum-Tabs)', 'Bestimme für jede Kachel, ob sie auf allen Raum-Tabs, nur auf Home oder nur in ausgewählten Räumen (z. B. Büro) angezeigt wird. Unten kannst du zudem beliebige weitere Widgets (wie Power-Flow, 24h-Kurven, To-Do, Sport oder Iframe) direkt auf Home oder in einzelne Raum-Tabs legen!', `
     <div class="cfg-row" style="margin-bottom:12px">
       ${sel('Layout-System (Startseite)', [
         ['columns', '📐 Spalten-Modus (Spalten mit flexiblen Kachelbreiten 100%, 50%, 33%...)'],
@@ -464,7 +762,10 @@ function renderCfgModal(preserveScroll = true) {
       <div class="mut sm">12-Spalten-Modus aktiv: Jede Kachel kann unten frei von 1 bis 12 Spalten breit eingestellt werden (z. B. 6 = halbe Breite / 2 Kacheln nebeneinander, 4 = Drittel / 3 nebeneinander, 8/4 = asymmetrisch 2 nebeneinander). Auf Smartphones schalten alle Kacheln automatisch auf 100% Breite um.</div>
     </div>`}
     <div style="display:flex;flex-direction:column;gap:8px">${layoutRows}</div>
-  `, true) +
+    <div style="margin-top:12px">
+      <button type="button" class="btn-pri" data-act="cfgAddDashWidget">+ Weiteres Widget (Power-Flow, 24h-Statistik, To-Do, Sport, Kamera, Iframe…) zur Startseite / Raum-Tab hinzufügen</button>
+    </div>
+  `, true, `<span class="cfg-badge-on">${dLayout.filter(x => x && x.show !== false).length} / ${dLayout.length} aktiv</span>`, 'layout_main') +
   box('Spalten-Anzahl für Klima & Kameras', 'Wähle eine Vorgabe (Auto / 1–4) oder gib eine freie Spaltenanzahl (1–12) ein.', `
     <div class="cfg-row">
       ${sel('Klima-Seite: Vorlage', [
@@ -490,11 +791,14 @@ function renderCfgModal(preserveScroll = true) {
       ].map(([v, l]) => `<option value="${v}" ${String(cfgDraft.camCols || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="camCols"`)}
       ${fld('Kameras: Freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-custom-cols="camCols" value="${parseColsMode(cfgDraft.camCols, 'auto', 2).mode === 'cols' ? parseColsMode(cfgDraft.camCols, 'auto', 2).cols : ''}"`)}
     </div>
-    <span class="cfg-desc" style="margin-top:6px;display:block">Hinweis: Die Spalten und Zuordnungen für „Eigene Seiten“ findest du im Reiter „📄 Eigene Seiten“ oder direkt per Klick auf ✏️ im Quick-Edit-Modus.</span>
+    <span class="cfg-desc" style="margin-top:6px;display:block">Hinweis: Die Spalten und Zuordnungen für „Eigene Seiten“ findest du im Reiter „📅 Kalender &amp; Eigene Seiten“ oder direkt per Klick auf ✏️ im Quick-Edit-Modus.</span>
   `, true, '', 'layout_cam_klima');
 
-  // ---------- TAB 3: RÄUME & BADGES ----------
-  let tRaeume = (cfgDraft.rooms || []).map((r, i) => box(`Raum #${i + 1}: ${esc(r.name)}`, 'Hintergrundbild, Kamera-Stream, Raumklima und Temperatur-Badges.', `
+  // ---------- TAB 3: RÄUME ----------
+  let tRaeume = box('🖼️ Platzierung des Raum-Banners (Hero & Live-Kamera)', 'Bestimme, wo das große Raum-Banner mit den Raum-Tabs angezeigt wird.', `
+    ${placementBarHtml('hero', null, 'Raum-Banner')}
+  `, true, placementStatusBadgeHtml('hero', null, `${(cfgDraft.rooms || []).length} Räume`), 'room_hero_placement') +
+  (cfgDraft.rooms || []).map((r, i) => box(`Raum #${i + 1}: ${esc(r.name)}`, 'Hintergrundbild, Kamera-Stream, Raumklima und Temperatur-Badges.', `
     <div class="cfg-row">
       ${fld('Raumname', `data-r-i="${i}" data-r-k="name" value="${esc(r.name)}"`)}
       ${fld('Klima-Entität (optional)', `list="ha-entities-list" data-r-i="${i}" data-r-k="climate" value="${esc(r.climate || '')}"`)}
@@ -541,23 +845,24 @@ function renderCfgModal(preserveScroll = true) {
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddCamBtn" data-ri="${i}" style="margin-top:6px">+ Kamera-Button hinzufügen</button>
     </div>
-    `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="1" ${i === (cfgDraft.rooms.length - 1) ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoom" data-i="${i}">Löschen</button></div>`, `room_${i}`)).join('') + `<button class="btn-pri" data-act="cfgAddRoom" style="align-self:flex-start">+ Neuen Raum hinzufügen</button>`;
+    `, i === 0, `<div class="order-btns">${i > 0 ? `<button type="button" class="iconbtn" style="padding:4px 9px;font-size:11px" data-act="cfgGenRoomPage" data-room="${esc(r.name)}" title="Für diesen Raum mit 1 Klick eine eigene Menü-Unterseite mit allen Raum-Widgets generieren">✨ Unterseite</button>` : ''}<span class="cfg-badge-info">${(cfgDraft.devices || []).filter(d => d.room === r.name).length} Geräte</span><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveRoom" data-i="${i}" data-dir="1" ${i === (cfgDraft.rooms.length - 1) ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelRoom" data-i="${i}">Löschen</button></div>`, `room_${i}`)).join('') + `<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn-pri" data-act="cfgAddRoom">+ Neuen Raum-Tab hinzufügen</button><button class="iconbtn" data-act="cfgGenRoomPage" data-room="__prompt__">✨ Neuen Raum direkt als Menü-Unterseite (z. B. Büro) generieren…</button></div>`;
 
   // ---------- TAB 4: GERÄTE, LICHT & ROLLÄDEN ----------
   const dTabs = cfgDraft.deviceTabs || [];
   const validFixedDevTabs = ['favorites', 'system', 'lichter', 'appliances', 'covers'];
-  if (!validFixedDevTabs.includes(cfgDevSubTab) && !dTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = 'favorites';
+  if (!validFixedDevTabs.includes(cfgDevSubTab) && !dTabs.some(t => t.id === cfgDevSubTab)) cfgDevSubTab = (dTabs[0] && dTabs[0].id) || 'geraete';
 
-  let tGeraete = `<div class="cfg-subtabs">
-    <button class="pill ${cfgDevSubTab === 'favorites' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="favorites">⭐ Schnellauswahl / Favoriten</button>
-    <button class="pill ${cfgDevSubTab === 'system' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="system">🖥️ Server &amp; Docker</button>
+  let tGeraete = `<datalist id="cfg-room-names">${(cfgDraft.rooms || []).map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>
+  <div class="cfg-subtabs">
     ${dTabs.map((t, ti) => `<div style="display:inline-flex;align-items:center;gap:3px">
-      <button class="pill ${cfgDevSubTab === t.id ? 'on' : ''}" data-act="cfgDevTab" data-id="${esc(t.id)}">${esc(t.name)}</button>
+      <button class="pill ${cfgDevSubTab === t.id ? 'on' : ''}" data-act="cfgDevTab" data-id="${esc(t.id)}">${t.id === 'covers' ? '🪟 ' : '🔌 '}${esc(t.name)}</button>
       ${dTabs.length > 2 ? `<button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="-1" ${ti === 0 ? 'disabled' : ''}>◀</button><button class="btn-move" data-act="cfgMoveDevTab" data-i="${ti}" data-dir="1" ${ti === dTabs.length - 1 ? 'disabled' : ''}>▶</button>` : ''}
     </div>`).join('')}
-    <button class="pill ${cfgDevSubTab === 'lichter' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="lichter">💡 Lichter-Karte</button>
-    <button class="pill ${cfgDevSubTab === 'appliances' ? 'on' : ''}" style="background:rgba(255,255,255,.05);border-color:transparent" data-act="cfgDevTab" data-id="appliances">🧺 Haushaltsgeräte</button>
-    <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Reiter erstellen</button>
+    <button class="pill ${cfgDevSubTab === 'lichter' ? 'on' : ''}" data-act="cfgDevTab" data-id="lichter">💡 Lichter-Gruppen</button>
+    <button class="pill ${cfgDevSubTab === 'favorites' ? 'on' : ''}" data-act="cfgDevTab" data-id="favorites">⭐ Favoriten</button>
+    <button class="pill ${cfgDevSubTab === 'appliances' ? 'on' : ''}" data-act="cfgDevTab" data-id="appliances">🧺 Haushaltsgeräte</button>
+    <button class="pill ${cfgDevSubTab === 'system' ? 'on' : ''}" data-act="cfgDevTab" data-id="system">🖥️ Server &amp; Docker</button>
+    <button class="iconbtn" data-act="cfgAddDevTab">+ Weiteren Geräte-Reiter erstellen</button>
   </div>`;
 
   if (cfgDevSubTab === 'favorites') {
@@ -565,13 +870,15 @@ function renderCfgModal(preserveScroll = true) {
       <label><input type="checkbox" data-fav-i="${i}" data-fav-k="show" ${f.show !== false ? 'checked' : ''}> Sichtbar</label>
       ${fld('Name / Bezeichnung', `data-fav-i="${i}" data-fav-k="name" value="${esc(f.name || '')}"`)}
       ${fld('Entität (Licht, Schalter, Rollo, Szene, Skript)', `list="ha-entities-list" data-fav-i="${i}" data-fav-k="entity" value="${esc(f.entity || '')}"`)}
+      ${fld('Optional: Raum (leer = überall)', `list="cfg-room-names" data-fav-i="${i}" data-fav-k="room" value="${esc(f.room || '')}"`)}
       ${sel('Icon', `<option value="">Automatisch nach Typ</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${f.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-fav-i="${i}" data-fav-k="icon"`)}
       <div class="order-btns"><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="1" ${i === (cfgDraft.favorites || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelFav" data-i="${i}">✕</button></div>
     </div>`).join('');
-    tGeraete += box('Schnellauswahl / Favoriten', 'Wähle deine meistgenutzten Rolläden, Lichter, Schalter, Szenen oder Skripte aus. Sie erscheinen als Schnell-Kacheln direkt auf der Startseite (1-Klick schalten & Rollo auf/ab).', `
+    tGeraete += box('⭐ Schnellauswahl / Favoriten', 'Wähle deine meistgenutzten Rolläden, Lichter, Schalter, Szenen oder Skripte aus (1-Klick schalten & Rollo auf/ab).', `
+      ${placementBarHtml('favorites', 'favorites', 'Schnellauswahl')}
       ${favRows || '<div class="mut sm" style="margin-bottom:8px">Noch keine Favoriten hinzugefügt. Klicke unten auf „+ Favorit hinzufügen“.</div>'}
       <button class="iconbtn" data-act="cfgAddFav" style="margin-top:6px">+ Favorit hinzufügen</button>
-    `, true, '', 'dev_favorites');
+    `, true, placementStatusBadgeHtml('favorites', 'favorites', `${(cfgDraft.favorites || []).length} Favoriten`), 'dev_favorites');
   } else if (cfgDevSubTab === 'system') {
     const sh = cfgDraft.systemHealth || {};
     const containersHtml = (sh.containers || []).map((ct, ci) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
@@ -581,8 +888,8 @@ function renderCfgModal(preserveScroll = true) {
     </div>`).join('');
 
     tGeraete += box('🖥️ System-Health (Unraid, Docker & Server)', 'Kompakte Überwachung von CPU-, RAM-, Disk- und Temperatur-Sensoren sowie kritischen Docker-Containern.', `
+      ${placementBarHtml('system_health', 'system_health', sh.title || 'Server & Docker')}
       <div class="cfg-row" style="margin-bottom:10px">
-        <label><input type="checkbox" data-cbool="systemHealth.show" ${sh.show !== false ? 'checked' : ''}> System-Health Karte auf Dashboard anzeigen</label>
         ${fld('Kachel-Titel', `data-cpath="systemHealth.title" value="${esc(sh.title || 'Server & Docker')}"`)}
       </div>
       <div class="cfg-row">
@@ -596,7 +903,7 @@ function renderCfgModal(preserveScroll = true) {
         ${containersHtml || '<div class="mut sm" style="margin-bottom:8px">Noch keine Container hinterlegt. Klicke unten auf „+ Container hinzufügen“.</div>'}
         <button class="iconbtn" data-act="cfgAddContainer" style="margin-top:6px">+ Container hinzufügen</button>
       </div>
-    `, true, '', 'dev_system_health');
+    `, true, placementStatusBadgeHtml('system_health', 'system_health'), 'dev_system_health');
   } else if (cfgDevSubTab === 'appliances') {
     const apps = cfgDraft.appliances || { show: false, title: 'Haushaltsgeräte', items: [] };
     const itemsHtml = (apps.items || []).map((a, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
@@ -608,30 +915,36 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="powerEntity" value="${esc(a.powerEntity || '')}"`)}
       <div class="order-btns"><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="1" ${i === (apps.items || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelAppliance" data-i="${i}">✕</button></div>
     </div>`).join('');
-    
+
     tGeraete += box('🧺 Haushaltsgeräte-Monitor', 'Überwachung von Waschmaschine, Trockner oder Spülmaschine mit Restlaufzeit und Fertig-Hinweis.', `
+      ${placementBarHtml('appliances', 'appliances', apps.title || 'Haushaltsgeräte')}
       <div class="cfg-row" style="margin-bottom:10px">
-        <label><input type="checkbox" data-cbool="appliances.show" ${apps.show !== false ? 'checked' : ''}> Haushaltsgeräte-Monitor auf Dashboard anzeigen</label>
         ${fld('Kachel-Titel', `data-cpath="appliances.title" value="${esc(apps.title || 'Haushaltsgeräte')}"`)}
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         ${itemsHtml || '<div class="mut sm" style="margin-bottom:8px">Noch keine Geräte hinterlegt.</div>'}
         <button class="iconbtn" data-act="cfgAddAppliance" style="margin-top:6px">+ Haushaltsgerät hinzufügen</button>
       </div>
-    `, true, '', 'dev_appliances');
+    `, true, placementStatusBadgeHtml('appliances', 'appliances', `${(apps.items || []).length} Geräte`), 'dev_appliances');
   } else if (cfgDevSubTab === 'covers') {
-    const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px">
+    const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
         ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
         ${fld('Entität (cover.*)', `list="ha-entities-list" data-cv-i="${i}" data-cv-k="entity" value="${esc(c.entity)}"`)}
+        ${fld('Optional: Raum (z.B. Büro)', `list="cfg-room-names" data-cv-i="${i}" data-cv-k="room" value="${esc(c.room || '')}"`)}
         <div class="order-btns"><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="1" ${i === cfgDraft.covers.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCov" data-i="${i}">✕</button></div>
       </div>`).join('');
-    tGeraete += box('Rolläden', 'Zentrale Liste aller Rolläden für das Dashboard.', covs + `<button class="iconbtn" data-act="cfgAddCov" style="margin-top:8px">+ Rolladen hinzufügen</button>`, true, '', 'dev_covers');
+    tGeraete += box('🪟 Rolläden-Steuerung', 'Zentrale Liste aller Rolläden (optional mit Raum-Zuordnung für Raum-Tabs und Unterseiten).', `
+      ${placementBarHtml('covers', 'covers', 'Rolläden')}
+      ${covs}
+      <button class="iconbtn" data-act="cfgAddCov" style="margin-top:8px">+ Rolladen hinzufügen</button>
+    `, true, placementStatusBadgeHtml('covers', 'covers', `${(cfgDraft.covers || []).length} Rolläden`), 'dev_covers');
   } else if (cfgDevSubTab === 'lichter') {
     const lm = cfgDraft.lightsMain || { mode: 'group', group: 0, entities: [] };
     const lmGroupOpts = (cfgDraft.lights || []).map((g, idx) => `<option value="${idx}" ${lm.group == idx ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
-    const lightsHtml = (cfgDraft.lights || []).map((g, i) => box(`Gruppe: ${esc(g.name)} (${(g.entities || []).length} Lampen)`, 'Lampen per Klick auswählen – auf dem Dashboard steuerbar inkl. Dimm-/Farb-Popup.', `
+    const lightsHtml = (cfgDraft.lights || []).map((g, i) => box(`💡 Gruppe: ${esc(g.name)} (${(g.entities || []).length} Lampen)`, 'Lampen per Klick auswählen – auf dem Dashboard steuerbar inkl. Dimm-/Farb-Popup.', `
       <div class="cfg-row">
         ${fld('Gruppen-Name', `data-l-i="${i}" data-l-k="name" value="${esc(g.name)}"`)}
+        ${fld('Optional: Raum-Zuordnung (z.B. Büro)', `list="cfg-room-names" data-l-i="${i}" data-l-k="room" value="${esc(g.room || '')}"`)}
         <label><input type="checkbox" data-l-i="${i}" data-l-k="mainSync" ${g.mainSync !== false ? 'checked' : ''}> Im „Alle Lichter“-Hauptschalter berücksichtigen</label>
       </div>
       <div style="margin-top:8px">
@@ -639,21 +952,23 @@ function renderCfgModal(preserveScroll = true) {
         ${entityChipsHtml(g.entities || [], 'lightGrp', i, 'light.* oder switch.* auswählen…')}
       </div>`, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === cfgDraft.lights.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLight" data-i="${i}">Löschen</button></div>`, `dev_light_${i}`)).join('');
 
-    tGeraete += box('Hauptschalter-Verhalten', 'Konfiguriere den Master-Switch oben rechts auf der Lichter-Karte.', `
+    tGeraete += box('💡 Lichter-Karte & Hauptschalter', 'Platzierung der Lichter-Kachel und Verhalten des Master-Hauptschalters oben rechts.', `
+      ${placementBarHtml('lights', 'lights', 'Lichter')}
       <div class="cfg-row">
-        ${sel('Modus', `<option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle synchronisierten Gruppen steuern</option><option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option><option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene Entitäten-Auswahl steuern</option>`, `data-lm-k="mode"`)}
+        ${sel('Hauptschalter-Modus', `<option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle synchronisierten Gruppen steuern</option><option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option><option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene Entitäten-Auswahl steuern</option>`, `data-lm-k="mode"`)}
         ${lm.mode === 'group' ? sel('Welche Gruppe?', lmGroupOpts, `data-lm-k="group"`) : ''}
       </div>
-      ${lm.mode === 'custom' ? `<div style="margin-top:8px"><span class="cfg-desc">Eigene Hauptschalter-Entitäten:</span>${entityChipsHtml(lm.entities || [], 'lightsMain', '', 'light.* oder switch.* auswählen…')}</div>` : ''}`, true, '', 'dev_lights_master') + lightsHtml + `<button class="btn-pri" data-act="cfgAddLight" style="margin-top:10px">+ Neue Licht-Gruppe</button>`;
+      ${lm.mode === 'custom' ? `<div style="margin-top:8px"><span class="cfg-desc">Eigene Hauptschalter-Entitäten:</span>${entityChipsHtml(lm.entities || [], 'lightsMain', '', 'light.* oder switch.* auswählen…')}</div>` : ''}`, true, placementStatusBadgeHtml('lights', 'lights', `${(cfgDraft.lights || []).length} Gruppen`), 'dev_lights_master') + lightsHtml + `<button class="btn-pri" data-act="cfgAddLight" style="margin-top:10px">+ Neue Licht-Gruppe</button>`;
   } else {
     const activeTabObj = dTabs.find(t => t.id === cfgDevSubTab) || dTabs[0] || { id: 'geraete', name: 'Geräte' };
-    const roomOpts = `<option value="">— Kein fester Raum —</option>` + (cfgDraft.rooms || []).map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+    const isMainDevTab = activeTabObj.id === 'geraete';
+    const cardIdForTab = isMainDevTab ? 'devices' : 'extra_tabs';
     const tabIndices = (cfgDraft.devices || []).map((d, idx) => ((d.tab || 'geraete') === activeTabObj.id ? idx : -1)).filter(idx => idx !== -1);
     const devRows = tabIndices.map((idx, pos) => {
       const d = cfgDraft.devices[idx];
       return `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
         ${fld('Name', `data-d-i="${idx}" data-d-k="name" value="${esc(d.name || '')}"`)}
-        ${fld('Raum', `list="cfg-room-names" data-d-i="${idx}" data-d-k="room" value="${esc(d.room || '')}"`)}
+        ${fld('Raum (z.B. Home, Wohnzimmer, Büro)', `list="cfg-room-names" data-d-i="${idx}" data-d-k="room" value="${esc(d.room || '')}"`)}
         ${sel('Icon', `<option value="">Automatisch</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${d.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-d-i="${idx}" data-d-k="icon"`)}
         ${fld('Haupt-Entität', `list="ha-entities-list" data-d-i="${idx}" data-d-k="entity" value="${esc(d.entity || '')}"`)}
         ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-d-i="${idx}" data-d-k="power" value="${esc(d.power || '')}"`)}
@@ -662,24 +977,54 @@ function renderCfgModal(preserveScroll = true) {
       </div>`;
     }).join('');
 
-    tGeraete += `<datalist id="cfg-room-names">${(cfgDraft.rooms || []).map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>` +
-      box(`Reiter: ${esc(activeTabObj.name)}`, 'Tipp: Ein Klick auf ein Gerät im Dashboard öffnet automatisch das Detail-Popup (Dimmer, Farbe, Medien, Verlauf).', `
+    tGeraete += box(`🔌 Reiter: ${esc(activeTabObj.name)}`, 'Jedes Gerät wird automatisch im zugeordneten Raum-Tab angezeigt. Auf eigenen Unterseiten (z. B. Büro) kannst du zudem das Widget „Geräteliste“ mit Raum-Filter platzieren.', `
+      ${placementBarHtml(cardIdForTab, 'devices', activeTabObj.name)}
       <div class="cfg-row" style="margin-bottom:12px">
         ${fld('Reiter-Name ändern', `data-devtab-name="${esc(activeTabObj.id)}" value="${esc(activeTabObj.name)}"`)}
         ${activeTabObj.id !== 'geraete' ? `<button class="btn-danger" data-act="cfgDelDevTab" data-id="${esc(activeTabObj.id)}">Diesen Reiter komplett löschen</button>` : ''}
       </div>
       ${devRows || '<div class="mut sm">Keine Geräte in diesem Reiter.</div>'}
       <button class="iconbtn" data-act="cfgAddDev" data-tab="${esc(activeTabObj.id)}" style="margin-top:8px">+ Gerät hinzufügen</button>
-    `, true, '', `devtab_${activeTabObj.id}`);
+    `, true, placementStatusBadgeHtml(cardIdForTab, 'devices', `${tabIndices.length} Geräte`), `devtab_${activeTabObj.id}`);
   }
 
-  // ---------- TAB 5: KLIMA-BAUKASTEN ----------
+  // ---------- TAB 5: KLIMA, WETTER & LÜFTUNG ----------
   const vnt = cfgDraft.ventilation || {};
-  let tKlima = box('Globale Klima-Kacheln (Startseite)', 'Diese Kacheln erscheinen unter dem Temperatur-Bogen auf der Startseite.', climateTilesEditorHtml('g'), false, '', 'klima_global') +
-    box('🌬️ Smarte Lüftungsempfehlung', 'Berechnet die absolute Feuchte (g/m³) innen vs. außen und empfiehlt, ob Fenster zum Lüften geöffnet oder geschlossen werden sollten.', `
+  let tKlima = box('☀️ Wetter-Kachel, 7-Tage-Vorhersage & Regenradar', 'Steuert die kombinierte Raumklima-/Wetter-Kachel, das 7-Tage-Vorhersage-Popup und die 60-Minuten-Regenvorschau.', `
+    ${placementBarHtml('climate', 'climate', w.title || 'Raumklima & Wetter')}
+    <div class="cfg-row" style="margin-bottom:8px">
+      <label><input type="checkbox" data-cbool="weather.showCard" ${w.showCard !== false ? 'checked' : ''}> Wetter-Teil in der Raumklima-Kachel einblenden</label>
+      <label><input type="checkbox" data-cbool="weather.showForecast" ${w.showForecast ? 'checked' : ''}> 7-Tage-Vorhersage (bei Klick auf Wetter) aktivieren</label>
+    </div>
+    <div class="cfg-row">
+      ${fld('Kachel-Titel', `data-cpath="weather.title" value="${esc(w.title || 'Wetter')}"`)}
+      ${fld('Ort / Zusatz (z.B. Berlin)', `data-cpath="weather.label" value="${esc(w.label || '')}"`)}
+      ${fld('Haupt-Wetter (weather.*)', `list="ha-entities-list" data-cpath="weather.entity" value="${esc(w.entity || '')}"`)}
+      ${fld('Eigene Temp.-Entität', `list="ha-entities-list" data-cpath="weather.tempEntity" value="${esc(w.tempEntity || '')}"`)}
+      ${fld('Vorhersage-Entität', `list="ha-entities-list" data-cpath="weather.forecastEntity" value="${esc(w.forecastEntity || '')}"`)}
+      ${fld('Eigener Regen-/DWD-Sensor (optional)', `list="ha-entities-list" data-cpath="weather.rainEntity" value="${esc(w.rainEntity || '')}"`)}
+    </div>
+    <div style="margin-top:8px">
+      <span class="cfg-desc" style="margin-bottom:8px">Zusätzliche Detail-Werte (z.B. Luftfeuchte, Wind) in der Wetter-Kachel:</span>
+      ${(w.items || []).map((it, wi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
+        ${fld('Bezeichnung', `data-wi-i="${wi}" data-wi-k="label" value="${esc(it.label || '')}"`)}
+        ${fld('Entität (leer = Wetter-Attr.)', `list="ha-entities-list" data-wi-i="${wi}" data-wi-k="entity" value="${esc(it.entity || '')}"`)}
+        ${fld('Attribut (z.B. wind_speed)', `data-wi-i="${wi}" data-wi-k="attr" value="${esc(it.attr || '')}"`)}
+        ${fld('Einheit', `data-wi-i="${wi}" data-wi-k="unit" value="${esc(it.unit || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(it.icon || 'drop') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-wi-i="${wi}" data-wi-k="icon"`)}
+        <div class="order-btns"><button class="btn-danger" data-act="cfgDelWItem" data-i="${wi}">✕</button></div>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgAddWItem" style="margin-top:6px">+ Detailwert hinzufügen</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc" style="font-weight:600;margin-bottom:6px;display:block">🌧️ Eigenständige 60-Minuten Regenradar-Kachel:</span>
+      ${placementBarHtml('rain_timeline', 'rain_timeline', 'Regenradar')}
+    </div>`, true, placementStatusBadgeHtml('climate', 'weather_forecast'), 'allgemein_weather') +
+    box('🌡️ Globale Klima-Kacheln (unter dem Temperatur-Bogen)', 'Diese Mini-Kacheln erscheinen unter dem Temperatur-Drehregler in der Raumklima-Kachel.', climateTilesEditorHtml('g'), false, `<span class="cfg-badge-info">${((cfgDraft.climate && cfgDraft.climate.tiles) || []).length} Kacheln</span>`, 'klima_global') +
+    box('🌬️ Smarte Lüftungsempfehlung & Fenster-Timer', 'Berechnet die absolute Feuchte (g/m³) innen vs. außen und warnt bei zu lange geöffneten Fenstern/Türen.', `
+      ${placementBarHtml('ventilation', 'ventilation', 'Smarte Lüftungsempfehlung')}
       <div class="cfg-row" style="margin-bottom:10px">
-        <label><input type="checkbox" data-cbool="ventilation.show" ${vnt.show !== false ? 'checked' : ''}> Lüftungsempfehlung auf Dashboard anzeigen</label>
-        <label><input type="checkbox" data-cbool="ventilation.showOpenTimer" ${vnt.showOpenTimer !== false ? 'checked' : ''}> ⏱️ Fenster- &amp; Tür-Offen-Timer anzeigen</label>
+        <label><input type="checkbox" data-cbool="ventilation.showOpenTimer" ${vnt.showOpenTimer !== false ? 'checked' : ''}> ⏱️ Fenster- &amp; Tür-Offen-Timer in der Kachel anzeigen</label>
       </div>
       <div class="cfg-row">
         ${fld('Außentemperatur-Sensor (°C)', `list="ha-entities-list" data-cpath="ventilation.outdoorTemp" value="${esc(vnt.outdoorTemp || '')}"`)}
@@ -690,17 +1035,17 @@ function renderCfgModal(preserveScroll = true) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
         <span class="cfg-desc">Räume für die Lüftungsberechnung:</span>
         ${(vnt.rooms || []).map((vr, vi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-          ${fld('Raum-Name', `data-vr-i="${vi}" data-vr-k="name" value="${esc(vr.name || '')}"`)}
+          ${fld('Raum-Name', `list="cfg-room-names" data-vr-i="${vi}" data-vr-k="name" value="${esc(vr.name || '')}"`)}
           ${fld('Raumtemperatur (°C)', `list="ha-entities-list" data-vr-i="${vi}" data-vr-k="temp" value="${esc(vr.temp || '')}"`)}
           ${fld('Raumluftfeuchte (%)', `list="ha-entities-list" data-vr-i="${vi}" data-vr-k="hum" value="${esc(vr.hum || '')}"`)}
           <div class="order-btns"><button class="btn-move" data-act="cfgMoveVentRoom" data-i="${vi}" data-dir="-1" ${vi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveVentRoom" data-i="${vi}" data-dir="1" ${vi === (vnt.rooms || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelVentRoom" data-i="${vi}">✕</button></div>
         </div>`).join('')}
         <button class="iconbtn" data-act="cfgAddVentRoom" style="margin-top:6px">+ Raum hinzufügen</button>
       </div>
-    `, false, '', 'klima_ventilation') +
+    `, false, placementStatusBadgeHtml('ventilation', 'ventilation', `${(vnt.rooms || []).length} Räume`), 'klima_ventilation') +
     (cfgDraft.climateRooms || []).map((cr, i) => {
       const helperItems = (cr.settings && cr.settings.groups && cr.settings.groups[0] && cr.settings.groups[0].items) || [];
-      return box(`Klima-Raum #${i + 1}: ${esc(cr.name)}`, 'Raumkarte auf der Klima-Unterseite (Sensoren, Heizgeräte, 24h-Kurven & Helfer).', `
+      return box(`🏠 Klima-Raum #${i + 1}: ${esc(cr.name)}`, 'Raumkarte auf der Klima-Unterseite (und als Widget „Klima-Raumkarte“ auch auf eigenen Unterseiten wie Büro einbindbar).', `
       <div class="cfg-row">
         <label><input type="checkbox" data-cr-i="${i}" data-cr-k="show" ${cr.show !== false ? 'checked' : ''}> Raum auf Klima-Seite anzeigen</label>
         ${fld('Raumname', `data-cr-i="${i}" data-cr-k="name" value="${esc(cr.name)}"`)}
@@ -753,42 +1098,17 @@ function renderCfgModal(preserveScroll = true) {
         </div>`).join('')}
         <button class="iconbtn" data-act="cfgAddCRHelper" data-ri="${i}" style="margin-top:6px">+ Einstellungs-Helfer hinzufügen</button>
       </div>
-      `, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="1" ${i === cfgDraft.climateRooms.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCRoom" data-i="${i}">Löschen</button></div>`, `climate_room_${i}`);
+      `, false, `<div class="order-btns"><span class="cfg-badge-${cr.show !== false ? 'on' : 'off'}">${cr.show !== false ? '🟢 Klima-Seite' : '⚪ Aus'}</span><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCRoom" data-i="${i}" data-dir="1" ${i === cfgDraft.climateRooms.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCRoom" data-i="${i}">Löschen</button></div>`, `climate_room_${i}`);
     }).join('') +
     `<button class="btn-pri" data-act="cfgAddCRoom" style="align-self:flex-start">+ Klima-Raum hinzufügen</button>`;
 
-  // ---------- TAB 6: ENERGIE & KALENDER ----------
-  let tEnergie = box('💶 Dynamische Strompreise (Tibber / EPEX)', 'Zeigt die aktuellen Strompreise (Cent/kWh) für 24 Stunden als Balkendiagramm inkl. Einfärbung (Grün/Günstig bis Rot/Teuer).', `
-    <div class="cfg-row" style="margin-bottom:10px">
-      <label><input type="checkbox" data-cbool="energyPrices.show" ${(cfgDraft.energyPrices || {}).show ? 'checked' : ''}> Strompreis-Kachel anzeigen</label>
-    </div>
-    <div class="cfg-row">
-      ${fld('Titel', `data-cpath="energyPrices.title" value="${esc((cfgDraft.energyPrices || {}).title || 'Dynamische Strompreise')}"`)}
-      ${fld('Preisentität (z.B. sensor.tibber_prices)', `list="ha-entities-list" data-cpath="energyPrices.entity" value="${esc((cfgDraft.energyPrices || {}).entity || '')}"`)}
-      ${sel('Einheit', [['Cent', 'Cent (z.B. 28.5)'], ['EUR', 'Euro (z.B. 0.285)']].map(([v, l]) => `<option value="${v}" ${((cfgDraft.energyPrices || {}).priceUnit || 'Cent') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="energyPrices.priceUnit"`)}
-    </div>
-    <div class="cfg-row" style="margin-top:6px">
-      ${fld('Schwelle: Günstig (unter)', `type="number" step="0.1" data-cpath="energyPrices.cheapThreshold" value="${(cfgDraft.energyPrices || {}).cheapThreshold != null ? (cfgDraft.energyPrices || {}).cheapThreshold : 20}"`)}
-      ${fld('Schwelle: Teuer (über)', `type="number" step="0.1" data-cpath="energyPrices.expensiveThreshold" value="${(cfgDraft.energyPrices || {}).expensiveThreshold != null ? (cfgDraft.energyPrices || {}).expensiveThreshold : 32}"`)}
-    </div>
-  `, false, '', 'energie_prices') +
-  box('🚗 Wallbox & E-Auto', 'Zentrale Kachel für die Steuerung der Wallbox und die Anzeige des Auto-Akkus.', `
-    <div class="cfg-row" style="margin-bottom:10px">
-      <label><input type="checkbox" data-cbool="wallbox.show" ${(cfgDraft.wallbox || {}).show ? 'checked' : ''}> Wallbox-Kachel anzeigen</label>
-    </div>
-    <div class="cfg-row">
-      ${fld('Titel', `data-cpath="wallbox.title" value="${esc((cfgDraft.wallbox || {}).title || 'Wallbox')}"`)}
-      ${fld('Auto-Akku SoC (%)', `list="ha-entities-list" data-cpath="wallbox.socEntity" value="${esc((cfgDraft.wallbox || {}).socEntity || '')}"`)}
-    </div>
-    <div class="cfg-row" style="margin-top:6px">
-      ${fld('Aktuelle Ladeleistung (W/kW)', `list="ha-entities-list" data-cpath="wallbox.powerEntity" value="${esc((cfgDraft.wallbox || {}).powerEntity || '')}"`)}
-      ${fld('Wallbox Status-Sensor', `list="ha-entities-list" data-cpath="wallbox.statusEntity" value="${esc((cfgDraft.wallbox || {}).statusEntity || '')}"`)}
-      ${fld('Lademodus (input_select/switch)', `list="ha-entities-list" data-cpath="wallbox.modeEntity" value="${esc((cfgDraft.wallbox || {}).modeEntity || '')}"`)}
-    </div>
-  `, false, '', 'energie_wallbox') +
-  (cfgDraft.metrics || []).map((m, mi) => box(`Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Kacheln wie Strom, PV, Gas oder Wasser.', `
+  // ---------- TAB 6: ENERGIE, PV & WALLBOX ----------
+  let tEnergie = box('⚡ Platzierung der Energie- & Verbrauchs-Metriken', 'Wo sollen deine Metrik-Kacheln (Strom, PV, Wasser, Gas) im Dashboard und auf Unterseiten erscheinen?', `
+    ${placementBarHtml('metrics', 'metrics', 'Metriken')}
+  `, true, placementStatusBadgeHtml('metrics', 'metrics', `${(cfgDraft.metrics || []).length} Metriken`), 'energie_metrics_place') +
+  (cfgDraft.metrics || []).map((m, mi) => box(`📊 Metrik #${mi + 1}: ${esc(m.title || 'Neu')}`, 'Konfiguriere Tageswert, 24h-Kurve, Vortagesvergleich, Autarkiegrad und Detail-Popups.', `
     <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:10px">
-      <label style="font-weight:600;cursor:pointer"><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="show" ${m.show !== false ? 'checked' : ''}> Kachel auf Dashboard anzeigen</label>
+      <label style="font-weight:600;cursor:pointer"><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="show" ${m.show !== false ? 'checked' : ''}> Diese Metrik aktivieren</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showChart" ${m.showChart !== false ? 'checked' : ''}> 24h-Diagramm (Sparkline)</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showCompare" ${m.showCompare !== false ? 'checked' : ''}> Gestern-Vergleich / Trend</label>
       <label><input type="checkbox" data-m-bool-i="${mi}" data-m-bool-k="showSubButtons" ${m.showSubButtons !== false ? 'checked' : ''}> Popup-Unterbuttons</label>
@@ -841,61 +1161,10 @@ function renderCfgModal(preserveScroll = true) {
       </div>`).join('')}
       <button class="iconbtn" data-act="cfgAddSubBtn" data-mi="${mi}" style="margin-top:8px">+ Popup-Button hinzufügen</button>
     </div>
-    `, mi === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="-1" ${mi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="1" ${mi === cfgDraft.metrics.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelMetric" data-i="${mi}">Löschen</button></div>`, `metric_${mi}`)).join('') +
+    `, mi === 0, `<div class="order-btns"><span class="cfg-badge-${m.show !== false ? 'on' : 'off'}">${m.show !== false ? '🟢 Aktiv' : '⚪ Aus'}</span><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="-1" ${mi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveMetric" data-i="${mi}" data-dir="1" ${mi === cfgDraft.metrics.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelMetric" data-i="${mi}">Löschen</button></div>`, `metric_${mi}`)).join('') +
     `<button class="btn-pri" data-act="cfgAddMetric" style="align-self:flex-start">+ Neue Metrik-Kachel</button>` +
-    box('Header-Badges (Startseiten-Banner)', 'Dynamische Anzeigen (z.B. PV/Akku, Waschmaschine, Müll) mit visueller Bedingungs-Logik.', `
-    ${(cfgDraft.headerBadgeItems || []).map((b, bi) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
-      <div class="cfg-row">
-        ${sel('Typ', `<option value="entity" ${b.type !== 'calendar' ? 'selected' : ''}>Entität / Status</option><option value="calendar" ${b.type === 'calendar' ? 'selected' : ''}>Abfallkalender-Badge</option>`, `data-hb-i="${bi}" data-hb-k="type"`)}
-        ${fld('Titel / Präfix', `data-hb-i="${bi}" data-hb-k="title" value="${esc(b.title || '')}"`)}
-        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(b.icon || 'plug') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-hb-i="${bi}" data-hb-k="icon"`)}
-        ${b.type === 'calendar'
-          ? fld('Vorschau in Tagen', `type="number" data-hb-i="${bi}" data-hb-k="maxDays" value="${b.maxDays || 2}"`)
-          : fld('Entität 1 [W1]', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity1" value="${esc(b.entity1 || '')}"`)}
-        ${b.type !== 'calendar' ? fld('Entität 2 [W2] (optional)', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="entity2" value="${esc(b.entity2 || '')}"`) : ''}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="-1" ${bi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveHB" data-i="${bi}" data-dir="1" ${bi === (cfgDraft.headerBadgeItems || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelHB" data-i="${bi}">✕</button></div>
-      </div>
-      ${b.type !== 'calendar' ? `<div class="cfg-row" style="margin-top:6px">
-        ${fld('Anzeige-Format (z.B. [W1] W · [W2]%)', `data-hb-i="${bi}" data-hb-k="format" value="${esc(b.format || '[W1]')}"`)}
-        ${fld('Nur anzeigen wenn Entität…', `list="ha-entities-list" data-hb-i="${bi}" data-hb-k="conditionEnt" value="${esc(b.conditionEnt || '')}"`)}
-        ${sel('Bedingung', [
-          ['', 'Immer anzeigen'],
-          ['==', 'ist gleich (==)'],
-          ['!=', 'ist nicht (!=)'],
-          ['>', 'größer als (>)'],
-          ['<', 'kleiner als (<)'],
-          ['not_empty', 'nicht leer / verfügbar']
-        ].map(([v, l]) => `<option value="${v}" ${(b.conditionOp || '') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-hb-i="${bi}" data-hb-k="conditionOp"`)}
-        ${fld('Vergleichswert (z.B. on / 50)', `data-hb-i="${bi}" data-hb-k="conditionVal" value="${esc(b.conditionVal || '')}"`)}
-        ${fld('Farb-Regel (z.B. >100:green, default:blue)', `data-hb-i="${bi}" data-hb-k="colorLogic" value="${esc(b.colorLogic || 'default:blue')}"`)}
-      </div>` : ''}
-    </div>`).join('')}
-    <button class="iconbtn" data-act="cfgAddHB" style="margin-top:6px">+ Header-Badge hinzufügen</button>
-    `, true, '', 'energie_badges') +
-    box('Kalender & Power-Flow Kacheln', 'Wähle Kalender-Entitäten und Energiefluss-Sensoren bequem per Klick aus.', `
-    <div style="margin-bottom:12px">
-      <span class="cfg-desc">Familienkalender (calendar.*):</span>
-      ${entityChipsHtml((cfgDraft.calendars || {}).familyEntities || [], 'calFam', '', 'calendar.* auswählen…')}
-    </div>
-    <div style="margin-bottom:12px">
-      <span class="cfg-desc">Abfallkalender (calendar.*):</span>
-      ${entityChipsHtml((cfgDraft.calendars || {}).trashEntities || [], 'calTrash', '', 'calendar.* auswählen…')}
-    </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
-      <span class="cfg-desc">Power-Flow Kachel-Sensoren (für native Darstellung):</span>
-      ${(cfgDraft.powerFlow || []).map((pf, pfi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-top:6px">
-        ${fld('Bezeichnung', `data-pf-i="${pfi}" data-pf-k="label" value="${esc(pf.label || '')}"`)}
-        ${fld('Entität', `list="ha-entities-list" data-pf-i="${pfi}" data-pf-k="entity" value="${esc(pf.entity || '')}"`)}
-        ${fld('Einheit', `data-pf-i="${pfi}" data-pf-k="unit" value="${esc(pf.unit || 'W')}"`)}
-        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(pf.icon || 'bolt') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-pf-i="${pfi}" data-pf-k="icon"`)}
-        <button class="btn-danger" data-act="cfgDelPF" data-i="${pfi}">✕</button>
-      </div>`).join('')}
-      <button class="iconbtn" data-act="cfgAddPF" style="margin-top:6px">+ Power-Flow Sensor hinzufügen</button>
-    </div>`, false, '', 'energie_cal_pf') +
-    box('⚡ Batteriespeicher-Prognose (Restlaufzeit & Ladeprognose)', 'Berechnet automatisch die verbleibende Akkulaufzeit (aktuelle Last / Grundlast) und die Uhrzeit der Vollladung bei PV-Überschuss.', `
-      <div class="cfg-row" style="margin-bottom:10px">
-        <label><input type="checkbox" data-cbool="batteryForecast.show" ${(cfgDraft.batteryForecast || {}).show !== false ? 'checked' : ''}> Speicher-Prognose aktivieren</label>
-      </div>
+    box('🔋 Batteriespeicher-Prognose (Restlaufzeit & Ladeprognose)', 'Berechnet automatisch die verbleibende Akkulaufzeit (aktuelle Last / Grundlast) und die Uhrzeit der Vollladung bei PV-Überschuss.', `
+      ${placementBarHtml('battery_forecast', 'battery_forecast', 'Speicher-Laufzeit & Prognose')}
       <div class="cfg-row">
         ${fld('Nutzbare Akkukapazität (kWh)', `type="number" step="0.1" min="0.5" max="100" data-cpath="batteryForecast.capacityKwh" value="${(cfgDraft.batteryForecast || {}).capacityKwh || 10}"`)}
         ${fld('Notstrom- / Min-Reserve (%)', `type="number" min="0" max="50" data-cpath="batteryForecast.minSoC" value="${(cfgDraft.batteryForecast || {}).minSoC != null ? (cfgDraft.batteryForecast || {}).minSoC : 5}"`)}
@@ -911,10 +1180,122 @@ function renderCfgModal(preserveScroll = true) {
         ${fld('PV-Erzeugung (W)', `list="ha-entities-list" data-cpath="batteryForecast.pvPowerEntity" value="${esc((cfgDraft.batteryForecast || {}).pvPowerEntity || '')}"`)}
       </div>
       <span class="cfg-desc" style="margin-top:8px">Tipp: Wenn Entitätsfelder leer bleiben, erkennt der Hub kompatible Sensoren (Senec, Sungrow, Fronius, Huawei etc.) automatisch aus deiner Power-Flow-Konfiguration!</span>
-    `, false, '', 'energie_battery_forecast');
+    `, false, placementStatusBadgeHtml('battery_forecast', 'battery_forecast'), 'energie_battery_forecast') +
+    box('💶 Dynamische Strompreise (Tibber / EPEX)', 'Zeigt die aktuellen Strompreise (Cent/kWh) für 24 Stunden als Balkendiagramm inkl. Einfärbung (Grün/Günstig bis Rot/Teuer).', `
+      ${placementBarHtml('energy_prices', 'energy_prices', (cfgDraft.energyPrices || {}).title || 'Dynamische Strompreise')}
+      <div class="cfg-row">
+        ${fld('Titel', `data-cpath="energyPrices.title" value="${esc((cfgDraft.energyPrices || {}).title || 'Dynamische Strompreise')}"`)}
+        ${fld('Preisentität (z.B. sensor.tibber_prices)', `list="ha-entities-list" data-cpath="energyPrices.entity" value="${esc((cfgDraft.energyPrices || {}).entity || '')}"`)}
+        ${sel('Einheit', [['Cent', 'Cent (z.B. 28.5)'], ['EUR', 'Euro (z.B. 0.285)']].map(([v, l]) => `<option value="${v}" ${((cfgDraft.energyPrices || {}).priceUnit || 'Cent') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="energyPrices.priceUnit"`)}
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('Schwelle: Günstig (unter)', `type="number" step="0.1" data-cpath="energyPrices.cheapThreshold" value="${(cfgDraft.energyPrices || {}).cheapThreshold != null ? (cfgDraft.energyPrices || {}).cheapThreshold : 20}"`)}
+        ${fld('Schwelle: Teuer (über)', `type="number" step="0.1" data-cpath="energyPrices.expensiveThreshold" value="${(cfgDraft.energyPrices || {}).expensiveThreshold != null ? (cfgDraft.energyPrices || {}).expensiveThreshold : 32}"`)}
+      </div>
+    `, false, placementStatusBadgeHtml('energy_prices', 'energy_prices'), 'energie_prices') +
+    box('🚗 Wallbox & E-Auto', 'Zentrale Kachel für die Steuerung der Wallbox und die Anzeige des Auto-Akkus.', `
+      ${placementBarHtml('wallbox', 'wallbox', (cfgDraft.wallbox || {}).title || 'Wallbox')}
+      <div class="cfg-row">
+        ${fld('Titel', `data-cpath="wallbox.title" value="${esc((cfgDraft.wallbox || {}).title || 'Wallbox')}"`)}
+        ${fld('Auto-Akku SoC (%)', `list="ha-entities-list" data-cpath="wallbox.socEntity" value="${esc((cfgDraft.wallbox || {}).socEntity || '')}"`)}
+      </div>
+      <div class="cfg-row" style="margin-top:6px">
+        ${fld('Aktuelle Ladeleistung (W/kW)', `list="ha-entities-list" data-cpath="wallbox.powerEntity" value="${esc((cfgDraft.wallbox || {}).powerEntity || '')}"`)}
+        ${fld('Wallbox Status-Sensor', `list="ha-entities-list" data-cpath="wallbox.statusEntity" value="${esc((cfgDraft.wallbox || {}).statusEntity || '')}"`)}
+        ${fld('Lademodus (input_select/switch)', `list="ha-entities-list" data-cpath="wallbox.modeEntity" value="${esc((cfgDraft.wallbox || {}).modeEntity || '')}"`)}
+      </div>
+    `, false, placementStatusBadgeHtml('wallbox', 'wallbox'), 'energie_wallbox') +
+    box('🔄 Power-Flow Sensoren (Energiefluss)', 'Sensoren für das Power-Flow Widget (auf der Startseite & auf Unterseiten platzierbar) sowie als automatische Datenquelle für die Speicherprognose.', `
+      ${placementBarHtml('power_flow', 'power_flow', 'Power Flow')}
+      ${(cfgDraft.powerFlow || []).map((pf, pfi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-top:6px">
+        ${fld('Bezeichnung', `data-pf-i="${pfi}" data-pf-k="label" value="${esc(pf.label || '')}"`)}
+        ${fld('Entität', `list="ha-entities-list" data-pf-i="${pfi}" data-pf-k="entity" value="${esc(pf.entity || '')}"`)}
+        ${fld('Einheit', `data-pf-i="${pfi}" data-pf-k="unit" value="${esc(pf.unit || 'W')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(pf.icon || 'bolt') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-pf-i="${pfi}" data-pf-k="icon"`)}
+        <button class="btn-danger" data-act="cfgDelPF" data-i="${pfi}">✕</button>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgAddPF" style="margin-top:6px">+ Power-Flow Sensor hinzufügen</button>
+    `, false, placementStatusBadgeHtml('power_flow', 'power_flow', `${(cfgDraft.powerFlow || []).length} Sensoren`), 'energie_cal_pf');
 
-  // ---------- TAB 7: KAMERAS & SICHERHEIT ----------
-  let tKameras = box('🚨 Bedingte Warn-Karten (Alerts)', 'Karten, die auf dem Dashboard unsichtbar sind und nur ganz oben aufpoppen, wenn ein kritischer Zustand eintritt (z.B. Wassermelder, Rauchmelder, Akku < 15%, Fenster offen bei Regen).', `
+  // ---------- TAB 7: SICHERHEIT, KAMERAS & ALERTS ----------
+  const secDoors = (cfgDraft.security && cfgDraft.security.doors) || [];
+  let tKameras = box('🔒 Türschlösser, Fenster & Türen', 'Türschlösser inkl. Akku-Anzeige, Fensterkontakte und zusätzliche Türsensoren.', `
+    <span class="cfg-desc" style="font-weight:600;display:block;margin-bottom:4px">🛡️ Obere Status-Leiste &amp; Türschloss-Pills:</span>
+    ${placementBarHtml('status', 'status', 'Sicherheits-Status')}
+    <span class="cfg-desc" style="font-weight:600;display:block;margin-bottom:4px">🔒 Sicherheits-Kachel (Schlösser, Fenster &amp; Kameras):</span>
+    ${placementBarHtml('security', 'security', 'Sicherheit')}
+    <span class="cfg-desc">Türschlösser &amp; Akku-Anzeige (Reihenfolge, Position &amp; Stil frei wählbar):</span>
+    ${(cfgDraft.security.locks || []).map((lk, i) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+      <div class="cfg-row">
+        ${fld('Bezeichnung', `data-lk-i="${i}" data-lk-k="name" value="${esc(lk.name || '')}"`)}
+        ${fld('Schloss-Entität (lock.*)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="entity" value="${esc(lk.entity || '')}"`)}
+        ${fld('Akku-Entität (sensor.* optional)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="battery" value="${esc(lk.battery || '')}"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="1" ${i === cfgDraft.security.locks.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLock" data-i="${i}">✕</button></div>
+      </div>
+      <div class="cfg-row" style="margin-top:8px">
+        ${sel('Wo anzeigen? (Position)', [
+          ['pill', 'In der Schloss-Pille (zwischen 🔒 und 🔓)'],
+          ['subtext', 'Links im Status-Text („Alle Systeme normal · 🔋 85%“)'],
+          ['above', 'Als schwebendes Mini-Label oben auf der Schloss-Pille'],
+          ['card', 'Nur unten in der Sicherheits-Kachel'],
+          ['both', 'Oben in der Schloss-Pille + unten in der Sicherheits-Kachel'],
+          ['off', 'Ausblenden']
+        ].map(([v, l]) => `<option value="${v}" ${(lk.batPos || 'pill') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batPos"`)}
+        ${sel('Wie anzeigen? (Darstellungs-Stil)', [
+          ['badge', 'Farbiges Badge (Grün / Gelb / Rot mit Icon & %)'],
+          ['minimal', 'Dezent / Minimal (nur dezentes Icon + %)'],
+          ['text', 'Nur Text (z. B. „85%“ oder „Akku 85%“)'],
+          ['warn_only', 'Nur bei niedrigem Akku anzeigen (≤ 25%)']
+        ].map(([v, l]) => `<option value="${v}" ${(lk.batStyle || 'badge') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batStyle"`)}
+      </div>
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgAddLock" style="margin-bottom:14px">+ Türschloss hinzufügen</button>
+
+    <div style="margin-bottom:14px;padding-top:10px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc">🪟 Fensterkontakte (binary_sensor.*):</span>
+      ${entityChipsHtml(cfgDraft.security.windows || [], 'secWin', '', 'binary_sensor.* auswählen…')}
+    </div>
+
+    <div style="margin-bottom:6px;padding-top:10px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc">🚪 Türkontakte (binary_sensor.* – werden auch im Lüftungs-/Offen-Timer berücksichtigt):</span>
+      ${secDoors.map((d, di) => {
+        const dObj = typeof d === 'string' ? { name: '', entity: d } : (d || {});
+        return `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-top:6px">
+          ${fld('Tür-Bezeichnung (z.B. Terrassentür)', `data-sd-i="${di}" data-sd-k="name" value="${esc(dObj.name || '')}"`)}
+          ${fld('Türkontakt-Entität (binary_sensor.*)', `list="ha-entities-list" data-sd-i="${di}" data-sd-k="entity" value="${esc(dObj.entity || '')}"`)}
+          <div class="order-btns"><button class="btn-danger" data-act="cfgDelSecDoor" data-i="${di}">✕</button></div>
+        </div>`;
+      }).join('')}
+      <button class="iconbtn" data-act="cfgAddSecDoor" style="margin-top:6px">+ Türkontakt hinzufügen</button>
+    </div>`, true, placementStatusBadgeHtml('security', 'security'), 'security_all') +
+  box('📷 Kameras & go2rtc Streams', 'Hybride Kamera-Streams (lokal go2rtc WebRTC + unterwegs Home Assistant Proxy) für die Kamera-Seite und Unterseiten.', `
+    <div class="cfg-row" style="margin-bottom:12px">
+      ${fld('Lokaler go2rtc Host (optional, z.B. http://192.168.178.4:1984)', `data-cpath="go2rtcHost" value="${esc(cfgDraft.go2rtcHost || '')}"`)}
+    </div>
+    <span class="cfg-desc" style="margin-bottom:8px;display:block">Kamera-Liste (Tipp: Hinterlege die HA Kamera-Entität, damit das Bild auch unterwegs in der Companion App geladen wird!):</span>
+    ${(cfgDraft.webrtcCameras || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
+      <label><input type="checkbox" data-cam-i="${i}" data-cam-k="show" ${c.show !== false ? 'checked' : ''}> Sichtbar</label>
+      ${fld('Kamera-Name', `data-cam-i="${i}" data-cam-k="name" value="${esc(c.name)}"`)}
+      ${fld('HA Kamera-Entität (camera.* für App & Unterwegs)', `list="ha-entities-list" data-cam-i="${i}" data-cam-k="entity" value="${esc(c.entity || '')}"`)}
+      ${fld('go2rtc Stream-Name (für lokales LAN)', `data-cam-i="${i}" data-cam-k="stream" value="${esc(c.stream || '')}"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="1" ${i === cfgDraft.webrtcCameras.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCam" data-i="${i}">✕</button></div>
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgAddCam" style="margin-top:6px">+ Kamera hinzufügen</button>`, true, `<span class="cfg-badge-info">${(cfgDraft.webrtcCameras || []).length} Kameras</span>`, 'security_cams') +
+  box('🛎️ Event-Popup (Türklingel / Bewegung)', 'Zeigt sofort ein großes Vollbild-Popup der Kamera, sobald der Auslöser auf "on" springt.', `
+    <div class="cfg-row" style="margin-bottom:10px">
+      <label><input type="checkbox" data-cbool="bellPopup.show" ${(cfgDraft.bellPopup || {}).show !== false ? 'checked' : ''}> Event-Popup aktivieren</label>
+    </div>
+    <div class="cfg-row">
+      ${fld('Auslöser (binary_sensor.*, z.B. Türklingel)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc((cfgDraft.bellPopup || {}).triggerEntity || '')}"`)}
+      ${fld('Kamera-Stream (Entität oder WebRTC-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc((cfgDraft.bellPopup || {}).cameraEntity || '')}"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:6px">
+      ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc((cfgDraft.bellPopup || {}).title || 'Türklingel')}"`)}
+      ${fld('Anzeigedauer (Sekunden)', `type="number" min="5" max="300" data-cpath="bellPopup.durationSec" value="${(cfgDraft.bellPopup || {}).durationSec || 30}"`)}
+    </div>
+  `, false, `<span class="cfg-badge-${(cfgDraft.bellPopup || {}).show ? 'on' : 'off'}">${(cfgDraft.bellPopup || {}).show ? '🟢 Aktiv' : '⚪ Aus'}</span>`, 'sec_bell') +
+  box('🚨 Bedingte Warn-Karten (Alerts)', 'Karten, die im Normalzustand unsichtbar sind und nur aufpoppen, wenn ein kritischer Zustand eintritt (z.B. Wassermelder, Rauchmelder, Akku < 15%).', `
+    ${placementBarHtml('alerts', 'alerts', 'Warnungen')}
     ${(cfgDraft.alerts || []).map((al, ai) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
       <div class="cfg-row">
         <label><input type="checkbox" data-al-i="${ai}" data-al-k="show" ${al.show !== false ? 'checked' : ''}> Aktiv</label>
@@ -943,69 +1324,32 @@ function renderCfgModal(preserveScroll = true) {
       </div>
     </div>`).join('')}
     <button class="iconbtn" data-act="cfgAddAlert" style="margin-top:6px">+ Warn-Regel hinzufügen</button>
-  `, false, '', 'sec_alerts') +
-  box('Sicherheit & Kameras', 'Türschlösser, Akku-Anzeige, Fenstersensoren und hybride Kamera-Streams (lokal go2rtc + unterwegs Home Assistant Proxy).', `
-    <span class="cfg-desc">Türschlösser & Akku-Anzeige (Reihenfolge, Position & Stil frei wählbar):</span>
-    ${(cfgDraft.security.locks || []).map((lk, i) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
-      <div class="cfg-row">
-        ${fld('Bezeichnung', `data-lk-i="${i}" data-lk-k="name" value="${esc(lk.name || '')}"`)}
-        ${fld('Schloss-Entität (lock.*)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="entity" value="${esc(lk.entity || '')}"`)}
-        ${fld('Akku-Entität (sensor.* optional)', `list="ha-entities-list" data-lk-i="${i}" data-lk-k="battery" value="${esc(lk.battery || '')}"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLock" data-i="${i}" data-dir="1" ${i === cfgDraft.security.locks.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLock" data-i="${i}">✕</button></div>
-      </div>
-      <div class="cfg-row" style="margin-top:8px">
-        ${sel('Wo anzeigen? (Position)', [
-          ['pill', 'In der Schloss-Pille (zwischen 🔒 und 🔓)'],
-          ['subtext', 'Links im Status-Text („Alle Systeme normal · 🔋 85%“)'],
-          ['above', 'Als schwebendes Mini-Label oben auf der Schloss-Pille'],
-          ['card', 'Nur unten in der Sicherheits-Kachel'],
-          ['both', 'Oben in der Schloss-Pille + unten in der Sicherheits-Kachel'],
-          ['off', 'Ausblenden']
-        ].map(([v, l]) => `<option value="${v}" ${(lk.batPos || 'pill') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batPos"`)}
-        ${sel('Wie anzeigen? (Darstellungs-Stil)', [
-          ['badge', 'Farbiges Badge (Grün / Gelb / Rot mit Icon & %)'],
-          ['minimal', 'Dezent / Minimal (nur dezentes Icon + %)'],
-          ['text', 'Nur Text (z. B. „85%“ oder „Akku 85%“)'],
-          ['warn_only', 'Nur bei niedrigem Akku anzeigen (≤ 25%)']
-        ].map(([v, l]) => `<option value="${v}" ${(lk.batStyle || 'badge') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-lk-i="${i}" data-lk-k="batStyle"`)}
-      </div>
-    </div>`).join('')}
-    <button class="iconbtn" data-act="cfgAddLock" style="margin-bottom:14px">+ Türschloss hinzufügen</button>
+  `, false, placementStatusBadgeHtml('alerts', 'alerts', `${(cfgDraft.alerts || []).length} Regeln`), 'sec_alerts');
 
+  // ---------- TAB 8: KALENDER & EIGENE SEITEN ----------
+  const roomPageGenButtons = (cfgDraft.rooms || []).filter((rm, idx) => idx > 0 && rm && rm.name).map(rm => {
+    const hasPage = (cfgDraft.customPages || []).some(p => p && ((p.label && p.label.toLowerCase() === rm.name.toLowerCase()) || p.id === 'room_' + safeId(rm.name).toLowerCase()));
+    return `<button type="button" class="chip ${hasPage ? 'on' : ''}" data-act="cfgGenRoomPage" data-room="${esc(rm.name)}" style="font-size:11.5px;padding:5px 11px" title="Komplette Raum-Unterseite für „${esc(rm.name)}“ mit Geräten, Lichtern, Rolläden & Klima erstellen/öffnen">${hasPage ? '✓ ' : '+ '}🏠 ${esc(rm.name)}</button>`;
+  }).join('');
+
+  let tKalender = box('📅 Familienkalender & Abfallkalender (Entitäten & Platzierung)', 'Wähle deine Home Assistant Kalender-Entitäten aus und lege fest, wo die Kalender- und Müll-Kacheln angezeigt werden.', `
     <div style="margin-bottom:14px">
-      <span class="cfg-desc">Fenster- / Türkontakte (binary_sensor.*):</span>
-      ${entityChipsHtml(cfgDraft.security.windows || [], 'secWin', '', 'binary_sensor.* auswählen…')}
+      <span class="cfg-desc" style="font-weight:600;display:block;margin-bottom:4px">📅 Familienkalender (calendar.*):</span>
+      ${placementBarHtml('calendar', 'calendar', 'Familienkalender')}
+      ${entityChipsHtml((cfgDraft.calendars || {}).familyEntities || [], 'calFam', '', 'calendar.* auswählen…')}
     </div>
-
-    <div class="cfg-row">
-      ${fld('Lokaler go2rtc Host (optional, z.B. http://192.168.178.4:1984)', `data-cpath="go2rtcHost" value="${esc(cfgDraft.go2rtcHost || '')}"`)}
+    <div style="padding-top:12px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc" style="font-weight:600;display:block;margin-bottom:4px">🗑️ Abfallkalender (calendar.*):</span>
+      ${placementBarHtml('trash', 'trash', 'Abfallkalender')}
+      ${entityChipsHtml((cfgDraft.calendars || {}).trashEntities || [], 'calTrash', '', 'calendar.* auswählen…')}
+    </div>`, true, placementStatusBadgeHtml('calendar', 'calendar', `${((cfgDraft.calendars || {}).familyEntities || []).length + ((cfgDraft.calendars || {}).trashEntities || []).length} Kalender`), 'kalender_entities') +
+  box('✨ 1-Klick Raum-Unterseite generieren (Raum als eigene Menü-Seite)', 'Erstellt für einen bestehenden oder neuen Raum (z. B. Büro, Wohnzimmer, Werkstatt) automatisch eine eigene Unterseite in der linken Seitenleiste – fertig bestückt mit Geräten, Lichtern, Rolläden, Raumklima und Lüftung dieses Raums.', `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${roomPageGenButtons}
+      <button type="button" class="btn-pri" data-act="cfgGenRoomPage" data-room="__prompt__" style="padding:6px 14px;font-size:12px">✨ Beliebige Raum-Unterseite (z. B. Büro) generieren…</button>
     </div>
-
-    <span class="cfg-desc" style="margin-top:16px;display:block">Kamera-Ansicht (Tipp: Hinterlege die HA Kamera-Entität, damit das Bild auch unterwegs in der Companion App geladen wird!):</span>
-    ${(cfgDraft.webrtcCameras || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:4px">
-      <label><input type="checkbox" data-cam-i="${i}" data-cam-k="show" ${c.show !== false ? 'checked' : ''}> Sichtbar</label>
-      ${fld('Kamera-Name', `data-cam-i="${i}" data-cam-k="name" value="${esc(c.name)}"`)}
-      ${fld('HA Kamera-Entität (camera.* für App & Unterwegs)', `list="ha-entities-list" data-cam-i="${i}" data-cam-k="entity" value="${esc(c.entity || '')}"`)}
-      ${fld('go2rtc Stream-Name (für lokales LAN)', `data-cam-i="${i}" data-cam-k="stream" value="${esc(c.stream || '')}"`)}
-      <div class="order-btns"><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="1" ${i === cfgDraft.webrtcCameras.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCam" data-i="${i}">✕</button></div>
-    </div>`).join('')}
-    <button class="iconbtn" data-act="cfgAddCam">+ Kamera hinzufügen</button>`, true, '', 'security_all') +
-  box('🛎️ Event-Popup (Türklingel / Bewegung)', 'Zeigt sofort ein großes Vollbild-Popup der Kamera, sobald der Auslöser auf "on" springt.', `
-    <div class="cfg-row" style="margin-bottom:10px">
-      <label><input type="checkbox" data-cbool="bellPopup.show" ${(cfgDraft.bellPopup || {}).show !== false ? 'checked' : ''}> Event-Popup aktivieren</label>
-    </div>
-    <div class="cfg-row">
-      ${fld('Auslöser (binary_sensor.*, z.B. Türklingel)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc((cfgDraft.bellPopup || {}).triggerEntity || '')}"`)}
-      ${fld('Kamera-Stream (Entität oder WebRTC-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc((cfgDraft.bellPopup || {}).cameraEntity || '')}"`)}
-    </div>
-    <div class="cfg-row" style="margin-top:6px">
-      ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc((cfgDraft.bellPopup || {}).title || 'Türklingel')}"`)}
-      ${fld('Anzeigedauer (Sekunden)', `type="number" min="5" max="300" data-cpath="bellPopup.durationSec" value="${(cfgDraft.bellPopup || {}).durationSec || 30}"`)}
-    </div>
-  `, false, '', 'sec_bell');
-
-  // ---------- TAB 8: EIGENE SEITEN ----------
-  let tSeiten = (cfgDraft.customPages || []).map((p, pi) => {
+  `, true, `<span class="cfg-badge-info">1-Klick Generator</span>`, 'kalender_room_gen') +
+  (cfgDraft.customPages || []).map((p, pi) => {
     const boxKey = `page_${p.id || pi}`;
     const pgParsed = parseColsMode(p.layout || 'grid', 'auto', 2);
     const maxWCol = clamp(Math.max(pgParsed.cols || 2, 6), 4, 12);
@@ -1015,7 +1359,7 @@ function renderCfgModal(preserveScroll = true) {
       ['full', 'Volle Seitenbreite']
     ];
 
-    return box(`Menü-Seite: ${esc(p.label)}`, 'Konfiguriere Spalten-Layout und Widgets für diese eigene Unterseite.', `
+    return box(`📄 Unterseite: ${esc(p.label)}`, 'Eigene Menü-Unterseite (z. B. Büro, Kalender, Statistik, Technik, Sport) – alle Module und Widgets frei platzierbar.', `
       <div class="cfg-row">
         ${fld('Menü-Name', `data-pg-i="${pi}" data-pg-k="label" value="${esc(p.label)}"`)}
         ${fld('Kleine Dachzeile (Eyebrow)', `data-pg-i="${pi}" data-pg-k="eyebrow" value="${esc(p.eyebrow || '')}"`)}
@@ -1037,9 +1381,29 @@ function renderCfgModal(preserveScroll = true) {
         ${fld('Oder freie Spaltenzahl (1–12)', `type="number" min="1" max="12" data-pg-cols-i="${pi}" value="${pgParsed.mode === 'cols' ? pgParsed.cols : ''}"`)}
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
-        <span class="cfg-desc">Widgets auf dieser Seite (jedes Widget kann einer festen Spalte zugewiesen werden):</span>
+        <span class="cfg-desc">Widgets &amp; Kacheln auf dieser Unterseite:</span>
         ${(p.widgets || []).map((w, wi) => {
           let extraWidgetCfg = '';
+          const roomFilterTypes = ['devices', 'covers', 'favorites', 'ventilation'];
+          const noTargetInputTypes = ['sports_hub', 'weather_forecast', 'rain_timeline', 'battery_forecast', 'energy_prices', 'wallbox', 'appliances', 'quick_routines', 'presence', 'system_health', 'security', 'status', 'alerts', 'climate', 'calendar', 'trash', 'power_flow', 'stat_group'];
+
+          let targetInputHtml = '';
+          if (roomFilterTypes.includes(w.type)) {
+            targetInputHtml = fld('Raum-Filter (leer = alle Räume, oder z.B. Büro)', `list="cfg-room-names" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="room" value="${esc(w.room || w.entity || '')}"`);
+          } else if (w.type === 'lights') {
+            targetInputHtml = fld('Licht-Gruppe / Raum (leer = alle Gruppen)', `list="cfg-room-names" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="room" value="${esc(w.room || w.entity || '')}"`);
+          } else if (w.type === 'climate_room') {
+            const crOpts = `<option value="">— Alle Klima-Räume —</option>` + (cfgDraft.climateRooms || []).map(cr => `<option value="${esc(cr.name)}" ${(w.room || w.entity || '') === cr.name ? 'selected' : ''}>${esc(cr.name)}</option>`).join('');
+            targetInputHtml = sel('Welcher Klima-Raum?', crOpts, `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="room"`);
+          } else if (w.type === 'iframe') {
+            targetInputHtml = fld('Webseiten-URL (https://… oder /local/…)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="url" value="${esc(w.url || w.entity || '')}"`);
+          } else if (w.type === 'camera') {
+            targetInputHtml = fld('HA Kamera-Entität (camera.*)', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || '')}"`) +
+              fld('go2rtc Stream-Name (optional)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="stream" value="${esc(w.stream || '')}"`);
+          } else if (!noTargetInputTypes.includes(w.type)) {
+            targetInputHtml = fld('Haupt-Entität (sensor.*, todo.* …)', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || '')}"`);
+          }
+
           if (w.type === 'stat_group') {
             extraWidgetCfg = `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
               <span class="cfg-desc">24h-Kurven in dieser Statistik-Kachel:</span>
@@ -1068,7 +1432,11 @@ function renderCfgModal(preserveScroll = true) {
             </div>`;
           } else if (w.type === 'calendar') {
             extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
-              ${fld('Zeitraum in Tagen (z.B. 7 oder 14)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="daysCount" value="${w.daysCount || 7}"`)}
+              ${fld('Zeitraum in Tagen (z.B. 7 oder 14)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="daysCount" value="${w.daysCount || w.days || 14}"`)}
+            </div>`;
+          } else if (w.type === 'entity_info') {
+            extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
+              ${fld('Angezeigte Attribute (Format: attr:Label,attr2:Label2 – leer = alle)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="fields" value="${esc(w.fields || '')}"`)}
             </div>`;
           } else if (w.type === 'sports_hub') {
             const curPresetKey = `${w.sport || 'soccer'}|${w.league || 'ger.1'}|${w.teamId || ''}`;
@@ -1130,8 +1498,8 @@ function renderCfgModal(preserveScroll = true) {
             </div>`;
           } else if (w.type === 'trash') {
             extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
-              ${fld('Vorschau in Tagen (z.B. 14 oder 30)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="maxDays" value="${w.maxDays || 14}"`)}
-              ${fld('Max. Einträge', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="maxItems" value="${w.maxItems || 10}"`)}
+              ${fld('Vorschau in Tagen (z.B. 14 oder 30)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="maxDays" value="${w.maxDays || w.days || 30}"`)}
+              ${fld('Max. Einträge', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="maxItems" value="${w.maxItems || 25}"`)}
               ${fld('Untertitel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="subtitle" value="${esc(w.subtitle || 'Nächste Abholungen')}"`)}
             </div>`;
           }
@@ -1139,27 +1507,28 @@ function renderCfgModal(preserveScroll = true) {
           return `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
             <div class="cfg-row">
               <label><input type="checkbox" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="show" ${w.show !== false ? 'checked' : ''}> Sichtbar</label>
-              ${sel('Widget-Typ', [['sports_hub', '🏆 Universal Sport-Center (Google-Style: Fußball, NFL, Tennis & mehr)'], ['entity_info', 'A) Entitäts-Info'], ['stat_group', 'B) 24h Statistik-Kurven'], ['devices', 'C) Geräteliste'], ['calendar', 'D) Familienkalender'], ['trash', 'E) Abfallkalender'], ['todo', 'F) Aufgaben / To-Do'], ['power_flow', 'G) Power Flow (Energiefluss)'], ['weather_forecast', 'H) Wetter 7-Tage'], ['rain_timeline', 'O) 🌧️ Regenradar (60-Minuten-Vorschau)'], ['battery_forecast', 'P) ⚡ Speicher-Restlaufzeit & Prognose'], ['iframe', 'I) Webseite / Iframe'], ['buli_team', 'J) Mein Verein (Teamtracker)'], ['buli_table', 'K) Bundesliga Tabelle'], ['buli_matchday', 'L) Spieltag Übersicht'], ['f1_next', 'M) Formel 1 - Rennen'], ['f1_standings', 'N) Formel 1 - WM']].map(([v, l]) => `<option value="${v}" ${w.type === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
+              ${sel('Widget- / Kachel-Typ', widgetTypeOptgroupsHtml(w.type), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="type"`)}
               ${sel('Spalten-Zuweisung', wColOpts.map(([v, l]) => `<option value="${v}" ${String(w.col || 'auto') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="col"`)}
-              ${fld('Titel', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
-              ${w.type !== 'sports_hub' ? fld('Haupt-Entität / URL / Raum', `list="ha-entities-list" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="entity" value="${esc(w.entity || w.url || w.room || '')}"`) : ''}
+              ${fld('Titel (optional)', `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="title" value="${esc(w.title || '')}"`)}
+              ${targetInputHtml}
               <div class="order-btns"><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="-1" ${wi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveWidget" data-pi="${pi}" data-wi="${wi}" data-dir="1" ${wi === p.widgets.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelWidget" data-pi="${pi}" data-wi="${wi}">✕</button></div>
             </div>
             ${extraWidgetCfg}
           </div>`;
         }).join('')}
-        <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget hinzufügen</button>
-      </div>`, pi === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi === cfgDraft.customPages.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`, boxKey);
+        <button class="iconbtn" data-act="cfgAddWidget" data-pi="${pi}" style="margin-top:6px">+ Widget / Kachel zu „${esc(p.label)}“ hinzufügen</button>
+      </div>`, false, `<div class="order-btns"><span class="cfg-badge-info">${(p.widgets || []).length} Widgets</span><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMovePage" data-pi="${pi}" data-dir="1" ${pi === cfgDraft.customPages.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelPage" data-pi="${pi}">Löschen</button></div>`, boxKey);
   }).join('') +
-  `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue Unterseite anlegen</button>`;
+  `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue eigene Unterseite anlegen (z.B. Büro, Technik, OG)</button>`;
 
-  // ---------- TAB 9: BACKUP ----------
-  let tBackup = box('Schnellstart & Automatische Erkennung', 'Lasse deine Home Assistant Räume, Lichter, Klimageräte, Rolläden und Kameras vollautomatisch erkennen oder lade ein Preset.', `
+  // ---------- TAB 9: SYSTEM & BACKUP ----------
+  let tBackup = box('🚀 Schnellstart, Live-Sync & Automatische Erkennung', 'Lasse deine Home Assistant Räume, Lichter, Klimageräte, Rolläden und Kameras vollautomatisch erkennen oder erzwinge einen Tablet-Reload.', `
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn-pri" data-act="cfgAutoDiscover">🔍 HA-Räume & Geräte automatisch einlesen</button>
+      <button class="btn-pri" data-act="cfgAutoDiscover">🔍 HA-Räume &amp; Geräte automatisch einlesen</button>
+      <button class="iconbtn" data-act="forceReloadApp">🔄 Tablet-Cache leeren &amp; Seite neu laden</button>
       <button class="iconbtn" data-act="cfgLoadTimoPreset">📦 Timo-Preset laden</button>
       <button class="iconbtn" data-act="cfgLoadEmpty">🧹 Leeres Start-Gerüst laden</button>
-    </div>`, true, '', 'backup_quick') + box('JSON Export / Import (Backup)', 'Sichere deine komplette Konfiguration als Datei oder spiele ein Backup ein.', `
+    </div>`, true, '', 'backup_quick') + box('💾 JSON Export / Import (Backup)', 'Sichere deine komplette Konfiguration als Datei oder spiele ein Backup ein.', `
     <div style="margin-top:10px">
       ${txt('JSON-Code', `id="cfg-json-area" style="font-family:monospace;font-size:12px" rows="12"`, JSON.stringify(cfgDraft, null, 2))}
     </div>
@@ -1176,7 +1545,7 @@ function renderCfgModal(preserveScroll = true) {
     'klima': tKlima,
     'energie': tEnergie,
     'kameras': tKameras,
-    'seiten': tSeiten,
+    'kalender': tKalender,
     'backup': tBackup
   };
 
@@ -1185,16 +1554,17 @@ function renderCfgModal(preserveScroll = true) {
   document.getElementById('cfgsheet').innerHTML = `
     <div class="cfg-hdr">
       <b>Dashboard-Konfigurator</b>
-      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="Suche (Räume, Geräte, Entitäten, Layout...)" autocomplete="off" value="${esc(searchVal)}"></div>
+      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="Suche (Räume, Geräte, Entitäten, Layout, Büro...)" autocomplete="off" value="${esc(searchVal)}"></div>
+      <button type="button" class="iconbtn" data-act="forceReloadApp" title="Ansicht & Cache neu laden" style="padding:6px 10px;font-size:12px">🔄 Sync</button>
       <button class="x2" data-act="cfgClose">✕</button>
     </div>
     <div class="cfg-tabs" style="display:${searchVal ? 'none' : 'flex'}">${tabBtns}</div>
     <div class="cfg-body">${body}</div>
     <div class="cfg-ftr">
-      <span class="mut sm">100% No-Code UI · Änderungen werden direkt in Home Assistant gespeichert.</span>
+      <span class="mut sm">100% No-Code UI · Änderungen werden beim Speichern live an alle offenen Tablets &amp; Geräte übertragen.</span>
       <div style="display:flex;gap:10px">
         <button class="iconbtn" data-act="cfgClose">Abbrechen</button>
-        <button class="btn-pri" data-act="cfgSave">💾 Speichern & Übernehmen</button>
+        <button class="btn-pri" data-act="cfgSave">💾 Speichern &amp; Live Übertragen</button>
       </div>
     </div>`;
 
@@ -1306,14 +1676,60 @@ document.addEventListener('input', e => {
     if (pg && n >= 1) pg.layout = `${n}col`;
   }
 
-  // Dashboard Layout rows
+  // Dashboard Layout rows & Unified Placement Bars
+  if (t.dataset.devprofK) {
+    const k = t.dataset.devprofK;
+    const val = k === 'returnToStartMins' ? (parseInt(t.value, 10) || 0) : t.value;
+    saveDeviceProfile({ [k]: val });
+    if (k === 'startView' || k === 'kioskOverride' || k === 'screensaverOverride') {
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (t.dataset.dlwI != null) {
+    const item = cfgDraft.dashboardLayout[+t.dataset.dlwI];
+    if (item && item.widget) {
+      const k = t.dataset.dlwK;
+      item.widget[k] = t.value;
+      if (k === 'room') item.widget.entity = t.value;
+      if (k === 'title') item.label = `🧩 ${t.value || item.widget.type}`;
+      if (k === 'type') {
+        item.label = `🧩 ${item.widget.title || t.value}`;
+        renderCfgModal(true);
+      }
+    }
+    return;
+  }
+  if (t.dataset.dlwsiI != null) {
+    const item = cfgDraft.dashboardLayout[+t.dataset.dlwsiI];
+    const si = +t.dataset.dlwsiSi;
+    if (item && item.widget && item.widget.items && item.widget.items[si]) {
+      item.widget.items[si][t.dataset.dlwsiK] = t.value;
+    }
+    return;
+  }
   if (t.dataset.dlI != null) {
     const item = cfgDraft.dashboardLayout[+t.dataset.dlI];
     const k = t.dataset.dlK;
-    if (k === 'show') { item.show = t.checked; renderCfgModal(true); }
-    else if (k === 'col') item.col = t.value === 'full' ? 'full' : (parseInt(t.value, 10) || 1);
-    else if (k === 'span') item.span = parseInt(t.value, 10) || 12;
-    else item[k] = t.value;
+    if (k === 'show') {
+      item.show = t.checked;
+      syncLayoutAndModuleShow(cfgDraft, false);
+      renderCfgModal(true);
+    } else if (k === 'col') {
+      item.col = t.value === 'full' ? 'full' : (parseInt(t.value, 10) || 1);
+      renderCfgModal(true);
+    } else if (k === 'span') {
+      item.span = parseInt(t.value, 10) || 12;
+      renderCfgModal(true);
+    } else if (k === 'scope') {
+      item.scope = t.value;
+      if (t.value === 'custom' && !Array.isArray(item.scopeRooms)) {
+        item.scopeRooms = ['Home'];
+      }
+      renderCfgModal(true);
+    } else {
+      item[k] = t.value;
+    }
   }
 
   if (t.dataset.wiI != null) {
@@ -1514,10 +1930,23 @@ document.addEventListener('input', e => {
       w[k] = t.checked;
     } else if (['daysCount', 'maxDays', 'maxItems', 'upcomingCount', 'tableRows'].includes(k)) {
       w[k] = parseInt(t.value, 10) || 4;
+    } else if (k === 'room') {
+      w.room = t.value;
+      w.entity = t.value;
+    } else if (k === 'url') {
+      w.url = t.value;
+    } else if (k === 'stream') {
+      w.stream = t.value;
+    } else if (k === 'fields') {
+      w.fields = t.value;
     } else if (k === 'entity') {
       if (w.type === 'iframe') w.url = t.value;
-      else if (w.type === 'devices') w.room = t.value;
-      else w.entity = t.value;
+      else if (['devices', 'covers', 'favorites', 'lights', 'ventilation', 'climate_room'].includes(w.type)) {
+        w.room = t.value;
+        w.entity = t.value;
+      } else {
+        w.entity = t.value;
+      }
     } else if (k === 'cardConfig') {
       try { w.cardConfig = t.value.trim() ? JSON.parse(t.value) : null; } catch (_) {}
     } else {

@@ -165,29 +165,73 @@ function calcAbsoluteHumidity(t, rh) {
 
 function DEFAULT_DASHBOARD_LAYOUT() {
   return [
-    { id: 'alerts',           label: '🚨 Bedingte Warn-Karten',           col: 1, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'hero',             label: 'Raum-Banner (Hero & Kamera)',       col: 1, show: true, scope: 'all',  cfgTab: 'raeume' },
-    { id: 'presence',         label: '👥 Familien-Präsenz',               col: 1, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'quick_routines',   label: '⚡ Szenen & Routinen',               col: 1, show: true, scope: 'home', cfgTab: 'allgemein' },
-    { id: 'devices',          label: 'Geräteübersicht',                   col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'extra_tabs',       label: 'Zusätzliche Geräte-Reiter',         col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'appliances',       label: '🧺 Haushaltsgeräte-Monitor',        col: 1, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'covers',           label: 'Rolläden-Steuerung',                col: 1, show: true, scope: 'home', cfgTab: 'geraete' },
-    { id: 'calendar',         label: 'Familienkalender',                  col: 1, show: true, scope: 'home', cfgTab: 'energie' },
-    { id: 'status',           label: 'Sicherheits-Status & Türschloss',   col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'climate',          label: 'Raumklima & Wetter-Kachel',         col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'rain_timeline',    label: '🌧️ Regenradar (60-Minuten-Vorschau)', col: 2, show: true, scope: 'all',  cfgTab: 'allgemein' },
-    { id: 'ventilation',      label: '🌬️ Smarte Lüftungsempfehlung',     col: 2, show: true, scope: 'all',  cfgTab: 'klima' },
-    { id: 'favorites',        label: 'Schnellauswahl / Favoriten',        col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'energy_prices',    label: '💶 Dynamische Strompreise',         col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'metrics',          label: 'Metriken (Energie / Wasser)',       col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'battery_forecast', label: '⚡ Speicher-Restlaufzeit & Prognose', col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'wallbox',          label: '🚗 Wallbox & E-Auto',               col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
-    { id: 'security',         label: 'Sicherheit (Schlösser/Fenster)',    col: 2, show: true, scope: 'all',  cfgTab: 'kameras' },
-    { id: 'lights',           label: 'Lichter-Gruppen',                   col: 2, show: true, scope: 'all',  cfgTab: 'geraete' },
-    { id: 'system_health',    label: '🖥️ System-Health (Server/Docker)',  col: 2, show: false, scope: 'all', cfgTab: 'geraete' },
-    { id: 'trash',            label: 'Abfallkalender',                    col: 2, show: true, scope: 'home', cfgTab: 'energie' }
+    { id: 'alerts',           label: '🚨 Bedingte Warn-Karten',           col: 1, show: true,  scope: 'all',  cfgTab: 'kameras' },
+    { id: 'hero',             label: '🖼️ Raum-Banner (Hero & Kamera)',    col: 1, show: true,  scope: 'all',  cfgTab: 'raeume' },
+    { id: 'presence',         label: '👥 Familien-Präsenz',               col: 1, show: true,  scope: 'all',  cfgTab: 'allgemein' },
+    { id: 'quick_routines',   label: '⚡ Szenen & Routinen',               col: 1, show: true,  scope: 'home', cfgTab: 'allgemein' },
+    { id: 'devices',          label: '🔌 Geräteübersicht',                col: 1, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'extra_tabs',       label: '📑 Zusätzliche Geräte-Reiter',      col: 1, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'appliances',       label: '🧺 Haushaltsgeräte-Monitor',        col: 1, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'covers',           label: '🪟 Rolläden-Steuerung',             col: 1, show: true,  scope: 'home', cfgTab: 'geraete' },
+    { id: 'calendar',         label: '📅 Familienkalender',               col: 1, show: true,  scope: 'home', cfgTab: 'kalender' },
+    { id: 'status',           label: '🛡️ Sicherheits-Status & Türschloss', col: 2, show: true,  scope: 'all',  cfgTab: 'kameras' },
+    { id: 'climate',          label: '🌡️ Raumklima & Wetter-Kachel',      col: 2, show: true,  scope: 'all',  cfgTab: 'klima' },
+    { id: 'rain_timeline',    label: '🌧️ Regenradar (60-Minuten-Vorschau)', col: 2, show: true, scope: 'all',  cfgTab: 'klima' },
+    { id: 'ventilation',      label: '🌬️ Smarte Lüftungsempfehlung',     col: 2, show: true,  scope: 'all',  cfgTab: 'klima' },
+    { id: 'favorites',        label: '⭐ Schnellauswahl / Favoriten',     col: 2, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'energy_prices',    label: '💶 Dynamische Strompreise',         col: 2, show: false, scope: 'all',  cfgTab: 'energie' },
+    { id: 'metrics',          label: '⚡ Metriken (Energie / Wasser)',    col: 2, show: true,  scope: 'all',  cfgTab: 'energie' },
+    { id: 'power_flow',       label: '🔄 Power Flow (Energiefluss)',      col: 2, show: false, scope: 'home', cfgTab: 'energie' },
+    { id: 'battery_forecast', label: '🔋 Speicher-Restlaufzeit & Prognose', col: 2, show: true, scope: 'all',  cfgTab: 'energie' },
+    { id: 'wallbox',          label: '🚗 Wallbox & E-Auto',               col: 2, show: false, scope: 'all',  cfgTab: 'energie' },
+    { id: 'security',         label: '🔒 Sicherheit (Schlösser/Fenster)', col: 2, show: true,  scope: 'all',  cfgTab: 'kameras' },
+    { id: 'lights',           label: '💡 Lichter-Gruppen',                col: 2, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'system_health',    label: '🖥️ System-Health (Server/Docker)',  col: 2, show: false, scope: 'all',  cfgTab: 'geraete' },
+    { id: 'trash',            label: '🗑️ Abfallkalender',                 col: 2, show: true,  scope: 'home', cfgTab: 'kalender' }
   ];
+}
+
+function isCardInRoomScope(item, roomObj, isHome) {
+  if (!item) return false;
+  const sc = item.scope || 'all';
+  if (sc === 'all') return true;
+  if (sc === 'home') return !!isHome;
+  if (sc === 'none') return false;
+  const rName = (roomObj && roomObj.name) || '';
+  if (sc.startsWith('room:')) {
+    return rName === sc.slice(5);
+  }
+  if (sc === 'custom' && Array.isArray(item.scopeRooms)) {
+    return item.scopeRooms.includes(rName);
+  }
+  return true;
+}
+
+const MODULE_SHOW_PROP_MAP = {
+  presence: ['presence', 'show'],
+  ventilation: ['ventilation', 'show'],
+  battery_forecast: ['batteryForecast', 'show'],
+  energy_prices: ['energyPrices', 'show'],
+  wallbox: ['wallbox', 'show'],
+  appliances: ['appliances', 'show'],
+  system_health: ['systemHealth', 'show'],
+  rain_timeline: ['weather', 'showRainTimeline']
+};
+
+function syncLayoutAndModuleShow(cfg, preferModuleFlag = false) {
+  if (!cfg || !Array.isArray(cfg.dashboardLayout)) return;
+  Object.entries(MODULE_SHOW_PROP_MAP).forEach(([cardId, [modKey, propKey]]) => {
+    const dlItem = cfg.dashboardLayout.find(x => x && x.id === cardId);
+    const modObj = cfg[modKey];
+    if (!dlItem || !modObj || typeof modObj !== 'object') return;
+    if (preferModuleFlag) {
+      if (modObj[propKey] === false) dlItem.show = false;
+      else if (modObj[propKey] === true && dlItem.show === undefined) dlItem.show = true;
+      modObj[propKey] = dlItem.show !== false;
+    } else {
+      modObj[propKey] = dlItem.show !== false;
+    }
+  });
 }
 
 /* ---------- Fenster- & Tür-Offen-Timer & Auskühlungsschutz ---------- */
@@ -695,6 +739,9 @@ function ensureConfigDefaults(cfg) {
     });
   });
 
+  syncLayoutAndModuleShow(cfg, !cfg._v32Synced);
+  cfg._v32Synced = true;
+
   return cfg;
 }
 
@@ -814,15 +861,121 @@ function handlePinKey(k) {
   }
 }
 
-/* ---------- Konfiguration laden / speichern ---------- */
-async function loadConfigFromServer() {
-  const h = getHass();
+/* ---------- Lokales Endgeräte-Profil (Tablet / Büro / PC) ---------- */
+const DEVICE_PROFILE_KEY = 'smarthome_hub_device_profile';
+
+function getDeviceProfile() {
+  try {
+    const raw = localStorage.getItem(DEVICE_PROFILE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      deviceName: parsed.deviceName || '',
+      startView: parsed.startView || '',
+      startRoom: parsed.startRoom || '',
+      returnToStartMins: parsed.returnToStartMins != null ? Number(parsed.returnToStartMins) : 0,
+      kioskOverride: parsed.kioskOverride || 'global',
+      screensaverOverride: parsed.screensaverOverride || 'global'
+    };
+  } catch (e) {
+    return { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global' };
+  }
+}
+
+function saveDeviceProfile(prof) {
+  const clean = Object.assign(getDeviceProfile(), prof || {});
+  try {
+    localStorage.setItem(DEVICE_PROFILE_KEY, JSON.stringify(clean));
+  } catch (e) {}
+  applyKioskMode(getEffectiveKioskMode());
+  return clean;
+}
+
+function getEffectiveKioskMode() {
+  const prof = getDeviceProfile();
+  if (prof.kioskOverride === 'on') return true;
+  if (prof.kioskOverride === 'off') return false;
+  return !!(CONFIG && CONFIG.kioskMode);
+}
+
+function getEffectiveScreensaverShow() {
+  const prof = getDeviceProfile();
+  if (prof.screensaverOverride === 'on') return true;
+  if (prof.screensaverOverride === 'off') return false;
+  return !!(CONFIG && CONFIG.screensaver && CONFIG.screensaver.show !== false);
+}
+
+function applyDeviceStartView(isIdleReturn = false) {
+  if (typeof ui === 'undefined' || !CONFIG) return false;
+  const prof = getDeviceProfile();
+  let changed = false;
+  if (prof.startView) {
+    // Prüfen, ob eine konfigurierte customPage noch existiert
+    if (prof.startView.startsWith('page:')) {
+      const pid = prof.startView.slice(5);
+      const exists = (CONFIG.customPages || []).some(p => p && p.id === pid);
+      if (exists && ui.view !== prof.startView) {
+        ui.view = prof.startView;
+        localStorage.setItem('hub_view', ui.view);
+        changed = true;
+      }
+    } else if (ui.view !== prof.startView) {
+      ui.view = prof.startView;
+      localStorage.setItem('hub_view', ui.view);
+      changed = true;
+    }
+  }
+  if ((!prof.startView || prof.startView === 'dashboard') && prof.startRoom) {
+    const rIdx = (CONFIG.rooms || []).findIndex(r => r && r.name && r.name.toLowerCase() === prof.startRoom.toLowerCase());
+    if (rIdx >= 0 && ui.room !== rIdx) {
+      ui.room = rIdx;
+      changed = true;
+    }
+  }
+  if (changed && isIdleReturn && typeof tick === 'function') {
+    tick(true);
+  }
+  return changed;
+}
+
+/* ---------- Konfiguration laden / speichern & Multi-Device Live-Sync ---------- */
+let _lastOwnSaveTs = 0;
+let _lastKnownUpdatedAt = 0;
+let _lastKnownAssetHash = '';
+let _subscribedConnection = null;
+let _initialDeviceProfileApplied = false;
+
+function _configDigest(cfg) {
+  if (!cfg || typeof cfg !== 'object') return '';
+  const copy = Object.assign({}, cfg);
+  delete copy._updatedAt;
+  return JSON.stringify(copy);
+}
+
+async function loadConfigFromServer(isRemoteUpdate = false) {
+  let h = getHass();
+  // Falls das Panel im HA-Iframe lädt, aber ha.hass beim Start auf einem Tablet noch 100-500ms braucht:
+  if (!h && window.parent && window.parent !== window && !isRemoteUpdate) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise(r => setTimeout(r, 150));
+      h = getHass();
+      if (h && typeof h.callWS === 'function') break;
+    }
+  }
   DEMO = !h;
   if (h && typeof h.callWS === 'function') {
     try {
       const res = await h.callWS({ type: 'smarthome_hub/get_config' });
+      if (res && res.asset_hash) {
+        if (_lastKnownAssetHash && _lastKnownAssetHash !== res.asset_hash) {
+          forceReloadApp(true);
+          return;
+        }
+        _lastKnownAssetHash = res.asset_hash;
+      }
       if (res && res.config && Object.keys(res.config).length > 0) {
+        _lastKnownUpdatedAt = res.config._updatedAt || _lastKnownUpdatedAt || Date.now();
         CONFIG = ensureConfigDefaults(Object.assign(JSON.parse(JSON.stringify(EMPTY_CONFIG)), res.config));
+        localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       } else {
         const local = localStorage.getItem('smarthome_hub_backup_cfg');
         if (local) CONFIG = ensureConfigDefaults(Object.assign(JSON.parse(JSON.stringify(EMPTY_CONFIG)), JSON.parse(local)));
@@ -832,27 +985,50 @@ async function loadConfigFromServer() {
       if (local) CONFIG = ensureConfigDefaults(Object.assign(JSON.parse(JSON.stringify(EMPTY_CONFIG)), JSON.parse(local)));
     }
     populateEntityDatalist();
+    ensureHassLiveSync();
   }
   ensureConfigDefaults(CONFIG);
   applyTheme();
-  applyKioskMode(!!CONFIG.kioskMode);
+  applyKioskMode(getEffectiveKioskMode());
+  if (!_initialDeviceProfileApplied && !isRemoteUpdate) {
+    _initialDeviceProfileApplied = true;
+    applyDeviceStartView(false);
+  }
   syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
   if (typeof probeGo2rtc === 'function') probeGo2rtc(true);
+  if (isRemoteUpdate) {
+    if (typeof rebuildEntitiesList === 'function') rebuildEntitiesList();
+    if (typeof refreshSeries === 'function') refreshSeries();
+    if (typeof refreshWeatherForecast === 'function') refreshWeatherForecast(true);
+    if (typeof refreshHomeCalendars === 'function') refreshHomeCalendars(true);
+    if (typeof tick === 'function') tick(true);
+    toast('🔄 Dashboard-Konfiguration live synchronisiert');
+  }
 }
 
 async function saveConfigToServer(newCfg) {
+  syncLayoutAndModuleShow(newCfg, false);
   CONFIG = ensureConfigDefaults(newCfg);
+  _lastOwnSaveTs = Date.now();
+  CONFIG._updatedAt = _lastOwnSaveTs;
+  _lastKnownUpdatedAt = _lastOwnSaveTs;
   localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
   applyTheme();
-  applyKioskMode(!!CONFIG.kioskMode);
+  applyKioskMode(getEffectiveKioskMode());
   syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
   if (typeof probeGo2rtc === 'function') probeGo2rtc(true);
   const h = getHass();
   if (h && typeof h.callWS === 'function') {
+    DEMO = false;
+    ensureHassLiveSync();
     try {
-      await h.callWS({ type: 'smarthome_hub/save_config', config: CONFIG });
+      const res = await h.callWS({ type: 'smarthome_hub/save_config', config: CONFIG });
+      if (res && res.updated_at) {
+        _lastKnownUpdatedAt = res.updated_at;
+        CONFIG._updatedAt = res.updated_at;
+      }
       syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
-      toast('Konfiguration in Home Assistant gespeichert');
+      toast('Konfiguration gespeichert & an alle Geräte übertragen');
     } catch (e) {
       toast('Lokal gespeichert (Backend-Verbindung prüfen)');
     }
@@ -864,6 +1040,76 @@ async function saveConfigToServer(newCfg) {
   refreshWeatherForecast(true);
   refreshHomeCalendars(true);
   tick(true);
+}
+
+function ensureHassLiveSync() {
+  const h = getHass();
+  if (!h) return;
+  if (DEMO) {
+    DEMO = false;
+    loadConfigFromServer(true);
+    return;
+  }
+  const conn = h.connection;
+  if (conn && typeof conn.subscribeEvents === 'function' && _subscribedConnection !== conn) {
+    _subscribedConnection = conn;
+    conn.subscribeEvents(ev => {
+      const remoteTs = ev && ev.data && ev.data.updated_at;
+      if (Date.now() - _lastOwnSaveTs < 2500) return;
+      if (remoteTs && remoteTs === _lastKnownUpdatedAt) return;
+      const cfgModal = document.getElementById('cfgmodal');
+      if (cfgModal && cfgModal.classList.contains('show')) {
+        toast('ℹ️ Konfiguration wurde auf einem anderen Gerät geändert');
+        return;
+      }
+      loadConfigFromServer(true);
+    }, 'smarthome_hub_config_updated').catch(() => {
+      _subscribedConnection = null;
+    });
+  }
+}
+
+async function checkRemoteConfigUpdate() {
+  const h = getHass();
+  if (!h || typeof h.callWS !== 'function') return;
+  if (DEMO) {
+    DEMO = false;
+    await loadConfigFromServer(true);
+    return;
+  }
+  ensureHassLiveSync();
+  const cfgModal = document.getElementById('cfgmodal');
+  if (cfgModal && cfgModal.classList.contains('show')) return;
+  if (typeof ui !== 'undefined' && ui.editMode) return;
+  if (Date.now() - _lastOwnSaveTs < 3000) return;
+  try {
+    const res = await h.callWS({ type: 'smarthome_hub/get_config' });
+    if (res && res.asset_hash && _lastKnownAssetHash && res.asset_hash !== _lastKnownAssetHash) {
+      forceReloadApp(true);
+      return;
+    }
+    if (res && res.asset_hash) _lastKnownAssetHash = res.asset_hash;
+    if (res && res.config && Object.keys(res.config).length > 0) {
+      const remoteTs = res.config._updatedAt || 0;
+      const changedByTs = remoteTs && remoteTs !== _lastKnownUpdatedAt;
+      const changedByDigest = !remoteTs && _configDigest(res.config) !== _configDigest(CONFIG);
+      if (changedByTs || changedByDigest) {
+        _lastKnownUpdatedAt = remoteTs || Date.now();
+        await loadConfigFromServer(true);
+      }
+    }
+  } catch (e) {}
+}
+
+function forceReloadApp(silent = false) {
+  if (!silent) toast('🔄 Lade Dashboard komplett neu…');
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('_cb', String(Date.now()));
+    window.location.replace(url.toString());
+  } catch (e) {
+    window.location.reload();
+  }
 }
 
 function populateEntityDatalist() {

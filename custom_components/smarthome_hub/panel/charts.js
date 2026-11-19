@@ -572,7 +572,9 @@ async function refreshSeries() {
 }
 
 async function refreshCustomPageSeries(redraw = true) {
-  const statWidgets = (CONFIG.customPages || []).flatMap(p => p.widgets || []).filter(w => w.type === 'stat_group');
+  const pageStatWidgets = (CONFIG.customPages || []).flatMap(p => p.widgets || []).filter(w => w && w.type === 'stat_group');
+  const dashStatWidgets = (CONFIG.dashboardLayout || []).filter(it => it && it.isCustomWidget && it.widget && it.widget.type === 'stat_group').map(it => it.widget);
+  const statWidgets = [...pageStatWidgets, ...dashStatWidgets];
   const statItems = statWidgets.flatMap(w => w.items || []);
   await Promise.all(statItems.map(async item => {
     if (!item.entity) return;
