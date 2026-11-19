@@ -44,13 +44,6 @@ function renderDashCardHtml(id, item = null) {
   if (item && item.isCustomWidget && item.widget) {
     return renderCustomWidget(item.widget, 'dash_' + item.id);
   }
-  const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home' }];
-  const r = rooms[ui.room] || rooms[0];
-  const isHome = ui.room === 0;
-  const rName = (!isHome && r && r.name) ? r.name : null;
-  const hasRoomCovers = rName && (CONFIG.covers || []).some(c => c.room && c.room.toLowerCase() === rName.toLowerCase());
-  const hasRoomFavs = rName && (CONFIG.favorites || []).some(f => f.room && f.room.toLowerCase() === rName.toLowerCase());
-
   switch (id) {
     case 'alerts': return conditionalAlertsCard();
     case 'presence': return presenceCard(true);
@@ -58,13 +51,13 @@ function renderDashCardHtml(id, item = null) {
     case 'devices': return devicesCard(null, 'Geräteübersicht', 'geraete');
     case 'extra_tabs': return extraDeviceTabsCards();
     case 'appliances': return appliancesCard(null, true);
-    case 'covers': return coversCard(hasRoomCovers ? rName : null);
+    case 'covers': return coversCard();
     case 'calendar': return homeCalendarCard();
     case 'status': return rightTopStatus();
     case 'climate': return climateCard();
     case 'rain_timeline': return rainTimelineCard(null, true);
     case 'ventilation': return ventilationCard(true);
-    case 'favorites': return favoritesCard(hasRoomFavs ? rName : null);
+    case 'favorites': return favoritesCard();
     case 'energy_prices': return energyPricesCard(null, true);
     case 'metrics': return (CONFIG.metrics || []).map(metricCard).join('');
     case 'power_flow': return renderCustomWidget({ type: 'power_flow', title: (item && item.title) || 'Power Flow', mode: (item && item.mode) || 'auto' }, 'dash_pf');
@@ -1140,6 +1133,85 @@ document.addEventListener('click', ev => {
     toast('Endgeräte-Profil auf globale Standardwerte zurückgesetzt');
     return;
   }
+  if (act === 'cfgItemLocToggle' || act === 'cfgItemLocOnly') {
+    if (!cfgDraft) return;
+    const kind = el.dataset.kind;
+    const idx = +el.dataset.i;
+    const loc = el.dataset.loc;
+    let targetItem = null;
+    let cardId = null;
+    let widgetType = null;
+    let widgetTitle = '';
+    if (kind === 'dev') {
+      targetItem = (cfgDraft.devices || [])[idx];
+      cardId = (targetItem && targetItem.tab && targetItem.tab !== 'geraete') ? 'extra_tabs' : 'devices';
+      widgetType = 'devices';
+      widgetTitle = 'Geräte';
+    } else if (kind === 'cov') {
+      targetItem = (cfgDraft.covers || [])[idx];
+      cardId = 'covers';
+      widgetType = 'covers';
+      widgetTitle = 'Rolläden';
+    } else if (kind === 'light') {
+      targetItem = (cfgDraft.lights || [])[idx];
+      cardId = 'lights';
+      widgetType = 'lights';
+      widgetTitle = 'Lichter';
+    } else if (kind === 'fav') {
+      targetItem = (cfgDraft.favorites || [])[idx];
+      cardId = 'favorites';
+      widgetType = 'favorites';
+      widgetTitle = 'Schnellauswahl';
+    } else if (kind === 'app') {
+      targetItem = (cfgDraft.appliances && cfgDraft.appliances.items || [])[idx];
+      cardId = 'appliances';
+      widgetType = 'appliances';
+      widgetTitle = 'Haushaltsgeräte';
+    }
+    if (!targetItem || !loc) return;
+
+    let arr = normalizeItemShowOn(targetItem, 'Home').filter(x => x !== 'none');
+    if (loc === 'all') {
+      arr = ['all'];
+    } else if (act === 'cfgItemLocOnly') {
+      arr = [loc];
+    } else {
+      arr = arr.filter(x => x !== 'all');
+      const existingIdx = arr.findIndex(x => String(x).toLowerCase() === String(loc).toLowerCase());
+      if (existingIdx >= 0) {
+        arr.splice(existingIdx, 1);
+      } else {
+        arr.push(loc);
+      }
+      if (!arr.length) arr = ['none'];
+    }
+    targetItem.showOn = arr;
+    targetItem.room = arr.includes('all') ? '' : (arr.find(x => !x.startsWith('page:') && x !== 'none') || '');
+
+    // Falls einem Raum-Tab außer Home zugewiesen: sicherstellen, dass die übergeordnete Kachel im Layout in Raum-Tabs erlaubt ist
+    if (cardId && !loc.startsWith('page:') && loc !== 'Home' && loc !== 'none') {
+      const dlItem = (cfgDraft.dashboardLayout || []).find(x => x && x.id === cardId);
+      if (dlItem && dlItem.scope === 'home') {
+        dlItem.scope = 'all';
+      }
+    }
+
+    // Falls einer eigenen Unterseite (page:...) zugewiesen: sicherstellen, dass das passende Widget auf dieser Unterseite liegt
+    if (widgetType && loc.startsWith('page:') && arr.some(x => x.toLowerCase() === loc.toLowerCase())) {
+      const pid = loc.slice(5);
+      const pg = (cfgDraft.customPages || []).find(p => p && p.id === pid);
+      if (pg) {
+        if (!Array.isArray(pg.widgets)) pg.widgets = [];
+        if (!pg.widgets.some(w => w && w.type === widgetType)) {
+          pg.widgets.push({ type: widgetType, title: widgetTitle, col: 'auto', show: true });
+          toast(`Kachel „${widgetTitle}“ automatisch auf Unterseite „${pg.label}“ aktiviert`);
+        }
+      }
+    }
+
+    renderCfgModal(true);
+    return;
+  }
   if (act === 'qeDashVis') {
     const item = CONFIG.dashboardLayout[+el.dataset.i];
     if (item) {
@@ -1540,12 +1612,12 @@ document.addEventListener('click', ev => {
   /* Geräte & Rolläden + Sortierung */
   if (act === 'cfgAddLight') {
     if (!Array.isArray(cfgDraft.lights)) cfgDraft.lights = [];
-    cfgDraft.lights.push({ name: 'Neue Gruppe', entities: [], mainSync: true });
+    cfgDraft.lights.push({ name: 'Neue Gruppe', entities: [], mainSync: true, showOn: ['Home'] });
     renderCfgModal(true); return;
   }
   if (act === 'cfgDelLight') { cfgDraft.lights.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveLight') { moveItem(cfgDraft.lights, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
-  if (act === 'cfgAddDev') { cfgDraft.devices.push({ name: 'Neues Element', room: 'Home', entity: '', tab: el.dataset.tab || 'geraete' }); renderCfgModal(true); return; }
+  if (act === 'cfgAddDev') { cfgDraft.devices.push({ name: 'Neues Element', room: 'Home', showOn: ['Home'], entity: '', tab: el.dataset.tab || 'geraete' }); renderCfgModal(true); return; }
   if (act === 'cfgDelDev') { cfgDraft.devices.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveDevInTab') {
     const tabId = el.dataset.tab || 'geraete';
@@ -1561,14 +1633,14 @@ document.addEventListener('click', ev => {
     }
     return;
   }
-  if (act === 'cfgAddCov') { cfgDraft.covers.push({ name: 'Rolladen', entity: '' }); renderCfgModal(true); return; }
+  if (act === 'cfgAddCov') { cfgDraft.covers.push({ name: 'Rolladen', entity: '', showOn: ['Home'] }); renderCfgModal(true); return; }
   if (act === 'cfgDelCov') { cfgDraft.covers.splice(+el.dataset.i, 1); renderCfgModal(true); return; }
   if (act === 'cfgMoveCov') { moveItem(cfgDraft.covers, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); return; }
 
   /* Favoriten / Schnellauswahl */
   if (act === 'cfgAddFav') {
     if (!Array.isArray(cfgDraft.favorites)) cfgDraft.favorites = [];
-    cfgDraft.favorites.push({ name: '', entity: '', icon: '' });
+    cfgDraft.favorites.push({ name: '', entity: '', icon: '', showOn: ['Home'] });
     renderCfgModal(true);
     return;
   }
@@ -1588,7 +1660,7 @@ document.addEventListener('click', ev => {
     if (!cfgDraft.appliances) cfgDraft.appliances = { show: true, items: [] };
     if (!Array.isArray(cfgDraft.appliances.items)) cfgDraft.appliances.items = [];
     cfgDraft.appliances.show = true;
-    cfgDraft.appliances.items.push({ name: 'Neues Gerät', icon: 'washing', stateEntity: '', progEntity: '', remainEntity: '', powerEntity: '' });
+    cfgDraft.appliances.items.push({ name: 'Neues Gerät', icon: 'washing', stateEntity: '', progEntity: '', remainEntity: '', powerEntity: '', showOn: ['Home'] });
     renderCfgModal(true);
     return;
   }
@@ -2050,7 +2122,8 @@ document.addEventListener('click', ev => {
     call('lock', 'lock', { entity_id: el.dataset.e });
   }
   else if (act === 'lgrpMain') {
-    const ents = getMainLightEntities();
+    const rawEnts = el.dataset.ents ? el.dataset.ents.split(',').filter(Boolean) : [];
+    const ents = rawEnts.length ? rawEnts : getMainLightEntities();
     if (ents.length) {
       const on = groupInfo({ entities: ents }).on;
       call('homeassistant', on ? 'turn_off' : 'turn_on', { entity_id: ents });

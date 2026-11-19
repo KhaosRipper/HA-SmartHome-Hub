@@ -226,16 +226,33 @@ function heroOverlayContent() {
     </div>`;
 }
 
+function getCurrentViewContext(explicitFilter = null, showAll = false) {
+  const rooms = (CONFIG && CONFIG.rooms && CONFIG.rooms.length) ? CONFIG.rooms : [{ name: 'Home' }];
+  const curRoom = rooms[ui.room] || rooms[0];
+  const isSubpage = typeof ui !== 'undefined' && ui.view && ui.view.startsWith('page:');
+  const pageId = isSubpage ? ui.view.slice(5) : null;
+  const pageObj = pageId ? (CONFIG.customPages || []).find(p => p && p.id === pageId) : null;
+  const cleanFilter = (explicitFilter && String(explicitFilter).trim()) ? String(explicitFilter).trim() : null;
+  const isAllFilter = cleanFilter && ['*', 'all', 'alle'].includes(cleanFilter.toLowerCase());
+  return {
+    roomName: curRoom ? curRoom.name : 'Home',
+    isHome: ui.room === 0 && !isSubpage,
+    pageId,
+    pageLabel: pageObj ? pageObj.label : null,
+    explicitFilter: isAllFilter ? null : cleanFilter,
+    showAll: !!(showAll || isAllFilter)
+  };
+}
+
 function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht', tabFilter = 'geraete') {
-  const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home' }];
-  const r = rooms[ui.room] || rooms[0];
-  const targetRoom = customFilterRoom !== null ? customFilterRoom : r.name;
+  const ctx = getCurrentViewContext(customFilterRoom, customFilterRoom === null && ui.showAll);
   const list = (CONFIG.devices || []).filter(d => {
     const dTab = d.tab || 'geraete';
     if (tabFilter && dTab !== tabFilter) return false;
-    return (customFilterRoom === '' || ui.showAll) ? true : d.room === targetRoom;
+    return isItemVisibleInContext(d, ctx);
   });
   if (tabFilter !== 'geraete' && !list.length) return '';
+  if (!list.length && !ui.editMode && ctx.pageId) return '';
   const infos = list.map(d => ({ d, i: devInfo(d) }));
   const active = infos.filter(x => x.i.on).length;
   const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -245,10 +262,11 @@ function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht',
     const canToggle = dom(d.entity) !== 'camera' && i.s && i.st !== 'unavailable';
     const domType = dom(d.entity);
     const hasRichDetail = ['light', 'media_player', 'climate', 'cover'].includes(domType);
+    const locLabel = typeof formatItemShowOnSummary === 'function' ? formatItemShowOnSummary(d) : (d.room || '');
     return `<div class="tr">
       <div class="dv dv-clickable" data-act="devDetail" data-e="${esc(d.entity)}" data-name="${esc(d.name)}" title="Antippen für Feinsteuerung & Details">
         <div class="dvi ${i.on ? 'on' : ''}">${ic(devIcon(d), 17)}</div>
-        <div style="min-width:0"><b>${esc(d.name)} ${hasRichDetail ? '<span class="dv-hint">⚙</span>' : ''}</b><small>${esc(d.room || '')}</small></div>
+        <div style="min-width:0"><b>${esc(d.name)} ${hasRichDetail ? '<span class="dv-hint">⚙</span>' : ''}</b><small>${esc(locLabel)}</small></div>
       </div>
       <div class="st ${i.cls}" data-act="devDetail" data-e="${esc(d.entity)}" data-name="${esc(d.name)}" style="cursor:pointer"><i></i>${esc(i.label)}</div>
       <div>${p == null ? '—' : fmt(p, 0) + ' W'}</div>
@@ -259,7 +277,7 @@ function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht',
   return `<section class="card"><div class="ch"><div><b>${esc(customTitle)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${active} aktiv</span></div>
     <div style="display:flex;gap:8px">${customFilterRoom === null && tabFilter === 'geraete' ? `<button class="iconbtn ${ui.showAll ? 'on' : ''}" data-act="all">${ic('filter', 14)}${ui.showAll ? 'Alle Räume' : 'Dieser Raum'}</button>` : ''}<span class="iconbtn">${today}</span></div></div>
     <div class="tr h"><div>Gerät</div><div>Status</div><div>Leistung</div><div>Laufzeit</div><div>Heute</div><div></div></div>
-    ${rows || '<div class="mut" style="padding:18px 6px">Keine Geräte für diesen Raum konfiguriert.</div>'}</section>`;
+    ${rows || '<div class="mut" style="padding:18px 6px">Keine Geräte für diese Seite / diesen Raum zugeordnet.</div>'}</section>`;
 }
 
 function extraDeviceTabsCards() {
@@ -268,13 +286,11 @@ function extraDeviceTabsCards() {
 }
 
 function coversCard(filterRoom = null, customTitle = null) {
-  let list = CONFIG.covers || [];
-  if (filterRoom) {
-    list = list.filter(c => !c.room || c.room.toLowerCase() === String(filterRoom).toLowerCase());
-  }
+  const ctx = getCurrentViewContext(filterRoom, false);
+  const list = (CONFIG.covers || []).filter(c => isItemVisibleInContext(c, ctx));
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Rolläden')}</b></div><div class="page-note">Keine Rolläden für diese Ansicht konfiguriert.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Rolläden')}</b></div><div class="page-note">Keine Rolläden für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
       : '';
   }
   const openCount = list.filter(c => devInfo(c).on).length;
@@ -282,7 +298,7 @@ function coversCard(filterRoom = null, customTitle = null) {
     const i = devInfo(c);
     const pos = i.s && i.s.attributes && i.s.attributes.current_position != null ? i.s.attributes.current_position : null;
     const barWidth = pos != null ? pos : (i.on ? 100 : 0);
-    const subTxt = (pos != null ? `${pos} %` : i.label) + (c.room ? ` · ${c.room}` : '');
+    const subTxt = pos != null ? `${pos} %` : i.label;
     return `<div class="cover-row">
       <div class="dv"><div class="dvi ${i.on ? 'open' : ''}">${ic('blinds', 17)}</div><div style="min-width:0"><b>${esc(c.name)}</b><small>${esc(subTxt)}</small></div></div>
       <div class="st ${i.cls}"><i></i>${esc(i.label)}</div>
@@ -594,13 +610,11 @@ function metricCard(m) {
 }
 
 function favoritesCard(filterRoom = null, customTitle = null) {
-  let list = (CONFIG.favorites || []).filter(f => f.show !== false);
-  if (filterRoom) {
-    list = list.filter(f => !f.room || f.room.toLowerCase() === String(filterRoom).toLowerCase());
-  }
+  const ctx = getCurrentViewContext(filterRoom, false);
+  const list = (CONFIG.favorites || []).filter(f => f.show !== false && isItemVisibleInContext(f, ctx));
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Schnellauswahl / Favoriten')}</b></div><div class="page-note">Noch keine Favoriten hinzugefügt. Öffne den Konfigurator (⚙️) → Geräte → Favoriten.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Schnellauswahl / Favoriten')}</b></div><div class="page-note">Keine Favoriten für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
       : '';
   }
   const tiles = list.map((f, i) => {
@@ -1108,17 +1122,17 @@ function getMainLightEntities() {
 
 function lightsCard(filterGroup = null, customTitle = null) {
   const allGs = CONFIG.lights || [];
+  const ctx = getCurrentViewContext(filterGroup, false);
   const indexed = allGs.map((g, idx) => ({ g, idx })).filter(({ g }) => {
-    if (!filterGroup) return true;
-    const q = String(filterGroup).toLowerCase();
-    return (g.name && g.name.toLowerCase() === q) || (g.room && g.room.toLowerCase() === q);
+    if (filterGroup && g.name && g.name.toLowerCase() === String(filterGroup).toLowerCase()) return true;
+    return isItemVisibleInContext(g, ctx);
   });
   if (!indexed.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b></div><div class="page-note">Keine Licht-Gruppen für diese Ansicht gefunden.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b></div><div class="page-note">Keine Licht-Gruppen für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
       : '';
   }
-  const mainEnts = filterGroup
+  const mainEnts = (!ctx.isHome || filterGroup)
     ? [...new Set(indexed.flatMap(({ g }) => getGroupToggleEntities(g)))]
     : getMainLightEntities();
   const main = groupInfo({ entities: mainEnts });
@@ -1133,7 +1147,7 @@ function lightsCard(filterGroup = null, customTitle = null) {
       <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${idx}" title="Details, Helligkeit & Ausnahmen">⋯</button>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" data-ents="${esc(mainEnts.join(','))}" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function getCoreNav() {
@@ -1732,15 +1746,17 @@ function wallboxCard(customTitle, forceShow = false) {
 }
 
 /* ---------- HAUSHALTSGERÄTE-MONITOR ---------- */
-function appliancesCard(customTitle, forceShow = false) {
+function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
   const cfg = CONFIG.appliances || {};
-  if ((!forceShow && customTitle == null && cfg.show === false) || !(cfg.items && cfg.items.length)) {
-    return (ui.editMode || forceShow) && !(cfg.items && cfg.items.length)
-      ? `<section class="card"><div class="ch"><b>🧺 ${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b></div><div class="page-note">Keine Haushaltsgeräte hinterlegt. Konfigurator → Geräte → Haushaltsgeräte.</div></section>`
+  const ctx = getCurrentViewContext(filterRoom, false);
+  const visibleItems = (cfg.items || []).filter(a => isItemVisibleInContext(a, ctx));
+  if ((!forceShow && customTitle == null && cfg.show === false) || !visibleItems.length) {
+    return (ui.editMode || forceShow) && !visibleItems.length
+      ? `<section class="card"><div class="ch"><b>🧺 ${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b></div><div class="page-note">Keine Haushaltsgeräte für diese Seite zugeordnet.</div></section>`
       : '';
   }
   
-  const rows = cfg.items.map(a => {
+  const rows = visibleItems.map(a => {
     const sState = S(a.stateEntity);
     const sProg = S(a.progEntity);
     const sRem = S(a.remainEntity);

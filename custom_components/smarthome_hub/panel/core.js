@@ -207,6 +207,62 @@ function isCardInRoomScope(item, roomObj, isHome) {
   return true;
 }
 
+function normalizeItemShowOn(item, defaultLoc = 'Home') {
+  if (!item || typeof item !== 'object') return [defaultLoc];
+  if (Array.isArray(item.showOn) && item.showOn.length) {
+    return item.showOn.filter(Boolean);
+  }
+  if (item.room && String(item.room).trim()) {
+    return [String(item.room).trim()];
+  }
+  return [defaultLoc];
+}
+
+function isItemVisibleInContext(item, ctx = {}) {
+  if (!item) return false;
+  if (ctx.showAll) return true;
+  const locs = normalizeItemShowOn(item, ctx.defaultLoc || 'Home');
+  const lowerLocs = locs.map(l => String(l).toLowerCase());
+  if (lowerLocs.includes('all')) return true;
+
+  if (ctx.explicitFilter && String(ctx.explicitFilter).trim()) {
+    const f = String(ctx.explicitFilter).trim().toLowerCase();
+    if (lowerLocs.includes(f) || lowerLocs.includes('room:' + f) || lowerLocs.includes('page:' + f)) {
+      return true;
+    }
+    return false;
+  }
+
+  if (ctx.pageId) {
+    const pid = String(ctx.pageId).toLowerCase();
+    if (lowerLocs.includes('page:' + pid) || lowerLocs.includes(pid)) return true;
+    if (ctx.pageLabel) {
+      const pl = String(ctx.pageLabel).toLowerCase();
+      if (lowerLocs.includes(pl) || lowerLocs.includes('room:' + pl)) return true;
+    }
+    return false;
+  }
+
+  const rName = String(ctx.roomName || 'Home').toLowerCase();
+  if (lowerLocs.includes(rName) || lowerLocs.includes('room:' + rName)) return true;
+  return false;
+}
+
+function formatItemShowOnSummary(item, cfg = CONFIG) {
+  const locs = normalizeItemShowOn(item, 'Home');
+  if (locs.includes('all')) return 'Überall';
+  const pages = (cfg && cfg.customPages) || [];
+  return locs.map(l => {
+    if (l.startsWith('page:')) {
+      const pid = l.slice(5);
+      const pg = pages.find(p => p && p.id === pid);
+      return pg ? `📄 ${pg.label}` : l;
+    }
+    if (l.startsWith('room:')) return l.slice(5);
+    return l;
+  }).join(', ');
+}
+
 const MODULE_SHOW_PROP_MAP = {
   presence: ['presence', 'show'],
   ventilation: ['ventilation', 'show'],
@@ -679,9 +735,37 @@ function ensureConfigDefaults(cfg) {
     if (!Array.isArray(g.entities)) g.entities = [];
     if (!Array.isArray(g.excludeGroup)) g.excludeGroup = [];
     if (!Array.isArray(g.excludeMain)) g.excludeMain = [];
+    if (!Array.isArray(g.showOn) || !g.showOn.length) {
+      if (g.room && String(g.room).trim()) {
+        g.showOn = [String(g.room).trim()];
+      } else {
+        const gLow = String(g.name || '').toLowerCase();
+        const matchedRoom = (cfg.rooms || []).find((rm, idx) => idx > 0 && rm && rm.name && (
+          rm.name.toLowerCase() === gLow ||
+          rm.name.toLowerCase().includes(gLow) ||
+          (gLow === 'living' && rm.name.toLowerCase().includes('wohn'))
+        ));
+        g.showOn = matchedRoom ? ['Home', matchedRoom.name] : ['Home'];
+      }
+    }
   });
   if (!Array.isArray(cfg.covers)) cfg.covers = [];
+  cfg.covers.forEach(c => {
+    c.showOn = normalizeItemShowOn(c, 'Home');
+    c.room = c.showOn.includes('all') ? '' : (c.showOn.find(x => !x.startsWith('page:')) || '');
+  });
   if (!Array.isArray(cfg.devices)) cfg.devices = [];
+  cfg.devices.forEach(d => {
+    d.showOn = normalizeItemShowOn(d, 'Home');
+    d.room = d.showOn.includes('all') ? 'Alle' : (d.showOn.find(x => !x.startsWith('page:')) || d.room || 'Home');
+  });
+  cfg.favorites.forEach(f => {
+    f.showOn = normalizeItemShowOn(f, 'Home');
+    f.room = f.showOn.includes('all') ? '' : (f.showOn.find(x => !x.startsWith('page:')) || '');
+  });
+  cfg.appliances.items.forEach(a => {
+    a.showOn = normalizeItemShowOn(a, 'Home');
+  });
   if (!Array.isArray(cfg.webrtcCameras)) cfg.webrtcCameras = [];
   if (!Array.isArray(cfg.climateRooms)) cfg.climateRooms = [];
   if (!Array.isArray(cfg.powerFlow)) cfg.powerFlow = [];

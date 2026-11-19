@@ -266,6 +266,41 @@ function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
   </div>`;
 }
 
+function itemShowOnPickerHtml(item, kind, idx) {
+  if (!cfgDraft || !item) return '';
+  const showOn = normalizeItemShowOn(item, 'Home');
+  const isAll = showOn.includes('all');
+  const isNone = showOn.includes('none');
+  const rooms = (cfgDraft.rooms && cfgDraft.rooms.length) ? cfgDraft.rooms : [{ name: 'Home' }];
+  const pages = Array.isArray(cfgDraft.customPages) ? cfgDraft.customPages : [];
+
+  const roomPills = rooms.map((rm, rIdx) => {
+    const rName = (rm && rm.name) ? rm.name : `Raum ${rIdx + 1}`;
+    const on = !isAll && !isNone && showOn.some(x => String(x).toLowerCase() === rName.toLowerCase());
+    const icon = rIdx === 0 || rName.toLowerCase() === 'home' ? '🏠' : '🚪';
+    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(rName)}" style="font-size:11px;padding:3px 9px" title="Klick: Auf Raum-Tab „${esc(rName)}“ ${on ? 'ausblenden' : 'anzeigen'}">${on ? '✓ ' : ''}${icon} ${esc(rName)}</button>`;
+  }).join('');
+
+  const pagePills = pages.map(pg => {
+    if (!pg || !pg.id) return '';
+    const locKey = `page:${pg.id}`;
+    const on = !isAll && !isNone && showOn.some(x => String(x).toLowerCase() === locKey.toLowerCase());
+    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(locKey)}" style="font-size:11px;padding:3px 9px" title="Klick: Auf Unterseite „${esc(pg.label || pg.title || pg.id)}“ ${on ? 'ausblenden' : 'anzeigen'}">${on ? '✓ ' : ''}📄 ${esc(pg.label || pg.title || pg.id)}</button>`;
+  }).join('');
+
+  const summary = formatItemShowOnSummary(item, cfgDraft);
+
+  return `<div style="width:100%;margin-top:6px;padding:7px 10px;border-radius:8px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:var(--acc2);margin-right:2px">📍 Sichtbar auf:</span>
+      <button type="button" class="chip ${isAll ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="all" style="font-size:11px;padding:3px 9px" title="Auf allen Seiten &amp; Räumen anzeigen">${isAll ? '✓ ' : ''}🌐 Überall</button>
+      ${roomPills}
+      ${pagePills}
+    </div>
+    <span class="mut sm" style="font-size:10.5px;white-space:nowrap">Aktuell: <b style="color:var(--txt)">${esc(summary)}</b></span>
+  </div>`;
+}
+
 /* ---------- Visueller Multi-Entitäts Chip-Picker (ohne Komma-Listen!) ---------- */
 function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = 'Entität suchen & auswählen…') {
   const arr = Array.isArray(list) ? list : [];
@@ -866,15 +901,17 @@ function renderCfgModal(preserveScroll = true) {
   </div>`;
 
   if (cfgDevSubTab === 'favorites') {
-    const favRows = (cfgDraft.favorites || []).map((f, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-      <label><input type="checkbox" data-fav-i="${i}" data-fav-k="show" ${f.show !== false ? 'checked' : ''}> Sichtbar</label>
-      ${fld('Name / Bezeichnung', `data-fav-i="${i}" data-fav-k="name" value="${esc(f.name || '')}"`)}
-      ${fld('Entität (Licht, Schalter, Rollo, Szene, Skript)', `list="ha-entities-list" data-fav-i="${i}" data-fav-k="entity" value="${esc(f.entity || '')}"`)}
-      ${fld('Optional: Raum (leer = überall)', `list="cfg-room-names" data-fav-i="${i}" data-fav-k="room" value="${esc(f.room || '')}"`)}
-      ${sel('Icon', `<option value="">Automatisch nach Typ</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${f.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-fav-i="${i}" data-fav-k="icon"`)}
-      <div class="order-btns"><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="1" ${i === (cfgDraft.favorites || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelFav" data-i="${i}">✕</button></div>
+    const favRows = (cfgDraft.favorites || []).map((f, i) => `<div style="background:rgba(255,255,255,.02);padding:10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,255,255,.05)">
+      <div class="cfg-row">
+        <label><input type="checkbox" data-fav-i="${i}" data-fav-k="show" ${f.show !== false ? 'checked' : ''}> Sichtbar</label>
+        ${fld('Name / Bezeichnung', `data-fav-i="${i}" data-fav-k="name" value="${esc(f.name || '')}"`)}
+        ${fld('Entität (Licht, Schalter, Rollo, Szene, Skript)', `list="ha-entities-list" data-fav-i="${i}" data-fav-k="entity" value="${esc(f.entity || '')}"`)}
+        ${sel('Icon', `<option value="">Automatisch nach Typ</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${f.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-fav-i="${i}" data-fav-k="icon"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveFav" data-i="${i}" data-dir="1" ${i === (cfgDraft.favorites || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelFav" data-i="${i}">✕</button></div>
+      </div>
+      ${itemShowOnPickerHtml(f, 'fav', i)}
     </div>`).join('');
-    tGeraete += box('⭐ Schnellauswahl / Favoriten', 'Wähle deine meistgenutzten Rolläden, Lichter, Schalter, Szenen oder Skripte aus (1-Klick schalten & Rollo auf/ab).', `
+    tGeraete += box('⭐ Schnellauswahl / Favoriten', 'Wähle deine meistgenutzten Rolläden, Lichter, Schalter, Szenen oder Skripte aus und bestimme per Klick, auf welchen Seiten sie erscheinen.', `
       ${placementBarHtml('favorites', 'favorites', 'Schnellauswahl')}
       ${favRows || '<div class="mut sm" style="margin-bottom:8px">Noch keine Favoriten hinzugefügt. Klicke unten auf „+ Favorit hinzufügen“.</div>'}
       <button class="iconbtn" data-act="cfgAddFav" style="margin-top:6px">+ Favorit hinzufügen</button>
@@ -906,17 +943,20 @@ function renderCfgModal(preserveScroll = true) {
     `, true, placementStatusBadgeHtml('system_health', 'system_health'), 'dev_system_health');
   } else if (cfgDevSubTab === 'appliances') {
     const apps = cfgDraft.appliances || { show: false, title: 'Haushaltsgeräte', items: [] };
-    const itemsHtml = (apps.items || []).map((a, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-      ${fld('Name (z.B. Waschmaschine)', `data-ap-i="${i}" data-ap-k="name" value="${esc(a.name || '')}"`)}
-      ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(a.icon || 'washing') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-ap-i="${i}" data-ap-k="icon"`)}
-      ${fld('Status-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="stateEntity" value="${esc(a.stateEntity || '')}"`)}
-      ${fld('Programm-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="progEntity" value="${esc(a.progEntity || '')}"`)}
-      ${fld('Restzeit-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="remainEntity" value="${esc(a.remainEntity || '')}"`)}
-      ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="powerEntity" value="${esc(a.powerEntity || '')}"`)}
-      <div class="order-btns"><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="1" ${i === (apps.items || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelAppliance" data-i="${i}">✕</button></div>
+    const itemsHtml = (apps.items || []).map((a, i) => `<div style="background:rgba(255,255,255,.02);padding:10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,255,255,.05)">
+      <div class="cfg-row">
+        ${fld('Name (z.B. Waschmaschine)', `data-ap-i="${i}" data-ap-k="name" value="${esc(a.name || '')}"`)}
+        ${sel('Icon', CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(a.icon || 'washing') === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-ap-i="${i}" data-ap-k="icon"`)}
+        ${fld('Status-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="stateEntity" value="${esc(a.stateEntity || '')}"`)}
+        ${fld('Programm-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="progEntity" value="${esc(a.progEntity || '')}"`)}
+        ${fld('Restzeit-Sensor', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="remainEntity" value="${esc(a.remainEntity || '')}"`)}
+        ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-ap-i="${i}" data-ap-k="powerEntity" value="${esc(a.powerEntity || '')}"`)}
+        <div class="order-btns"><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveAppliance" data-i="${i}" data-dir="1" ${i === (apps.items || []).length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelAppliance" data-i="${i}">✕</button></div>
+      </div>
+      ${itemShowOnPickerHtml(a, 'app', i)}
     </div>`).join('');
 
-    tGeraete += box('🧺 Haushaltsgeräte-Monitor', 'Überwachung von Waschmaschine, Trockner oder Spülmaschine mit Restlaufzeit und Fertig-Hinweis.', `
+    tGeraete += box('🧺 Haushaltsgeräte-Monitor', 'Überwachung von Waschmaschine, Trockner oder Spülmaschine mit Restlaufzeit und individueller Seiten-Zuordnung.', `
       ${placementBarHtml('appliances', 'appliances', apps.title || 'Haushaltsgeräte')}
       <div class="cfg-row" style="margin-bottom:10px">
         ${fld('Kachel-Titel', `data-cpath="appliances.title" value="${esc(apps.title || 'Haushaltsgeräte')}"`)}
@@ -927,13 +967,15 @@ function renderCfgModal(preserveScroll = true) {
       </div>
     `, true, placementStatusBadgeHtml('appliances', 'appliances', `${(apps.items || []).length} Geräte`), 'dev_appliances');
   } else if (cfgDevSubTab === 'covers') {
-    const covs = (cfgDraft.covers || []).map((c, i) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-        ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
-        ${fld('Entität (cover.*)', `list="ha-entities-list" data-cv-i="${i}" data-cv-k="entity" value="${esc(c.entity)}"`)}
-        ${fld('Optional: Raum (z.B. Büro)', `list="cfg-room-names" data-cv-i="${i}" data-cv-k="room" value="${esc(c.room || '')}"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="1" ${i === cfgDraft.covers.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCov" data-i="${i}">✕</button></div>
+    const covs = (cfgDraft.covers || []).map((c, i) => `<div style="background:rgba(255,255,255,.02);padding:10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,255,255,.05)">
+        <div class="cfg-row">
+          ${fld('Rolladen Name', `data-cv-i="${i}" data-cv-k="name" value="${esc(c.name)}"`)}
+          ${fld('Entität (cover.*)', `list="ha-entities-list" data-cv-i="${i}" data-cv-k="entity" value="${esc(c.entity)}"`)}
+          <div class="order-btns"><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCov" data-i="${i}" data-dir="1" ${i === cfgDraft.covers.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCov" data-i="${i}">✕</button></div>
+        </div>
+        ${itemShowOnPickerHtml(c, 'cov', i)}
       </div>`).join('');
-    tGeraete += box('🪟 Rolläden-Steuerung', 'Zentrale Liste aller Rolläden (optional mit Raum-Zuordnung für Raum-Tabs und Unterseiten).', `
+    tGeraete += box('🪟 Rolläden-Steuerung', 'Bestimme für jeden einzelnen Rolladen per Klick, auf welchen Seiten und Raum-Tabs er sichtbar sein soll (z. B. Küchenrolladen nur in Küche/Home, Bürorolladen nur im Büro).', `
       ${placementBarHtml('covers', 'covers', 'Rolläden')}
       ${covs}
       <button class="iconbtn" data-act="cfgAddCov" style="margin-top:8px">+ Rolladen hinzufügen</button>
@@ -941,21 +983,21 @@ function renderCfgModal(preserveScroll = true) {
   } else if (cfgDevSubTab === 'lichter') {
     const lm = cfgDraft.lightsMain || { mode: 'group', group: 0, entities: [] };
     const lmGroupOpts = (cfgDraft.lights || []).map((g, idx) => `<option value="${idx}" ${lm.group == idx ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
-    const lightsHtml = (cfgDraft.lights || []).map((g, i) => box(`💡 Gruppe: ${esc(g.name)} (${(g.entities || []).length} Lampen)`, 'Lampen per Klick auswählen – auf dem Dashboard steuerbar inkl. Dimm-/Farb-Popup.', `
+    const lightsHtml = (cfgDraft.lights || []).map((g, i) => box(`💡 Gruppe: ${esc(g.name)} (${(g.entities || []).length} Lampen) · 📍 ${esc(formatItemShowOnSummary(g, cfgDraft))}`, 'Lampen per Klick auswählen und unten festlegen, auf welchen Seiten/Räumen diese Licht-Gruppe angezeigt wird.', `
       <div class="cfg-row">
         ${fld('Gruppen-Name', `data-l-i="${i}" data-l-k="name" value="${esc(g.name)}"`)}
-        ${fld('Optional: Raum-Zuordnung (z.B. Büro)', `list="cfg-room-names" data-l-i="${i}" data-l-k="room" value="${esc(g.room || '')}"`)}
         <label><input type="checkbox" data-l-i="${i}" data-l-k="mainSync" ${g.mainSync !== false ? 'checked' : ''}> Im „Alle Lichter“-Hauptschalter berücksichtigen</label>
       </div>
-      <div style="margin-top:8px">
+      ${itemShowOnPickerHtml(g, 'light', i)}
+      <div style="margin-top:10px">
         <span class="cfg-desc">Zugeordnete Lampen / Schalter <small class="mut">(Klick auf <b>💡 Gruppe</b> / <b>⚡ Haupt</b> schließt einzelne Lampen vom Gruppen- bzw. Hauptschalter aus)</small>:</span>
         ${entityChipsHtml(g.entities || [], 'lightGrp', i, 'light.* oder switch.* auswählen…')}
       </div>`, i === 0, `<div class="order-btns"><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveLight" data-i="${i}" data-dir="1" ${i === cfgDraft.lights.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelLight" data-i="${i}">Löschen</button></div>`, `dev_light_${i}`)).join('');
 
-    tGeraete += box('💡 Lichter-Karte & Hauptschalter', 'Platzierung der Lichter-Kachel und Verhalten des Master-Hauptschalters oben rechts.', `
+    tGeraete += box('💡 Lichter-Karte & Hauptschalter', 'Platzierung der Lichter-Kachel und Verhalten des Master-Hauptschalters oben rechts (der Hauptschalter schaltet auf Raum-Seiten automatisch nur die dort sichtbaren Lichter!).', `
       ${placementBarHtml('lights', 'lights', 'Lichter')}
       <div class="cfg-row">
-        ${sel('Hauptschalter-Modus', `<option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle synchronisierten Gruppen steuern</option><option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option><option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene Entitäten-Auswahl steuern</option>`, `data-lm-k="mode"`)}
+        ${sel('Hauptschalter-Modus', `<option value="all" ${lm.mode === 'all' ? 'selected' : ''}>Alle auf der aktuellen Seite sichtbaren &amp; synchronisierten Gruppen steuern</option><option value="group" ${lm.mode === 'group' ? 'selected' : ''}>Eine bestimmte Gruppe steuern</option><option value="custom" ${lm.mode === 'custom' ? 'selected' : ''}>Eigene Entitäten-Auswahl steuern</option>`, `data-lm-k="mode"`)}
         ${lm.mode === 'group' ? sel('Welche Gruppe?', lmGroupOpts, `data-lm-k="group"`) : ''}
       </div>
       ${lm.mode === 'custom' ? `<div style="margin-top:8px"><span class="cfg-desc">Eigene Hauptschalter-Entitäten:</span>${entityChipsHtml(lm.entities || [], 'lightsMain', '', 'light.* oder switch.* auswählen…')}</div>` : ''}`, true, placementStatusBadgeHtml('lights', 'lights', `${(cfgDraft.lights || []).length} Gruppen`), 'dev_lights_master') + lightsHtml + `<button class="btn-pri" data-act="cfgAddLight" style="margin-top:10px">+ Neue Licht-Gruppe</button>`;
@@ -966,18 +1008,20 @@ function renderCfgModal(preserveScroll = true) {
     const tabIndices = (cfgDraft.devices || []).map((d, idx) => ((d.tab || 'geraete') === activeTabObj.id ? idx : -1)).filter(idx => idx !== -1);
     const devRows = tabIndices.map((idx, pos) => {
       const d = cfgDraft.devices[idx];
-      return `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
-        ${fld('Name', `data-d-i="${idx}" data-d-k="name" value="${esc(d.name || '')}"`)}
-        ${fld('Raum (z.B. Home, Wohnzimmer, Büro)', `list="cfg-room-names" data-d-i="${idx}" data-d-k="room" value="${esc(d.room || '')}"`)}
-        ${sel('Icon', `<option value="">Automatisch</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${d.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-d-i="${idx}" data-d-k="icon"`)}
-        ${fld('Haupt-Entität', `list="ha-entities-list" data-d-i="${idx}" data-d-k="entity" value="${esc(d.entity || '')}"`)}
-        ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-d-i="${idx}" data-d-k="power" value="${esc(d.power || '')}"`)}
-        ${fld('Energie-Sensor (kWh)', `list="ha-entities-list" data-d-i="${idx}" data-d-k="energy" value="${esc(d.energy || '')}"`)}
-        <div class="order-btns"><button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="-1" ${pos === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="1" ${pos === tabIndices.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelDev" data-i="${idx}">✕</button></div>
+      return `<div style="background:rgba(255,255,255,.02);padding:10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,255,255,.05)">
+        <div class="cfg-row">
+          ${fld('Name', `data-d-i="${idx}" data-d-k="name" value="${esc(d.name || '')}"`)}
+          ${sel('Icon', `<option value="">Automatisch</option>` + CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${d.icon === val ? 'selected' : ''}>${lab}</option>`).join(''), `data-d-i="${idx}" data-d-k="icon"`)}
+          ${fld('Haupt-Entität', `list="ha-entities-list" data-d-i="${idx}" data-d-k="entity" value="${esc(d.entity || '')}"`)}
+          ${fld('Leistungs-Sensor (W)', `list="ha-entities-list" data-d-i="${idx}" data-d-k="power" value="${esc(d.power || '')}"`)}
+          ${fld('Energie-Sensor (kWh)', `list="ha-entities-list" data-d-i="${idx}" data-d-k="energy" value="${esc(d.energy || '')}"`)}
+          <div class="order-btns"><button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="-1" ${pos === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveDevInTab" data-tab="${esc(activeTabObj.id)}" data-pos="${pos}" data-dir="1" ${pos === tabIndices.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelDev" data-i="${idx}">✕</button></div>
+        </div>
+        ${itemShowOnPickerHtml(d, 'dev', idx)}
       </div>`;
     }).join('');
 
-    tGeraete += box(`🔌 Reiter: ${esc(activeTabObj.name)}`, 'Jedes Gerät wird automatisch im zugeordneten Raum-Tab angezeigt. Auf eigenen Unterseiten (z. B. Büro) kannst du zudem das Widget „Geräteliste“ mit Raum-Filter platzieren.', `
+    tGeraete += box(`🔌 Reiter: ${esc(activeTabObj.name)}`, 'Wähle für jedes Gerät per Klick aus, in welchen Raum-Tabs (z. B. Home, Büro, Wohnzimmer) und auf welchen eigenen Unterseiten es angezeigt werden soll.', `
       ${placementBarHtml(cardIdForTab, 'devices', activeTabObj.name)}
       <div class="cfg-row" style="margin-bottom:12px">
         ${fld('Reiter-Name ändern', `data-devtab-name="${esc(activeTabObj.id)}" value="${esc(activeTabObj.name)}"`)}
