@@ -940,6 +940,7 @@ function applyDeviceStartView(isIdleReturn = false) {
 /* ---------- Konfiguration laden / speichern & Multi-Device Live-Sync ---------- */
 let _lastOwnSaveTs = 0;
 let _lastKnownUpdatedAt = 0;
+let _lastKnownServerDigest = '';
 let _lastKnownAssetHash = '';
 let _subscribedConnection = null;
 let _initialDeviceProfileApplied = false;
@@ -973,7 +974,8 @@ async function loadConfigFromServer(isRemoteUpdate = false) {
         _lastKnownAssetHash = res.asset_hash;
       }
       if (res && res.config && Object.keys(res.config).length > 0) {
-        _lastKnownUpdatedAt = res.config._updatedAt || _lastKnownUpdatedAt || Date.now();
+        _lastKnownUpdatedAt = res.config._updatedAt || 0;
+        _lastKnownServerDigest = _configDigest(res.config);
         CONFIG = ensureConfigDefaults(Object.assign(JSON.parse(JSON.stringify(EMPTY_CONFIG)), res.config));
         localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       } else {
@@ -1002,7 +1004,6 @@ async function loadConfigFromServer(isRemoteUpdate = false) {
     if (typeof refreshWeatherForecast === 'function') refreshWeatherForecast(true);
     if (typeof refreshHomeCalendars === 'function') refreshHomeCalendars(true);
     if (typeof tick === 'function') tick(true);
-    toast('🔄 Dashboard-Konfiguration live synchronisiert');
   }
 }
 
@@ -1012,6 +1013,7 @@ async function saveConfigToServer(newCfg) {
   _lastOwnSaveTs = Date.now();
   CONFIG._updatedAt = _lastOwnSaveTs;
   _lastKnownUpdatedAt = _lastOwnSaveTs;
+  _lastKnownServerDigest = _configDigest(CONFIG);
   localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
   applyTheme();
   applyKioskMode(getEffectiveKioskMode());
@@ -1027,6 +1029,7 @@ async function saveConfigToServer(newCfg) {
         _lastKnownUpdatedAt = res.updated_at;
         CONFIG._updatedAt = res.updated_at;
       }
+      _lastKnownServerDigest = _configDigest(CONFIG);
       syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
       toast('Konfiguration gespeichert & an alle Geräte übertragen');
     } catch (e) {
@@ -1058,10 +1061,7 @@ function ensureHassLiveSync() {
       if (Date.now() - _lastOwnSaveTs < 2500) return;
       if (remoteTs && remoteTs === _lastKnownUpdatedAt) return;
       const cfgModal = document.getElementById('cfgmodal');
-      if (cfgModal && cfgModal.classList.contains('show')) {
-        toast('ℹ️ Konfiguration wurde auf einem anderen Gerät geändert');
-        return;
-      }
+      if (cfgModal && cfgModal.classList.contains('show')) return;
       loadConfigFromServer(true);
     }, 'smarthome_hub_config_updated').catch(() => {
       _subscribedConnection = null;
@@ -1091,10 +1091,12 @@ async function checkRemoteConfigUpdate() {
     if (res && res.asset_hash) _lastKnownAssetHash = res.asset_hash;
     if (res && res.config && Object.keys(res.config).length > 0) {
       const remoteTs = res.config._updatedAt || 0;
-      const changedByTs = remoteTs && remoteTs !== _lastKnownUpdatedAt;
-      const changedByDigest = !remoteTs && _configDigest(res.config) !== _configDigest(CONFIG);
+      const remoteDigest = _configDigest(res.config);
+      const changedByTs = remoteTs > 0 && remoteTs !== _lastKnownUpdatedAt;
+      const changedByDigest = !remoteTs && _lastKnownServerDigest && remoteDigest !== _lastKnownServerDigest;
       if (changedByTs || changedByDigest) {
-        _lastKnownUpdatedAt = remoteTs || Date.now();
+        _lastKnownUpdatedAt = remoteTs;
+        _lastKnownServerDigest = remoteDigest;
         await loadConfigFromServer(true);
       }
     }
