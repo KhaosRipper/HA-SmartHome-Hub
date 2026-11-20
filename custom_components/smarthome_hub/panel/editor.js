@@ -626,7 +626,7 @@ function renderCfgModal(preserveScroll = true) {
     <div class="cfg-row">
       <label><input type="checkbox" data-cbool="kioskMode" ${cfgDraft.kioskMode ? 'checked' : ''}> Globaler Kiosk-Vollbildmodus (HA-Sidebar ausblenden)</label>
       <label><input type="checkbox" data-cbool="hideSystemLinks" ${cfgDraft.hideSystemLinks ? 'checked' : ''}> HA-Systemlinks ausblenden</label>
-      ${fld('Master PIN-Code', `data-cpath="pinCode" value="${esc(cfgDraft.pinCode)}"`, 'password')}
+      ${fld('Master PIN-Code (UI-Sperre, wird als Hash im Backend geprüft)', `data-cpath="pinCode" value="${esc(cfgDraft.pinCode)}"`, 'password')}
     </div>
     <div class="cfg-row" style="margin-top:8px">
       <label><input type="checkbox" data-cbool="pinProtect.editor" ${pp.editor ? 'checked' : ''}> PIN für Editor</label>

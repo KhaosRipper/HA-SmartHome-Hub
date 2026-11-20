@@ -2188,17 +2188,19 @@ document.addEventListener('click', ev => {
 /* ---------- Event-gesteuertes Kamera-Popup (Klingel / Bewegung) ---------- */
 let activeBellPopup = null;
 let bellPopupTimeout = null;
+let lastBellTriggerState = null;
 
 function checkBellPopupTrigger() {
-  if (ui.editMode || isScreensaverActive) return;
   const cfg = CONFIG.bellPopup || {};
-  if (cfg.show !== false && cfg.triggerEntity && cfg.cameraEntity) {
-    const s = S(cfg.triggerEntity);
-    if (s && s.state === 'on') {
-      if (!activeBellPopup) {
-        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
-      }
-    }
+  if (cfg.show === false || !cfg.triggerEntity || !cfg.cameraEntity) {
+    lastBellTriggerState = null;
+    return;
+  }
+  const curState = (S(cfg.triggerEntity) || {}).state || null;
+  const becameOn = curState === 'on' && lastBellTriggerState !== 'on';
+  lastBellTriggerState = curState;
+  if (becameOn && !ui.editMode && !isScreensaverActive && !activeBellPopup) {
+    showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
   }
 }
 

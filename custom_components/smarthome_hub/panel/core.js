@@ -904,13 +904,14 @@ function applyKioskMode(enable) {
 }
 
 /* ---------- PIN-Schutz ---------- */
-const pinState = { buffer: '', onSuccess: null, title: '' };
+const pinState = { buffer: '', onSuccess: null, title: '', verifying: false };
 
 function requirePin(featureKey, actionFn, title = 'PIN erforderlich') {
   const pin = String(CONFIG.pinCode || '').trim();
   const protect = CONFIG.pinProtect || {};
   if (!pin || !protect[featureKey]) { actionFn(); return; }
   pinState.buffer = '';
+  pinState.verifying = false;
   pinState.onSuccess = actionFn;
   pinState.title = title;
   renderPinModal();
@@ -927,18 +928,45 @@ function renderPinModal() {
     <div class="pin-pad">${keys}</div>`;
 }
 
-function handlePinKey(k) {
+async function handlePinKey(k) {
+  if (pinState.verifying) return;
   const target = String(CONFIG.pinCode || '').trim();
   if (k === 'C') pinState.buffer = '';
   else if (k === '⌫') pinState.buffer = pinState.buffer.slice(0, -1);
   else pinState.buffer += k;
   renderPinModal();
-  if (pinState.buffer === target) {
-    document.getElementById('pinmodal').classList.remove('show');
+  if (!target || pinState.buffer.length < target.length) return;
+
+  const candidate = pinState.buffer;
+  const h = getHass();
+  let valid = false;
+  if (h && typeof h.callWS === 'function') {
+    pinState.verifying = true;
+    try {
+      const res = await h.callWS({ type: 'smarthome_hub/verify_pin', pin: candidate });
+      valid = !!(res && res.valid);
+    } catch (e) {
+      valid = false;
+    } finally {
+      pinState.verifying = false;
+    }
+  } else {
+    valid = candidate === target;
+  }
+
+  const modalEl = document.getElementById('pinmodal');
+  if (!modalEl || !modalEl.classList.contains('show')) {
+    pinState.buffer = '';
+    pinState.onSuccess = null;
+    return;
+  }
+  if (valid) {
+    modalEl.classList.remove('show');
+    pinState.buffer = '';
     const cb = pinState.onSuccess;
     pinState.onSuccess = null;
     if (cb) cb();
-  } else if (pinState.buffer.length >= target.length) {
+  } else {
     toast('Falsche PIN');
     pinState.buffer = '';
     setTimeout(renderPinModal, 250);
@@ -1094,26 +1122,28 @@ async function loadConfigFromServer(isRemoteUpdate = false) {
 async function saveConfigToServer(newCfg) {
   syncLayoutAndModuleShow(newCfg, false);
   CONFIG = ensureConfigDefaults(newCfg);
+  const payloadCfg = JSON.parse(JSON.stringify(CONFIG));
   _lastOwnSaveTs = Date.now();
   CONFIG._updatedAt = _lastOwnSaveTs;
-  _lastKnownUpdatedAt = _lastOwnSaveTs;
-  _lastKnownServerDigest = _configDigest(CONFIG);
+  const h = getHass();
   localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
   applyTheme();
   applyKioskMode(getEffectiveKioskMode());
   syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
   if (typeof probeGo2rtc === 'function') probeGo2rtc(true);
-  const h = getHass();
   if (h && typeof h.callWS === 'function') {
     DEMO = false;
     ensureHassLiveSync();
     try {
-      const res = await h.callWS({ type: 'smarthome_hub/save_config', config: CONFIG });
-      if (res && res.updated_at) {
-        _lastKnownUpdatedAt = res.updated_at;
-        CONFIG._updatedAt = res.updated_at;
+      const res = await h.callWS({ type: 'smarthome_hub/save_config', config: payloadCfg });
+      if (CONFIG.pinCode) {
+        CONFIG.pinCode = '*'.repeat(String(CONFIG.pinCode).trim().length);
       }
+      const confirmedTs = (res && res.updated_at) || _lastOwnSaveTs;
+      _lastKnownUpdatedAt = confirmedTs;
+      CONFIG._updatedAt = confirmedTs;
       _lastKnownServerDigest = _configDigest(CONFIG);
+      localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
       toast('Konfiguration gespeichert & an alle Geräte übertragen');
     } catch (e) {

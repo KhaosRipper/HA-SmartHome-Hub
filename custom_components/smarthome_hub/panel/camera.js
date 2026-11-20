@@ -354,7 +354,7 @@ function openLBWebRtc(stream, title) {
   const exactStream = resolveGo2rtcStream(stream, lbs.entity);
   const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
   const srcUrl = `${host}/stream.html?src=${encodeURIComponent(exactStream)}&mode=webrtc`;
-  body.innerHTML = `<iframe src="${srcUrl}" class="lb-media lb-iframe" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  body.innerHTML = `<iframe src="${esc(srcUrl)}" class="lb-media lb-iframe" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
   lb.classList.add('show');
 }
 
