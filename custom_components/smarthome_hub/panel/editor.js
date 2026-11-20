@@ -8,6 +8,7 @@ let cfgTab = 'allgemein';
 let cfgDevSubTab = 'geraete';
 const cfgOpenBoxes = new Set();
 let cfgOpenBoxesInit = false;
+let cfgSearchPreOpen = null;
 
 const CHIP_ICON_OPTIONS = [
   ['expand', '⛶ Vergrößern (expand)'],
@@ -396,6 +397,7 @@ function openCfgEditor(initialTab = null, initialSubTab = null) {
     }
     cfgOpenBoxes.clear();
     cfgOpenBoxesInit = false;
+    cfgSearchPreOpen = null;
     renderCfgModal(false);
     document.getElementById('cfgmodal').classList.add('show');
   }, 'Dashboard-Editor entsperren');
@@ -407,7 +409,7 @@ function renderCfgModal(preserveScroll = true) {
   const searchEl = document.getElementById('cfgSearch');
   const searchVal = searchEl ? searchEl.value : '';
 
-  if (preserveScroll) {
+  if (preserveScroll && cfgSearchPreOpen === null) {
     document.querySelectorAll('#cfgsheet details.cfg-box[data-box-key]').forEach(el => {
       if (el.open) cfgOpenBoxes.add(el.dataset.boxKey);
       else cfgOpenBoxes.delete(el.dataset.boxKey);
@@ -1593,16 +1595,16 @@ function renderCfgModal(preserveScroll = true) {
     'backup': tBackup
   };
 
-  const body = tabs.map(([id]) => `<div class="cfg-tab-content" data-tab="${id}" style="display:${(cfgTab === id && !searchVal) || searchVal ? 'flex' : 'none'};flex-direction:column;gap:16px">${tabData[id]}</div>`).join('');
+  const body = tabs.map(([id]) => `<div class="cfg-tab-content" data-tab="${id}" style="display:${cfgTab === id ? 'flex' : 'none'};flex-direction:column;gap:16px">${tabData[id]}</div>`).join('');
 
   document.getElementById('cfgsheet').innerHTML = `
     <div class="cfg-hdr">
       <b>Dashboard-Konfigurator</b>
-      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="Suche (Räume, Geräte, Entitäten, Layout, Büro...)" autocomplete="off" value="${esc(searchVal)}"></div>
+      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="Suche (Räume, Geräte, Entitäten, Layout, Büro...)" autocomplete="off" value="${esc(searchVal)}"><span id="cfgSearchCount" class="cfg-search-count" hidden></span></div>
       <button type="button" class="iconbtn" data-act="forceReloadApp" title="Ansicht & Cache neu laden" style="padding:6px 10px;font-size:12px">🔄 Sync</button>
       <button class="x2" data-act="cfgClose">✕</button>
     </div>
-    <div class="cfg-tabs" style="display:${searchVal ? 'none' : 'flex'}">${tabBtns}</div>
+    <div class="cfg-tabs">${tabBtns}</div>
     <div class="cfg-body">${body}</div>
     <div class="cfg-ftr">
       <span class="mut sm">100% No-Code UI · Änderungen werden beim Speichern live an alle offenen Tablets &amp; Geräte übertragen.</span>
@@ -1621,9 +1623,126 @@ function renderCfgModal(preserveScroll = true) {
     });
   }
 
-  if (searchVal) {
-    const searchInput = document.getElementById('cfgSearch');
-    if (searchInput) searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+  if (searchVal) applyCfgSearch(searchVal);
+}
+
+const CFG_SKIP_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'OPTGROUP', 'SCRIPT', 'STYLE', 'SVG', 'DATALIST', 'MARK']);
+
+function cfgSearchText(el) {
+  const parts = [];
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const p = node.parentElement;
+      if (!p || CFG_SKIP_TAGS.has(p.tagName) || p.closest('select,svg,datalist')) return NodeFilter.FILTER_REJECT;
+      return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  let n;
+  while ((n = walker.nextNode())) parts.push(n.nodeValue);
+  el.querySelectorAll('input, textarea, select').forEach(ctrl => {
+    if (ctrl.tagName === 'SELECT') {
+      const opt = ctrl.options[ctrl.selectedIndex];
+      if (opt && opt.textContent) parts.push(opt.textContent);
+    } else if (ctrl.type !== 'checkbox' && ctrl.type !== 'radio' && ctrl.type !== 'file' && ctrl.value) {
+      parts.push(ctrl.value);
+    }
+  });
+  return parts.join(' ').toLowerCase();
+}
+
+function clearCfgHighlights(root) {
+  root.querySelectorAll('mark.cfg-hl').forEach(m => {
+    const p = m.parentNode;
+    if (!p) return;
+    p.replaceChild(document.createTextNode(m.textContent), m);
+    p.normalize();
+  });
+}
+
+function highlightCfgMatches(root, q) {
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const p = node.parentElement;
+      if (!p || CFG_SKIP_TAGS.has(p.tagName) || p.closest('select,svg,datalist,.cfg-search-hidden')) return NodeFilter.FILTER_REJECT;
+      return node.nodeValue.toLowerCase().includes(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  let n;
+  while ((n = walker.nextNode())) nodes.push(n);
+  nodes.forEach(node => {
+    const text = node.nodeValue;
+    const lower = text.toLowerCase();
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    let idx;
+    while ((idx = lower.indexOf(q, pos)) !== -1) {
+      if (idx > pos) frag.appendChild(document.createTextNode(text.slice(pos, idx)));
+      const mark = document.createElement('mark');
+      mark.className = 'cfg-hl';
+      mark.textContent = text.slice(idx, idx + q.length);
+      frag.appendChild(mark);
+      pos = idx + q.length;
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    if (node.parentNode) node.parentNode.replaceChild(frag, node);
+  });
+}
+
+function applyCfgSearch(rawQuery) {
+  const sheet = document.getElementById('cfgsheet');
+  const body = sheet && sheet.querySelector('.cfg-body');
+  if (!sheet || !body) return;
+  const countEl = document.getElementById('cfgSearchCount');
+  clearCfgHighlights(body);
+
+  const q = (rawQuery || '').toLowerCase().trim();
+  if (q) {
+    if (cfgSearchPreOpen === null) cfgSearchPreOpen = new Set(cfgOpenBoxes);
+    sheet.classList.add('cfg-searching');
+    let matchedBoxes = 0;
+    sheet.querySelectorAll('.cfg-tab-content').forEach(tabEl => {
+      let tabHasMatch = false;
+      tabEl.querySelectorAll('details.cfg-box').forEach(box => {
+        if (cfgSearchText(box).includes(q)) {
+          tabHasMatch = true;
+          matchedBoxes++;
+          box.classList.remove('cfg-search-hidden');
+          box.open = true;
+          const rows = Array.from(box.querySelectorAll('.cfg-row'));
+          const matchedRows = rows.filter(r => cfgSearchText(r).includes(q));
+          rows.forEach(r => r.classList.toggle('cfg-search-hidden', matchedRows.length > 0 && !matchedRows.includes(r)));
+          highlightCfgMatches(box, q);
+        } else {
+          box.classList.add('cfg-search-hidden');
+        }
+      });
+      tabEl.style.display = tabHasMatch ? 'flex' : 'none';
+    });
+    if (countEl) {
+      countEl.hidden = false;
+      countEl.textContent = `${matchedBoxes} Treffer`;
+      countEl.classList.toggle('empty', matchedBoxes === 0);
+    }
+  } else {
+    sheet.classList.remove('cfg-searching');
+    sheet.querySelectorAll('.cfg-search-hidden').forEach(el => el.classList.remove('cfg-search-hidden'));
+    sheet.querySelectorAll('.cfg-tab-content').forEach(c => {
+      c.style.display = c.dataset.tab === cfgTab ? 'flex' : 'none';
+    });
+    if (cfgSearchPreOpen !== null) {
+      cfgOpenBoxes.clear();
+      cfgSearchPreOpen.forEach(k => cfgOpenBoxes.add(k));
+      cfgSearchPreOpen = null;
+    }
+    sheet.querySelectorAll('details.cfg-box[data-box-key]').forEach(box => {
+      box.open = cfgOpenBoxes.has(box.dataset.boxKey);
+    });
+    if (countEl) {
+      countEl.hidden = true;
+      countEl.textContent = '';
+      countEl.classList.remove('empty');
+    }
   }
 }
 
@@ -1643,40 +1762,7 @@ document.addEventListener('input', e => {
   const t = e.target;
 
   if (t.id === 'cfgSearch') {
-    const q = t.value.toLowerCase().trim();
-    const tabContainer = document.querySelector('.cfg-tabs');
-    const contents = document.querySelectorAll('.cfg-tab-content');
-
-    if (q) {
-      if (tabContainer) tabContainer.style.display = 'none';
-      contents.forEach(c => c.style.display = 'flex');
-      document.querySelectorAll('details.cfg-box').forEach(box => {
-        const txt = box.textContent.toLowerCase();
-        if (txt.includes(q)) {
-          box.style.display = 'flex';
-          box.open = true;
-          box.querySelectorAll('.cfg-row, .cfg-field.float').forEach(r => {
-            if (r.classList.contains('cfg-row')) {
-              r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
-            }
-          });
-        } else {
-          box.style.display = 'none';
-        }
-      });
-    } else {
-      if (tabContainer) tabContainer.style.display = 'flex';
-      contents.forEach(c => c.style.display = c.dataset.tab === cfgTab ? 'flex' : 'none');
-      document.querySelectorAll('details.cfg-box').forEach(box => {
-        box.style.display = 'flex';
-        box.open = false;
-        box.querySelectorAll('.cfg-row, .cfg-field.float').forEach(r => r.style.display = '');
-      });
-      document.querySelectorAll('.cfg-tab-content').forEach(c => {
-        const firstBox = c.querySelector('details.cfg-box');
-        if (firstBox) firstBox.open = true;
-      });
-    }
+    applyCfgSearch(t.value);
     return;
   }
 
@@ -2062,6 +2148,8 @@ document.addEventListener('change', async e => {
 });
 
 document.addEventListener('toggle', e => {
+  // Ignore auto-expand toggles during active search so pre-search state stays intact
+  if (cfgSearchPreOpen !== null) return;
   const b = e.target && e.target.closest && e.target.closest('details.cfg-box');
   if (b && b.dataset && b.dataset.boxKey) {
     if (b.open) cfgOpenBoxes.add(b.dataset.boxKey);
