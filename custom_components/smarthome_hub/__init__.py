@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import os
 import re
 import time
@@ -23,7 +24,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "3.2.2"
+VERSION = "3.3.0"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
@@ -98,6 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data[DOMAIN].get("commands_registered"):
         websocket_api.async_register_command(hass, ws_get_config)
         websocket_api.async_register_command(hass, ws_save_config)
+        websocket_api.async_register_command(hass, ws_verify_pin)
         websocket_api.async_register_command(hass, ws_upload_image)
         hass.data[DOMAIN]["commands_registered"] = True
 
@@ -108,6 +110,23 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Entfernt das Panel beim Deinstallieren der Integration."""
     frontend.async_remove_panel(hass, PANEL_URL_PATH)
     return True
+
+
+def _hash_pin(pin: str) -> str:
+    """Erzeugt einen SHA-256-Hash für die Dashboard-PIN."""
+    return hashlib.sha256(f"{DOMAIN}_pin:{pin}".encode("utf-8")).hexdigest()
+
+
+def _sanitize_config_for_client(data: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Entfernt Klartext-PIN und PIN-Hash aus der Client-Antwort (sendet nur Maske in PIN-Länge)."""
+    if not data or not isinstance(data, dict):
+        return data
+    clean = dict(data)
+    raw_pin = str(clean.pop("pinCode", "") or "").strip()
+    pin_hash = clean.pop("_pinHash", None)
+    pin_len = int(clean.pop("_pinLen", 0) or len(raw_pin) or 4)
+    clean["pinCode"] = ("*" * pin_len) if (pin_hash or raw_pin) else ""
+    return clean
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_config"})
@@ -123,13 +142,14 @@ async def ws_get_config(
     connection.send_result(
         msg["id"],
         {
-            "config": data,
+            "config": _sanitize_config_for_client(data),
             "version": VERSION,
             "asset_hash": _get_assets_hash(),
         },
     )
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/save_config",
@@ -144,7 +164,20 @@ async def ws_save_config(
 ) -> None:
     """Speichert die Konfiguration, aktualisiert die HA-Seitenleiste und benachrichtigt alle Clients live."""
     store: Store = hass.data[DOMAIN]["store"]
+    old = await store.async_load() or {}
     cfg = dict(msg["config"])
+    raw_pin = str(cfg.pop("pinCode", "") or "").strip()
+    if not raw_pin:
+        cfg.pop("_pinHash", None)
+        cfg.pop("_pinLen", None)
+    elif set(raw_pin) == {"*"} and (old.get("_pinHash") or old.get("pinCode")):
+        old_raw = str(old.get("pinCode") or "").strip()
+        cfg["_pinHash"] = old.get("_pinHash") or _hash_pin(old_raw)
+        cfg["_pinLen"] = int(old.get("_pinLen") or len(old_raw) or len(raw_pin))
+    else:
+        cfg["_pinHash"] = _hash_pin(raw_pin)
+        cfg["_pinLen"] = len(raw_pin)
+
     updated_at = int(time.time() * 1000)
     cfg["_updatedAt"] = updated_at
     await store.async_save(cfg)
@@ -163,6 +196,30 @@ async def ws_save_config(
         },
     )
     connection.send_result(msg["id"], {"status": "ok", "updated_at": updated_at})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/verify_pin",
+        vol.Required("pin"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_verify_pin(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Prüft eine eingegebene PIN gegen den gespeicherten Hash im Backend."""
+    store: Store = hass.data[DOMAIN]["store"]
+    data = await store.async_load() or {}
+    candidate = str(msg.get("pin") or "").strip()
+    expected_hash = data.get("_pinHash")
+    if not expected_hash:
+        legacy_pin = str(data.get("pinCode") or "").strip()
+        expected_hash = _hash_pin(legacy_pin) if legacy_pin else ""
+    valid = bool(expected_hash) and hmac.compare_digest(_hash_pin(candidate), expected_hash)
+    connection.send_result(msg["id"], {"valid": valid})
 
 
 def _validate_image_magic(data: bytes, ext: str) -> bool:
@@ -223,6 +280,7 @@ def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
     return f"/local/{UPLOAD_SUBDIR}/{safe_name}"
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/upload_image",
