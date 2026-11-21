@@ -158,7 +158,11 @@ const doc = {
 
 const ctx = vm.createContext({
   document: doc,
-  NodeFilter: { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 }
+  NodeFilter: { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 },
+  t: (k, v) => (k === 'cfg.search_matches' && v ? `${v.n} Treffer` : k),
+  tr: d => d,
+  tDefault: s => s,
+  getLang: () => 'de'
 });
 vm.runInContext(editorSrc + "\ncfgOpenBoxes.add('b1'); cfgTab = 'allgemein';", ctx);
 
@@ -199,12 +203,12 @@ const initPySrc = fs.readFileSync('custom_components/smarthome_hub/__init__.py',
 const gitignoreSrc = fs.readFileSync('.gitignore', 'utf8');
 
 // Version consistency across manifest.json, __init__.py, core.js, and index.html
-assert.equal(manifestObj.version, '3.5.1', 'manifest.json version must be 3.5.1');
-assert.match(initPySrc, /VERSION\s*=\s*"3\.5\.1"/, '__init__.py VERSION must be 3.5.1');
-assert.match(coreSrc, /const VERSION\s*=\s*'3\.5\.1'/, 'core.js VERSION must be 3.5.1');
-assert.doesNotMatch(indexSrc, /\?v=(3\.[34]\.|3\.5\.0)/, 'index.html must not contain old version query params');
-const vMatches = indexSrc.match(/\?v=3\.5\.1/g) || [];
-assert.equal(vMatches.length, 9, 'All 9 assets in index.html must use ?v=3.5.1');
+assert.equal(manifestObj.version, '3.6.0', 'manifest.json version must be 3.6.0');
+assert.match(initPySrc, /VERSION\s*=\s*"3\.6\.0"/, '__init__.py VERSION must be 3.6.0');
+assert.match(coreSrc, /const VERSION\s*=\s*'3\.6\.0'/, 'core.js VERSION must be 3.6.0');
+assert.doesNotMatch(indexSrc, /\?v=(3\.[345]\.)/, 'index.html must not contain old version query params');
+const vMatches = indexSrc.match(/\?v=3\.6\.0/g) || [];
+assert.equal(vMatches.length, 9, 'All 9 assets in index.html must use ?v=3.6.0');
 assert.match(gitignoreSrc, /graphify-out\//, '.gitignore must ignore graphify-out/');
 
 // Execute config.js + core.js + views.js in sandbox to test calendar, profile popover & camera popup logic
@@ -418,4 +422,66 @@ assert.equal(calSandbox.resolveGo2rtcStream('', 'camera.eingang_standardauflosun
 assert.equal(calSandbox.resolveGo2rtcStream('', 'Eingang-sub'), 'Eingang-sub', 'Must resolve raw stream name passed as entityId');
 assert.equal(calSandbox.resolveGo2rtcStream('Eingang-sub', 'camera.eingang_standardauflosung'), 'Eingang-sub', 'Must resolve explicit stream name');
 
-console.log('test_editor_search, v3.4.0 & v3.5.0 self-tests: ALL PASSED');
+// 6. i18n (DE/EN) Self-Test: Key Parity, Static t(key) Coverage, Auto-Detection & Manual Override
+vm.runInContext('this.I18N = I18N; this.t = t; this.getLang = getLang; this.tDefault = tDefault;', calSandbox);
+const deDict = calSandbox.I18N.de;
+const enDict = calSandbox.I18N.en;
+assert.ok(deDict && enDict, 'I18N.de and I18N.en must exist');
+
+const deKeys = Object.keys(deDict);
+const enKeys = Object.keys(enDict);
+const missingInEn = deKeys.filter(k => !(k in enDict));
+const missingInDe = enKeys.filter(k => !(k in deDict));
+assert.deepEqual(missingInEn, [], `No key may be missing in I18N.en (missing: ${missingInEn.join(', ')})`);
+assert.deepEqual(missingInDe, [], `No key may be missing in I18N.de (missing: ${missingInDe.join(', ')})`);
+
+for (const k of deKeys) {
+  assert.equal(typeof deDict[k], 'string', `I18N.de["${k}"] must be a string`);
+  assert.equal(typeof enDict[k], 'string', `I18N.en["${k}"] must be a string`);
+  assert.ok(!deDict[k].includes('undefined'), `I18N.de["${k}"] must not contain "undefined"`);
+  assert.ok(!enDict[k].includes('undefined'), `I18N.en["${k}"] must not contain "undefined"`);
+}
+
+// Scan all panel/*.js files for t('...') calls and verify every referenced key exists in both de and en
+const panelFiles = ['core.js', 'views.js', 'editor.js', 'app.js', 'camera.js', 'charts.js', 'sports.js'];
+for (const file of panelFiles) {
+  const src = fs.readFileSync(`custom_components/smarthome_hub/panel/${file}`, 'utf8');
+  const matches = src.matchAll(/\bt\(\s*'([a-z0-9_]+(?:\.[a-z0-9_-]+)+)'\s*[,)]/gi);
+  for (const m of matches) {
+    const key = m[1];
+    assert.ok(key in deDict, `Key "${key}" used in ${file} must exist in I18N.de`);
+    assert.ok(key in enDict, `Key "${key}" used in ${file} must exist in I18N.en`);
+  }
+}
+
+// Verify language auto-detection (hass.language) and manual CONFIG.language override
+calSandbox.CONFIG.language = 'auto';
+assert.equal(calSandbox.getLang(), 'de', 'Default fallback without hass/navigator language must be de');
+
+calSandbox.CONFIG.language = 'en';
+assert.equal(calSandbox.getLang(), 'en', 'Manual CONFIG.language="en" must activate English');
+assert.equal(calSandbox.t('cal.no_events'), 'No events');
+assert.equal(calSandbox.t('weather.title'), 'Weather');
+assert.equal(calSandbox.t('cfg.search_matches', { n: 5 }), '5 matches');
+
+// Render views in English and ensure no 'undefined' text appears and custom names stay intact
+calSandbox.CONFIG.rooms = [{ name: 'Home' }, { name: 'Wohnzimmer' }];
+for (const st of stylesToTest) {
+  calSandbox.CONFIG.calendarHomeStyle = st;
+  const enCalHtml = calSandbox.homeCalendarCard(7, null, 'home');
+  assert.ok(!enCalHtml.includes('undefined'), `English calendar view (${st}) must not contain undefined`);
+}
+const enSideHtml = calSandbox.sidebar();
+assert.ok(enSideHtml.includes('Quick-Edit'), 'English sidebar must show Quick-Edit');
+assert.ok(enSideHtml.includes('Dashboard Configurator'), 'English sidebar must show Dashboard Configurator');
+assert.ok(!enSideHtml.includes('undefined'), 'English sidebar must not contain undefined');
+
+const enHeroHtml = calSandbox.heroOverlayContent();
+assert.ok(enHeroHtml.includes('Wohnzimmer'), 'Custom user room name "Wohnzimmer" must remain untouched in English mode');
+assert.ok(!enHeroHtml.includes('undefined'), 'English hero banner must not contain undefined');
+
+calSandbox.CONFIG.language = 'de';
+assert.equal(calSandbox.getLang(), 'de', 'Manual CONFIG.language="de" must activate German');
+assert.equal(calSandbox.t('cal.no_events'), 'Keine Termine');
+
+console.log('test_editor_search, v3.4.0, v3.5.0 & i18n self-tests: ALL PASSED');

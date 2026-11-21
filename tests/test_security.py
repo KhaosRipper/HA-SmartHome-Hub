@@ -42,6 +42,9 @@ def _install_ha_stubs() -> None:
         core = types.ModuleType("homeassistant.core")
         core.HomeAssistant = object
         helpers = types.ModuleType("homeassistant.helpers")
+        cv = types.ModuleType("homeassistant.helpers.config_validation")
+        cv.config_entry_only_config_schema = lambda domain: (lambda cfg: cfg)
+        helpers.config_validation = cv
         storage = types.ModuleType("homeassistant.helpers.storage")
         storage.Store = object
 
@@ -52,6 +55,7 @@ def _install_ha_stubs() -> None:
         sys.modules["homeassistant.config_entries"] = cfg_entries
         sys.modules["homeassistant.core"] = core
         sys.modules["homeassistant.helpers"] = helpers
+        sys.modules["homeassistant.helpers.config_validation"] = cv
         sys.modules["homeassistant.helpers.storage"] = storage
 
 
