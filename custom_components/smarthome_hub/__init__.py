@@ -21,10 +21,12 @@ except ImportError:
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
-VERSION = "3.5.2"
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+VERSION = "3.6.0"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
