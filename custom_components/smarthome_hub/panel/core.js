@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.5.1';
+const VERSION = '3.5.2';
 
 const CALENDAR_STYLES = [
   ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
