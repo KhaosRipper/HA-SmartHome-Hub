@@ -719,13 +719,13 @@ function sportsHubCard(w, widgetKey = 'sh_default') {
       <div class="gsp-hdr-right">
         ${viewMode === 'google' ? `
           <div class="gsp-tabs">
-            <button type="button" class="gsp-tab ${activeTab === 'overview' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="overview">Übersicht</button>
-            <button type="button" class="gsp-tab ${activeTab === 'matches' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="matches">Spiele</button>
-            ${standings.length ? `<button type="button" class="gsp-tab ${activeTab === 'table' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="table">Tabelle</button>` : ''}
+            <button type="button" class="gsp-tab ${activeTab === 'overview' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="overview">${tr('Übersicht', 'Overview')}</button>
+            <button type="button" class="gsp-tab ${activeTab === 'matches' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="matches">${t('sports.schedule')}</button>
+            ${standings.length ? `<button type="button" class="gsp-tab ${activeTab === 'table' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="table">${t('sports.table')}</button>` : ''}
             ${teamId && entry.roster && entry.roster.length ? `<button type="button" class="gsp-tab ${activeTab === 'roster' ? 'on' : ''}" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="roster">Team</button>` : ''}
           </div>
         ` : ''}
-        <button type="button" class="gsp-refresh-btn" data-act="sportsRefresh" data-wkey="${esc(widgetKey)}" title="Sportdaten jetzt aktualisieren">↻</button>
+        <button type="button" class="gsp-refresh-btn" data-act="sportsRefresh" data-wkey="${esc(widgetKey)}">↻</button>
       </div>
     </div>
   ` : '';
@@ -746,7 +746,7 @@ function sportsHubCard(w, widgetKey = 'sh_default') {
 }
 
 function renderFocusMatchBlock(ev, focusSummary, sport, isHighlightShown = true) {
-  if (!ev) return `<div class="mut sm" style="padding:14px">Aktuell kein Spiel verfügbar.</div>`;
+  if (!ev) return `<div class="mut sm" style="padding:14px">${t('weather.no_data')}</div>`;
   const isLive = ev.state === 'in';
   const isPost = ev.state === 'post' || ev.completed;
   const compLine = [ev.leagueName, ev.roundName].filter(Boolean).join(' · ');
@@ -770,7 +770,7 @@ function renderFocusMatchBlock(ev, focusSummary, sport, isHighlightShown = true)
   return `
     <div class="gsp-focus" data-act="sportsMatchDetail" data-sport="${esc(sport)}" data-league="${esc(ev.leagueSlug || 'all')}" data-event="${esc(ev.id)}" data-home="${esc(ev.home.name)}" data-away="${esc(ev.away.name)}" data-date="${ev.dateMs}">
       <div class="gsp-focus-meta">
-        <span>${esc(compLine || 'Spiel')}</span>
+        <span>${esc(compLine || t('sports.focus'))}</span>
         ${ev.venue ? `<span class="mut">· ${esc(ev.venue)}</span>` : ''}
       </div>
       <div class="gsp-focus-main">
@@ -809,12 +809,12 @@ function renderFocusMatchBlock(ev, focusSummary, sport, isHighlightShown = true)
 
       <div class="gsp-focus-actions" data-act="noop">
         ${isHighlightShown && (isPost || isLive) ? `
-          <button type="button" class="gsp-pill-btn yt" data-act="sportsOpenExt" data-url="${esc(ytUrl)}" title="Zusammenfassung & Highlights auf YouTube öffnen">
-            ▶ Zusammenfassung
+          <button type="button" class="gsp-pill-btn yt" data-act="sportsOpenExt" data-url="${esc(ytUrl)}">
+            ▶ Highlights
           </button>
         ` : ''}
         <button type="button" class="gsp-pill-btn" data-act="sportsMatchDetail" data-sport="${esc(sport)}" data-league="${esc(ev.leagueSlug || 'all')}" data-event="${esc(ev.id)}" data-home="${esc(ev.home.name)}" data-away="${esc(ev.away.name)}" data-date="${ev.dateMs}">
-          ℹ️ Spiel-Details &amp; Aufstellung
+          ℹ️ ${tr('Spiel-Details & Aufstellung', 'Match Details & Lineup')}
         </button>
       </div>
     </div>
@@ -837,8 +837,8 @@ function renderGoogleOverviewTab(w, entry, widgetKey) {
     <div class="gsp-upcoming-grid">
       ${upcomingEvs.map(ev => {
         const d = ev.dateMs ? new Date(ev.dateMs) : null;
-        const dateLine = d ? d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
-        const timeLine = d ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+        const dateLine = d ? d.toLocaleDateString(getLocale(), { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
+        const timeLine = d ? d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) : '';
         const isNonDefaultLeague = ev.leagueSlug && w.league && ev.leagueSlug !== w.league;
         return `
           <div class="gsp-up-tile" data-act="sportsMatchDetail" data-sport="${esc(sport)}" data-league="${esc(ev.leagueSlug || 'all')}" data-event="${esc(ev.id)}" data-home="${esc(ev.home.name)}" data-away="${esc(ev.away.name)}" data-date="${ev.dateMs}">
@@ -866,14 +866,14 @@ function renderGoogleOverviewTab(w, entry, widgetKey) {
   const leftColHtml = `
     <div class="gsp-panel">
       <div class="gsp-panel-hdr" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="matches">
-        <div><b>Spiele</b></div>
+        <div><b>${t('sports.schedule')}</b></div>
         <span class="gsp-chevron">›</span>
       </div>
       ${showFocus ? renderFocusMatchBlock(entry.focusEvent, entry.focusSummary, sport, true) : ''}
       ${upcomingGridHtml}
       <div class="gsp-panel-ftr">
-        <span class="mut sm">Alle Zeitangaben: Mitteleuropäische Zeit</span>
-        <button type="button" class="gsp-more-pill" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="matches">Vollständiger Spielplan ›</button>
+        <span class="mut sm">CET/CEST</span>
+        <button type="button" class="gsp-more-pill" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="matches">${t('sports.schedule')} ›</button>
       </div>
     </div>
   `;
@@ -897,21 +897,21 @@ function renderGoogleOverviewTab(w, entry, widgetKey) {
     <div class="gsp-panel">
       <div class="gsp-panel-hdr" data-act="sportsTab" data-wkey="${esc(widgetKey)}" data-tab="table">
         <div>
-          <b>Tabelle</b>
-          <div class="mut sm">${esc(entry.standLeagueName || 'Liga')}</div>
+          <b>${t('sports.table')}</b>
+          <div class="mut sm">${esc(entry.standLeagueName || '')}</div>
         </div>
         <span class="gsp-chevron">›</span>
       </div>
       <div class="gsp-table-wrap">
         <div class="gsp-trow hdr">
           <div class="c-rk"></div>
-          <div class="c-tm">Verein</div>
-          <div class="c-num">Sp</div>
-          <div class="c-num">S</div>
-          <div class="c-num">U</div>
-          <div class="c-num">N</div>
+          <div class="c-tm">${tr('Verein', 'Club')}</div>
+          <div class="c-num">${tr('Sp', 'P')}</div>
+          <div class="c-num">${tr('S', 'W')}</div>
+          <div class="c-num">${tr('U', 'D')}</div>
+          <div class="c-num">${tr('N', 'L')}</div>
           <div class="c-num">TD</div>
-          <div class="c-pts">Pkte</div>
+          <div class="c-pts">${tr('Pkte', 'Pts')}</div>
         </div>
         ${visibleRows.map(r => {
           const isMe = teamId && r.id === teamId;

@@ -1,5 +1,6 @@
 /* ---------- Neutrales Start-Gerüst für Neuinstallationen ---------- */
 const EMPTY_CONFIG = {
+  language: "auto",
   sidebarTitle: "Smart Home Hub",
   sidebarIcon: "mdi:home-automation",
   title: "Smart Home",
@@ -165,6 +166,7 @@ const EMPTY_CONFIG = {
 
 /* ---------- Vollständiges Preset aus deiner bestehenden Konfiguration ---------- */
 const TIMO_PRESET_CONFIG = {
+  language: "auto",
   sidebarTitle: "Smart Home Hub",
   sidebarIcon: "mdi:home-automation",
   title: "Home",

@@ -73,14 +73,14 @@ function renderDashCardHtml(id, item = null) {
 
 function getScopeBadgeLabel(item) {
   const sc = (item && item.scope) || 'all';
-  if (sc === 'all') return '🌐 Alle Räume';
-  if (sc === 'home') return '🏠 Nur Home';
-  if (sc === 'none') return '🚫 Ausgeblendet';
-  if (sc.startsWith('room:')) return `📍 Nur ${sc.slice(5)}`;
+  if (sc === 'all') return '🌐 ' + t('dev.all_rooms');
+  if (sc === 'home') return '🏠 Home';
+  if (sc === 'none') return '🚫 ' + t('qe.card_hidden');
+  if (sc.startsWith('room:')) return `📍 ${sc.slice(5)}`;
   if (sc === 'custom' && Array.isArray(item.scopeRooms)) {
-    return item.scopeRooms.length ? `🎯 ${item.scopeRooms.join(', ')}` : '🎯 Keine Räume';
+    return item.scopeRooms.length ? `🎯 ${item.scopeRooms.join(', ')}` : '🎯 ' + tr('Keine Räume', 'No rooms');
   }
-  return '🌐 Alle Räume';
+  return '🌐 ' + t('dev.all_rooms');
 }
 
 function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
@@ -95,29 +95,29 @@ function buildDashQuickEditBar(item, idx, total, btnColsCount = 4) {
   const widthVal = String(item.width || '100');
   const widthBtns = ['100', '50', '33', '66'].map(w => {
     const lbl = w === '100' ? '1/1' : (w === '50' ? '1/2' : (w === '33' ? '1/3' : '2/3'));
-    return `<button class="qe-btn ${widthVal === w ? 'on' : ''}" data-act="qeDashWidth" data-i="${idx}" data-w="${w}" title="Breite in Spalte: ${lbl}">${lbl}</button>`;
+    return `<button class="qe-btn ${widthVal === w ? 'on' : ''}" data-act="qeDashWidth" data-i="${idx}" data-w="${w}" title="${lbl}">${lbl}</button>`;
   }).join('');
 
   const spanVal = String(item.span || (item.col === 'full' ? '12' : (item.width === '50' ? '6' : (item.width === '33' ? '4' : (item.width === '66' ? '8' : (item.col === '2' ? '4' : '8'))))));
   const spanBtns = ['12', '8', '6', '4', '3'].map(s => {
-    const lbl = s === '12' ? '12 (Voll)' : (s === '8' ? '8 (2/3)' : (s === '6' ? '6 (1/2)' : (s === '4' ? '4 (1/3)' : '3 (1/4)')));
+    const lbl = s === '12' ? '12 (100%)' : (s === '8' ? '8 (2/3)' : (s === '6' ? '6 (1/2)' : (s === '4' ? '4 (1/3)' : '3 (1/4)')));
     return `<button class="qe-btn ${spanVal === s ? 'on' : ''}" data-act="qeDashSpan" data-i="${idx}" data-span="${s}" title="${lbl}">${s}</button>`;
   }).join('') + `
-    <label class="qe-col-custom" style="padding:2px 6px" title="Freie Spaltenbreite (1-12)">
+    <label class="qe-col-custom" style="padding:2px 6px">
       <span>Span:</span>
       <input type="number" min="1" max="12" class="qe-col-input" style="width:36px;padding:1px 4px" data-act="qeDashSpanInput" data-i="${idx}" value="${spanVal}">
     </label>`;
 
   return `<div class="qe-bar">
-    <span class="qe-title">${esc(item.label || item.id)}</span>
+    <span class="qe-title">${esc(tDefault(item.label || item.id))}</span>
     <div class="qe-btns">
-      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Nach oben / links">↑</button>
-      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="Nach unten / rechts">↓</button>
-      ${!isGrid12 ? colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}" title="Spalte zuweisen">${c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('') : ''}
+      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="${t('qe.move_up')}">↑</button>
+      <button class="qe-btn" data-act="qeDashMove" data-i="${idx}" data-dir="1" ${idx === total - 1 ? 'disabled' : ''} title="${t('qe.move_down')}">↓</button>
+      ${!isGrid12 ? colOpts.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeDashCol" data-i="${idx}" data-col="${c}">${c === 'full' ? tr('Voll', 'Full') : tr('Sp.', 'Col.') + c}</button>`).join('') : ''}
       ${!isGrid12 ? `<span style="opacity:0.3">|</span>` + widthBtns : `<span style="opacity:0.3">|</span>` + spanBtns}
-      <button class="qe-btn ${scopeVal !== 'all' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}" title="Anzeige-Ort durchschalten (Alle Räume ⇄ Nur Home ⇄ Aktueller Raum)">${esc(getScopeBadgeLabel(item))}</button>
-      <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="Ein-/Ausblenden">${item.show === false ? '🙈' : '👁️'}</button>
-      <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="Im Editor anpassen">⚙️</button>
+      <button class="qe-btn ${scopeVal !== 'all' ? 'on' : ''}" data-act="qeDashScope" data-i="${idx}">${esc(getScopeBadgeLabel(item))}</button>
+      <button class="qe-btn ${item.show === false ? 'off' : ''}" data-act="qeDashVis" data-i="${idx}" title="${item.show === false ? t('qe.show') : t('qe.hide')}">${item.show === false ? '🙈' : '👁️'}</button>
+      <button class="qe-btn" data-act="cfgOpenTab" data-tab="${esc(edTab)}" ${edSubTab ? `data-subtab="${esc(edSubTab)}"` : ''} title="${t('qe.open_config')}">⚙️</button>
     </div>
   </div>`;
 }
@@ -199,33 +199,33 @@ function render() {
     if (qeToolbar) {
       const nextToolbar = ui.editMode ? `<div class="qe-page-bar" style="gap:8px 12px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span>✏️ <b>Modus:</b></span>
-          <button class="chip ${!isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="columns">📐 Spalten (Sub-Grid)</button>
-          <button class="chip ${isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="grid12">▦ 12-Spalten-Raster</button>
+          <span>✏️ <b>${t('klima.mode')}:</b></span>
+          <button class="chip ${!isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="columns">📐 ${tr('Spalten (Sub-Grid)', 'Columns (Sub-Grid)')}</button>
+          <button class="chip ${isGrid12 ? 'on' : ''}" data-act="qeDashLayoutMode" data-mode="grid12">▦ ${tr('12-Spalten-Raster', '12-Column Grid')}</button>
         </div>
         ${!isGrid12 ? `
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span>Verhältnis:</span>
-          ${[['', 'Standard'], ['70/30', '70/30'], ['65/35', '65/35'], ['60/40', '60/40'], ['50/50', '50/50']].map(([v, l]) =>
+          <span>${tr('Verhältnis:', 'Ratio:')}</span>
+          ${[['', tr('Standard', 'Default')], ['70/30', '70/30'], ['65/35', '65/35'], ['60/40', '60/40'], ['50/50', '50/50']].map(([v, l]) =>
             `<button class="chip ${(CONFIG.dashboardColRatio || '') === v ? 'on' : ''}" data-act="qeDashColRatio" data-ratio="${v}">${l}</button>`
           ).join('')}
           <span style="opacity:0.3">|</span>
-          <span>Spalten:</span>
+          <span>${tr('Spalten:', 'Columns:')}</span>
           <button class="chip ${parsed.mode === 'asym' && !CONFIG.dashboardColRatio ? 'on' : ''}" data-act="qeDashCols" data-cols="2-asym">2 asym</button>
           ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeDashCols" data-cols="${n}-col">${n}</button>`).join('')}
-          <label class="qe-col-custom" title="Beliebige Spaltenanzahl (1–12)">
-            <span>Frei:</span>
+          <label class="qe-col-custom">
+            <span>${tr('Frei:', 'Custom:')}</span>
             <input type="number" min="1" max="12" class="qe-col-input" data-act="qeDashColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
-            <span>Sp.</span>
+            <span>${tr('Sp.', 'Col.')}</span>
           </label>
         </div>` : `
         <div style="display:flex;align-items:center;gap:6px">
-          <span class="mut sm">12-Spalten-Grid aktiv · Weise Kacheln Spalten 1–12 zu (z.B. 6 = 50%, 4 = 33%). Mobil automatisch 100%.</span>
+          <span class="mut sm">${tr('12-Spalten-Grid aktiv · Weise Kacheln Spalten 1–12 zu (z.B. 6 = 50%, 4 = 33%).', '12-column grid active · Assign span 1–12 to cards (e.g. 6 = 50%, 4 = 33%).')}</span>
         </div>`}
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="chip" data-act="forceReloadApp" title="Cache leeren & Ansicht frisch vom Server laden">🔄 Neu laden</button>
-          <button class="chip" data-act="cfgOpenTab" data-tab="layout">⚙️ Layout-Tab</button>
-          <button class="chip on" data-act="toggleEditMode">✓ Fertig</button>
+          <button class="chip" data-act="forceReloadApp">🔄 ${tr('Neu laden', 'Reload')}</button>
+          <button class="chip" data-act="cfgOpenTab" data-tab="layout">⚙️ Layout</button>
+          <button class="chip on" data-act="toggleEditMode">${t('qe.done')}</button>
         </div>
       </div>` : '';
       if (qeToolbar._lastHtml !== nextToolbar) {
@@ -468,7 +468,7 @@ function render() {
       dropHeroMedia();
     }
   } else if (ui.view === 'kameras') {
-    const camSig = `${canUseGo2rtc()}|${go2rtcState.modeOverride}|${CONFIG.go2rtcHost || ''}|${CONFIG.camCols || 'auto'}|${ui.editMode}|${JSON.stringify(CONFIG.webrtcCameras || [])}`;
+    const camSig = `${getLang()}|${canUseGo2rtc()}|${go2rtcState.modeOverride}|${CONFIG.go2rtcHost || ''}|${CONFIG.camCols || 'auto'}|${ui.editMode}|${JSON.stringify(CONFIG.webrtcCameras || [])}`;
     const existingCamRoot = document.getElementById('kameras-root');
     if (existingCamRoot && existingCamRoot.dataset.camSig === camSig) {
       // Kamera-Seite ist bereits gerendert und unverändert -> laufende Kamera-Streams nicht neu laden!
@@ -483,7 +483,7 @@ function render() {
           <div id="mtabs-slot">${mtabs()}</div>
           ${kamerasView()}
         </main>
-        ${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
+        ${DEMO ? `<div class="demo">${tr('DEMO-MODUS – keine Verbindung zu Home Assistant', 'DEMO MODE – no connection to Home Assistant')}</div>` : ''}`;
       initCamObserver();
     }
   } else {
@@ -522,7 +522,7 @@ function render() {
           <div id="mtabs-slot">${mtabs()}</div>
           <div id="subpage-content">${pageHtml}</div>
         </main>
-        ${DEMO ? '<div class="demo">DEMO-MODUS – keine Verbindung zu Home Assistant</div>' : ''}`;
+        ${DEMO ? `<div class="demo">${tr('DEMO-MODUS – keine Verbindung zu Home Assistant', 'DEMO MODE – no connection to Home Assistant')}</div>` : ''}`;
       const subContent = document.getElementById('subpage-content');
       if (subContent) subContent._lastHtml = pageHtml;
     }
@@ -650,13 +650,13 @@ function tick(force) {
     ensureHassLiveSync();
   }
   if (ui.view === 'kameras') {
-    const camSig = `#kameras:${canUseGo2rtc()}:${go2rtcState.modeOverride}:${ui.editMode}:${CONFIG.camCols}`;
+    const camSig = `#kameras:${getLang()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}:${ui.editMode}:${CONFIG.camCols}`;
     if (force || lastSig !== camSig) { lastSig = camSig; render(); }
     return;
   }
   if (coverDrag.active) return;
   const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level, a.battery_level, a.battery].join('|'); }).join(';')
-    + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.profileMenuOpen}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
+    + `#${getLang()}:${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.profileMenuOpen}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
 }
 
@@ -665,7 +665,7 @@ function runtimeTick() {
 
   document.querySelectorAll('.f1-timer').forEach(el => {
     const diff = +el.dataset.target - Date.now();
-    if (diff <= 0) { el.textContent = 'Rennen läuft'; return; }
+    if (diff <= 0) { el.textContent = t('sports.live'); return; }
     const d = Math.floor(diff / 86400000);
     const h = Math.floor((diff % 86400000) / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
@@ -675,7 +675,7 @@ function runtimeTick() {
   if (CONFIG.showDateTime) {
     const now = new Date();
     const dtOpts = { timeZone: CONFIG.dateTimeTimeZone || 'Europe/Berlin' };
-    const loc = CONFIG.dateTimeLocale || 'de-DE';
+    const loc = getLang() === 'en' ? 'en-US' : (CONFIG.dateTimeLocale || 'de-DE');
     const dEl = document.getElementById('hub-date');
     const tEl = document.getElementById('hub-time');
     if (dEl) dEl.textContent = now.toLocaleDateString(loc, { ...dtOpts, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -2256,7 +2256,7 @@ document.addEventListener('click', ev => {
       if (dm === 'scene') call('scene', 'turn_on', { entity_id: ent });
       else if (dm === 'script') call('script', 'turn_on', { entity_id: ent });
       else call('homeassistant', 'turn_on', { entity_id: ent });
-      toast(`Routine gestartet: ${el.dataset.name || ent}`);
+      toast(t('rout.started', { name: el.dataset.name || ent }));
       setTimeout(() => tick(true), 300);
     }
   }
@@ -2306,7 +2306,7 @@ function scheduleBellHoldClose(holdSec) {
   const cdEl = document.getElementById('bell-hold-badge');
   if (cdEl) {
     cdEl.style.display = 'inline-flex';
-    cdEl.textContent = ms > 0 ? `Nachlauf: ${Math.round(ms / 1000)}s` : 'Schließt…';
+    cdEl.textContent = ms > 0 ? t('cam.hold_badge', { s: Math.round(ms / 1000) }) : '…';
   }
   if (ms <= 0) {
     window.closeBellPopup();
@@ -2333,7 +2333,6 @@ function checkBellPopupTrigger() {
   lastBellTriggerState = curState;
 
   if (curState === 'on') {
-    // Falls während der Nachlaufzeit erneut 'on' gemeldet wird -> Nachlauf-Timer sofort abbrechen, Popup offen halten!
     if (bellHoldTimeout) {
       clearBellHoldTimer();
       const cdEl = document.getElementById('bell-hold-badge');
@@ -2341,11 +2340,10 @@ function checkBellPopupTrigger() {
     }
     if (becameOn && !ui.editMode && !isScreensaverActive && !activeBellPopup) {
       if (isBellPopupAllowedOnCurrentPage(cfg)) {
-        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung', cfg.webrtc || '');
+        showBellPopup(cfg.cameraEntity, tDefault(cfg.title || t('cam.doorbell')), cfg.webrtc || '');
       }
     }
   } else if (becameOff && activeBellPopup) {
-    // Wechsel von 'on' auf 'off' -> Nachlaufzeit (triggerHoldSeconds) starten
     const holdSec = cfg.triggerHoldSeconds != null ? Number(cfg.triggerHoldSeconds) : 10;
     scheduleBellHoldClose(holdSec);
   }
@@ -2381,13 +2379,13 @@ function showBellPopup(cameraEntity, title, explicitStream = '') {
   const mediaHtml = useGo2
     ? `<iframe src="${esc(`${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`
     : ((streamUrl || snapUrl)
-      ? `<img id="bell-popup-img" src="${esc(streamUrl || snapUrl)}" alt="Kamera">`
-      : `<div class="cam-placeholder">${ic('camera', 40)}<span>Kamera nicht erreichbar</span></div>`);
+      ? `<img id="bell-popup-img" src="${esc(streamUrl || snapUrl)}" alt="Camera">`
+      : `<div class="cam-placeholder">${ic('camera', 40)}<span>${t('cam.unavailable')}</span></div>`);
       
   pEl.innerHTML = `
     <div class="bell-popup-content">
       <div class="bell-popup-hdr">
-        <h2><span>${ic('bell', 24)}</span> ${esc(title)} <small id="bell-hold-badge" class="pill" style="display:none;font-size:11px;margin-left:8px"></small></h2>
+        <h2><span>${ic('bell', 24)}</span> ${esc(tDefault(title))} <small id="bell-hold-badge" class="pill" style="display:none;font-size:11px;margin-left:8px"></small></h2>
         <button class="bell-popup-close" onclick="closeBellPopup()">✕</button>
       </div>
       <div class="bell-popup-cam">
@@ -2504,8 +2502,8 @@ function updateScreensaverContent() {
   if (!ssEl) return;
   
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+  const timeStr = now.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString(getLocale(), { weekday: 'long', day: '2-digit', month: 'long' });
   
   let wIcon = '🌤️';
   let tempStr = '–';
@@ -2525,7 +2523,7 @@ function updateScreensaverContent() {
   let alertsHtml = '';
   const openInfo = getOpenWindowsAndDoors(CONFIG.ventilation?.openWarnMinutes || 10);
   if (openInfo.openItems.length) {
-    alertsHtml = `<div class="ss-alerts"><div class="ss-alert warn">⚠️ ${openInfo.openItems.length} Fenster/Türen offen!</div></div>`;
+    alertsHtml = `<div class="ss-alerts"><div class="ss-alert warn">⚠️ ${t('status.windows_open', { n: openInfo.openItems.length })}</div></div>`;
   }
   
   const pwrFlowHtml = ''; // Platzhalter für weitere Mini-Graphen falls gewünscht

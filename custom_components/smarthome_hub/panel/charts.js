@@ -259,12 +259,12 @@ function renderWeatherModal() {
 
   const dtObj = selDay.datetime ? new Date(selDay.datetime) : new Date();
   const dayLong = selIdx === 0
-    ? dtObj.toLocaleDateString('de-DE', { weekday: 'long' }) + ', ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-    : dtObj.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' });
+    ? dtObj.toLocaleDateString(getLocale(), { weekday: 'long' }) + ', ' + new Date().toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })
+    : dtObj.toLocaleDateString(getLocale(), { weekday: 'long', day: '2-digit', month: '2-digit' });
 
   const daysStrip = days.slice(0, 8).map((d, i) => {
     const dt = d.datetime ? new Date(d.datetime) : new Date(Date.now() + i * 86400000);
-    const shortDay = dt.toLocaleDateString('de-DE', { weekday: 'short' });
+    const shortDay = dt.toLocaleDateString(getLocale(), { weekday: 'short' });
     const sym = WEATHER_SYMBOLS[d.condition] || '🌤️';
     const hi = d.temperature != null ? `${fmt(Number(d.temperature), 0)}°` : '—';
     const lo = d.templow != null ? `<span>${fmt(Number(d.templow), 0)}°</span>` : '';
@@ -279,7 +279,7 @@ function renderWeatherModal() {
   sheet.classList.add('wfc-wide');
   sheet.innerHTML = `
     <div class="smh" style="margin-bottom:10px">
-      <b>${esc(wCfg.forecastTitle || 'Wettervorhersage')}</b>
+      <b>${esc(tDefault(wCfg.forecastTitle || t('weather.forecast_7d')))}</b>
       <button class="x2" data-act="smClose">✕</button>
     </div>
     <div class="wfc-top">
@@ -287,24 +287,24 @@ function renderWeatherModal() {
         <div class="wfc-big-ico">${topSym}</div>
         <div class="wfc-big-temp">${fmt(topTemp, 0)}<sup>${esc(wCfg.tempUnit || '°C')}</sup></div>
         <div class="wfc-meta">
-          <span>Niederschlag: ${esc(rainProb)}</span>
-          <span>Luftfeuchte: ${esc(humid)}</span>
-          <span>Wind: ${esc(windVal)}</span>
+          <span>${t('weather.precipitation')}: ${esc(rainProb)}</span>
+          <span>${t('weather.humidity')}: ${esc(humid)}</span>
+          <span>${t('weather.wind')}: ${esc(windVal)}</span>
         </div>
       </div>
       <div class="wfc-top-right">
-        <h3>${esc(wCfg.title || 'Wetter')}${wCfg.label ? ' · ' + esc(wCfg.label) : ''}</h3>
+        <h3>${esc(tDefault(wCfg.title || t('weather.title')))}${wCfg.label ? ' · ' + esc(tDefault(wCfg.label)) : ''}</h3>
         <div>${esc(dayLong)}</div>
         <div>${esc(topCondText)}</div>
       </div>
     </div>
     <div class="wfc-tabs">
-      <button class="wfc-tab ${weatherForecastState.tab === 'temp' ? 'on' : ''}" data-act="wfcTab" data-tab="temp">Temperatur</button>
-      <button class="wfc-tab ${weatherForecastState.tab === 'rain' ? 'on' : ''}" data-act="wfcTab" data-tab="rain">Niederschlag</button>
-      <button class="wfc-tab ${weatherForecastState.tab === 'wind' ? 'on' : ''}" data-act="wfcTab" data-tab="wind">Wind</button>
+      <button class="wfc-tab ${weatherForecastState.tab === 'temp' ? 'on' : ''}" data-act="wfcTab" data-tab="temp">${t('sys.temp')}</button>
+      <button class="wfc-tab ${weatherForecastState.tab === 'rain' ? 'on' : ''}" data-act="wfcTab" data-tab="rain">${t('weather.precipitation')}</button>
+      <button class="wfc-tab ${weatherForecastState.tab === 'wind' ? 'on' : ''}" data-act="wfcTab" data-tab="wind">${t('weather.wind')}</button>
     </div>
     ${renderWeatherChartSVG(slots, weatherForecastState.tab)}
-    <div class="wfc-days">${daysStrip || '<div class="mut sm">Lade Vorhersagedaten…</div>'}</div>`;
+    <div class="wfc-days">${daysStrip || `<div class="mut sm">${t('weather.loading')}</div>`}</div>`;
 }
 
 function openWeatherModal() {
@@ -859,17 +859,17 @@ function openEnergyModal(metricId, btnId, isUpdate = false) {
         <b style="font-size:18px">${esc(valStr)}</b>
       </div>
       <div style="display:flex;gap:16px;font-size:11px;color:var(--mut);flex-wrap:wrap">
-        <span>📈 Höchstwert: <strong style="color:var(--txt)">${maxInfo}</strong></span>
-        <span>📉 Tiefstwert: <strong style="color:var(--txt)">${minInfo}</strong></span>
+        <span>📈 ${t('chart.max')}: <strong style="color:var(--txt)">${maxInfo}</strong></span>
+        <span>📉 ${t('chart.min')}: <strong style="color:var(--txt)">${minInfo}</strong></span>
       </div>
-      <div style="font-size:10px;color:var(--mut)">Durchgezogene Linie: Heute · Gestrichelte Linie: Gestern (letzte 24h)</div>
+      <div style="font-size:10px;color:var(--mut)">${tr('Durchgezogene Linie: Heute · Gestrichelte Linie: Gestern (letzte 24h)', 'Solid line: Today · Dashed line: Yesterday (last 24h)')}</div>
       ${chartHtml}
     </div>`;
   }).join('');
 
   document.getElementById('smsheet').innerHTML = `
     <div class="smh" style="margin-bottom:18px;">
-      <div style="display:flex;align-items:center;gap:10px;color:var(--${btn.color || 'acc'})">${ic(btn.icon, 22)} <b style="color:var(--txt);font-size:18px">${esc(btn.name)}</b></div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--${btn.color || 'acc'})">${ic(btn.icon, 22)} <b style="color:var(--txt);font-size:18px">${esc(tDefault(btn.name))}</b></div>
       <button class="x2" data-act="smClose">✕</button>
     </div>
     ${rows}`;
@@ -882,7 +882,7 @@ function getChartCtx() {
     const m = (CONFIG.metrics || []).find(x => x.id === sm.metricId);
     if (!m) return null;
     return {
-      id: m.id, title: m.title || 'Verlauf', mode: m.mode || 'avg', dec: m.decimals ?? 1,
+      id: m.id, title: tDefault(m.title || t('energy.history')), mode: m.mode || 'avg', dec: m.decimals ?? 1,
       ent: m.chart, attr: null, unit: m.unit || '', cUnit: m.chartUnit || '',
       todayVal: num(m.entity), liveVal: num(m.chart),
       key24: m.chart, prev24: m.chart + '_yest', key7: '7d:' + m.chart
@@ -896,7 +896,7 @@ function getChartCtx() {
   const kBase = (isKlima ? '24:' : 'stats:') + sm.cEnt + (sm.cAttr ? ':' + sm.cAttr : '');
 
   return {
-    id: sm.cEnt + (sm.cAttr || ''), title: sm.cName || 'Verlauf', mode: sm.cMode || 'avg', dec: sm.cDec,
+    id: sm.cEnt + (sm.cAttr || ''), title: tDefault(sm.cName || t('energy.history')), mode: sm.cMode || 'avg', dec: sm.cDec,
     ent: sm.cEnt, attr: sm.cAttr, unit: sm.cUnit || '', cUnit: sm.cUnit || '',
     todayVal: val, liveVal: val,
     key24: kBase, prev24: kBase + '_yest', key7: '7d:' + kBase
@@ -946,23 +946,23 @@ function renderChartModal() {
     const avg = pts.reduce((sum, p) => sum + p.v, 0) / pts.length;
     const when = p => {
       const d = seriesPointDate(p.i, ser.length);
-      return is7 ? `${d.toLocaleDateString('de-DE', { weekday: 'short' })}, ${pad(d.getHours())}:00 Uhr` : `um ${pad(d.getHours())}:00 Uhr`;
+      return is7 ? `${d.toLocaleDateString(getLocale(), { weekday: 'short' })}, ${pad(d.getHours())}:00${t('cal.clock_suffix')}` : `${pad(d.getHours())}:00${t('cal.clock_suffix')}`;
     };
     stats = `<div class="mc-stats">
-      <span>📈 Höchstwert: <strong>${fmt(hi.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(hi))})</span>
-      <span>📉 Tiefstwert: <strong>${fmt(lo.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(lo))})</span>
+      <span>📈 ${t('chart.max')}: <strong>${fmt(hi.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(hi))})</span>
+      <span>📉 ${t('chart.min')}: <strong>${fmt(lo.v, 1)} ${esc(ctx.cUnit)}</strong> (${esc(when(lo))})</span>
       <span>Ø <strong>${fmt(avg, 1)} ${esc(ctx.cUnit)}</strong></span></div>`;
   }
 
   const chartHtml = (is7 && sm.loading)
-    ? '<div class="mut sm" style="padding:70px 0;text-align:center">Lade Verlaufsdaten …</div>'
+    ? `<div class="mut sm" style="padding:70px 0;text-align:center">${t('weather.loading')}</div>`
     : `<div class="chart chart-big" style="margin-top:6px">${spark(ser, 'mc' + ctx.id + (is7 ? '7' : '1'), { fit: true, W: 650, H: 240, range7: is7, unit: ctx.cUnit || ctx.unit || '', dec: ctx.dec }, prev)}</div>`;
 
   const topVals = sm.chartType === 'metric' ? `
-    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.unit)}</span></div><small>Heute</small></div>
-    ${ctx.liveVal != null ? `<div><div class="mc-big">${fmt(ctx.liveVal, 0)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>${ctx.mode === 'last' ? 'Letzter Wert' : 'Aktuell'}</small></div>` : ''}
+    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.unit)}</span></div><small>${t('energy.today')}</small></div>
+    ${ctx.liveVal != null ? `<div><div class="mc-big">${fmt(ctx.liveVal, 0)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>${t('chart.current')}</small></div>` : ''}
   ` : `
-    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>Aktuell</small></div>
+    <div><div class="mc-big">${fmt(ctx.todayVal, ctx.dec)}<span class="unit">${esc(ctx.cUnit)}</span></div><small>${t('chart.current')}</small></div>
   `;
 
   const sheet = document.getElementById('smsheet');
@@ -971,11 +971,10 @@ function renderChartModal() {
     <div class="smh"><b>${esc(ctx.title)}</b><button class="x2" data-act="smClose">✕</button></div>
     <div class="mc-top">${topVals}</div>
     <div class="wfc-tabs">
-      <button class="wfc-tab ${is7 ? '' : 'on'}" data-act="chartRange" data-r="24h">24 Stunden</button>
-      <button class="wfc-tab ${is7 ? 'on' : ''}" data-act="chartRange" data-r="7d">7 Tage</button>
+      <button class="wfc-tab ${is7 ? '' : 'on'}" data-act="chartRange" data-r="24h">24h</button>
+      <button class="wfc-tab ${is7 ? 'on' : ''}" data-act="chartRange" data-r="7d">${tr('7 Tage', '7 Days')}</button>
     </div>
-    ${chartHtml}${stats}
-    <div class="mut" style="margin-top:8px;font-size:10px">Durchgezogen: ${is7 ? 'letzte 7 Tage' : 'letzte 24 Stunden'} · Gestrichelt: ${is7 ? 'die 7 Tage davor' : 'dieselben 24h am Vortag'}</div>`;
+    ${chartHtml}${stats}`;
 }
 
 function openChartModal(el) {
@@ -1076,15 +1075,15 @@ function renderDeviceDetailModal() {
         <div class="dd-hero-stat">
           <div class="dd-badge ${isOn ? 'on' : ''}">${IC.bulb}</div>
           <div>
-            <div class="dd-state-lbl">${isOn ? `Eingeschaltet · ${bri}%` : 'Ausgeschaltet'}</div>
-            <div class="dd-sub-lbl">${since ? `Seit ${esc(since)}` : esc(ent)}</div>
+            <div class="dd-state-lbl">${isOn ? `${t('state.on')} · ${bri}%` : t('state.off')}</div>
+            <div class="dd-sub-lbl">${since ? `${esc(since)}` : esc(ent)}</div>
           </div>
         </div>
         <button class="sw ${isOn ? 'on' : ''}" data-act="ddToggle" data-e="${esc(ent)}"></button>
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>☀️ Helligkeit</span><strong id="dd-bri-lbl">${bri}%</strong></div>
+        <div class="dd-sec-hd"><span>☀️ ${t('chart.brightness')}</span><strong id="dd-bri-lbl">${bri}%</strong></div>
         <input type="range" class="dd-slider dd-slider-bri" min="0" max="100" value="${bri}" data-act="ddLightBri" data-e="${esc(ent)}">
         <div class="dd-pills">
           ${[10, 25, 50, 75, 100].map(p => `<button class="chip ${Math.abs(bri - p) <= 4 && isOn ? 'on' : ''}" data-act="ddLightBriBtn" data-e="${esc(ent)}" data-v="${p}">${p}%</button>`).join('')}
@@ -1092,21 +1091,21 @@ function renderDeviceDetailModal() {
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🌡️ Farbtemperatur</span><strong id="dd-ct-lbl">${curK} K</strong></div>
+        <div class="dd-sec-hd"><span>🌡️ ${t('chart.color_temp')}</span><strong id="dd-ct-lbl">${curK} K</strong></div>
         <input type="range" class="dd-slider dd-slider-ct" min="${minK}" max="${maxK}" step="100" value="${curK}" data-act="ddLightCt" data-e="${esc(ent)}">
         <div class="dd-pills">
-          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="2200">Kerze (2200K)</button>
-          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="2700">Warm (2700K)</button>
-          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="4000">Neutral (4000K)</button>
-          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="6000">Tageslicht (6000K)</button>
+          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="2200">2200K</button>
+          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="2700">2700K</button>
+          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="4000">4000K</button>
+          <button class="chip" data-act="ddLightCtBtn" data-e="${esc(ent)}" data-v="6000">6000K</button>
         </div>
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🎨 Lichtfarbe (RGB)</span></div>
+        <div class="dd-sec-hd"><span>🎨 ${t('chart.color')} (RGB)</span></div>
         <div class="dd-swatches">
           ${RGB_PRESETS.map(p => `<button class="dd-swatch" style="background:${p.hex}" title="${esc(p.name)}" data-act="ddLightRgbSwatch" data-e="${esc(ent)}" data-rgb="${p.rgb.join(',')}"></button>`).join('')}
-          <label class="dd-swatch dd-swatch-picker" title="Freie Farbwahl">
+          <label class="dd-swatch dd-swatch-picker">
             <input type="color" value="${curHex}" data-act="ddLightColorPick" data-e="${esc(ent)}">
             <span>＋</span>
           </label>
@@ -1115,7 +1114,7 @@ function renderDeviceDetailModal() {
 
       ${effects.length ? `
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>✨ Effekt (WLED / Szene)</span></div>
+        <div class="dd-sec-hd"><span>✨ ${t('chart.effects')}</span></div>
         <div class="dd-pills">
           ${effects.map(ef => `<button class="chip ${curEffect === ef ? 'on' : ''}" data-act="ddLightEffect" data-e="${esc(ent)}" data-v="${esc(ef)}">${esc(ef)}</button>`).join('')}
         </div>
@@ -1143,15 +1142,15 @@ function renderDeviceDetailModal() {
 
       <div class="dd-sec">
         <div class="dd-media-transport">
-          <button class="btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_previous_track" title="Zurück">${IC.prev}</button>
-          <button class="btn primary dd-play-btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_play_pause" title="Play / Pause">${s.state === 'playing' ? IC.pause : IC.play}</button>
-          <button class="btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_next_track" title="Weiter">${IC.next}</button>
-          <button class="btn ${muted ? 'danger' : ''}" data-act="ddMediaMute" data-e="${esc(ent)}" data-mute="${muted ? '0' : '1'}" title="Stumm">${muted ? '🔇 Stumm' : '🔊 Ton an'}</button>
+          <button class="btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_previous_track">${IC.prev}</button>
+          <button class="btn primary dd-play-btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_play_pause">${s.state === 'playing' ? IC.pause : IC.play}</button>
+          <button class="btn" data-act="ddMediaCmd" data-e="${esc(ent)}" data-cmd="media_next_track">${IC.next}</button>
+          <button class="btn ${muted ? 'danger' : ''}" data-act="ddMediaMute" data-e="${esc(ent)}" data-mute="${muted ? '0' : '1'}">${muted ? '🔇' : '🔊'}</button>
         </div>
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🔊 Lautstärke</span><strong id="dd-vol-lbl">${vol}%</strong></div>
+        <div class="dd-sec-hd"><span>🔊 ${t('chart.volume')}</span><strong id="dd-vol-lbl">${vol}%</strong></div>
         <input type="range" class="dd-slider" min="0" max="100" value="${vol}" data-act="ddMediaVol" data-e="${esc(ent)}">
         <div class="dd-pills">
           ${[15, 30, 50, 75, 100].map(p => `<button class="chip ${Math.abs(vol - p) <= 3 ? 'on' : ''}" data-act="ddMediaVolBtn" data-e="${esc(ent)}" data-v="${p}">${p}%</button>`).join('')}
@@ -1160,7 +1159,7 @@ function renderDeviceDetailModal() {
 
       ${sources.length ? `
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>📺 Quelle / Eingang</span></div>
+        <div class="dd-sec-hd"><span>📺 ${t('chart.source')}</span></div>
         <div class="dd-pills">
           ${sources.map(src => `<button class="chip ${curSrc === src ? 'on' : ''}" data-act="ddMediaSource" data-e="${esc(ent)}" data-v="${esc(src)}">${esc(src)}</button>`).join('')}
         </div>
@@ -1173,7 +1172,7 @@ function renderDeviceDetailModal() {
         <div class="dd-hero-stat">
           <div class="dd-badge ${pos > 0 ? 'on' : ''}">${IC.blinds}</div>
           <div>
-            <div class="dd-state-lbl">${pos === 0 ? 'Geschlossen (0%)' : `Geöffnet (${pos}%)`}</div>
+            <div class="dd-state-lbl">${pos === 0 ? `${t('sec.closed')} (0%)` : `${t('sec.open')} (${pos}%)`}</div>
             <div class="dd-sub-lbl">${esc(stateLabel(s.state))}</div>
           </div>
         </div>
@@ -1185,10 +1184,10 @@ function renderDeviceDetailModal() {
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🪟 Position</span><strong id="dd-cov-lbl">${pos}%</strong></div>
+        <div class="dd-sec-hd"><span>🪟 ${t('chart.position')}</span><strong id="dd-cov-lbl">${pos}%</strong></div>
         <input type="range" class="dd-slider" min="0" max="100" value="${pos}" data-act="ddCoverPos" data-e="${esc(ent)}">
         <div class="dd-pills">
-          ${[0, 25, 50, 75, 100].map(p => `<button class="chip ${Math.abs(pos - p) <= 3 ? 'on' : ''}" data-act="covPos" data-e="${esc(ent)}" data-pos="${p}">${p === 0 ? 'Zu (0%)' : p === 100 ? 'Auf (100%)' : p + '%'}</button>`).join('')}
+          ${[0, 25, 50, 75, 100].map(p => `<button class="chip ${Math.abs(pos - p) <= 3 ? 'on' : ''}" data-act="covPos" data-e="${esc(ent)}" data-pos="${p}">${p}%</button>`).join('')}
         </div>
       </div>
     `;
@@ -1207,8 +1206,8 @@ function renderDeviceDetailModal() {
         <div class="dd-hero-stat">
           <div class="dd-badge ${s.state !== 'off' ? 'on' : ''}">${IC.thermo}</div>
           <div>
-            <div class="dd-state-lbl">Ist: ${fmt(curT, 1)} °C · Ziel: ${fmt(targT, 1)} °C</div>
-            <div class="dd-sub-lbl">Modus: ${esc(HVAC_LABELS[s.state] || s.state)}</div>
+            <div class="dd-state-lbl">${t('klima.actual')}: ${fmt(curT, 1)} °C · ${t('klima.target')}: ${fmt(targT, 1)} °C</div>
+            <div class="dd-sub-lbl">${t('klima.mode')}: ${esc(HVAC_LABELS[s.state] || s.state)}</div>
           </div>
         </div>
         <div class="klima-stepper">
@@ -1219,12 +1218,12 @@ function renderDeviceDetailModal() {
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🎯 Zieltemperatur</span><strong id="dd-clim-lbl">${fmt(targT, 1)} °C</strong></div>
+        <div class="dd-sec-hd"><span>🎯 ${t('klima.target')}</span><strong id="dd-clim-lbl">${fmt(targT, 1)} °C</strong></div>
         <input type="range" class="dd-slider" min="${minT}" max="${maxT}" step="${stepT}" value="${targT}" data-act="ddClimTemp" data-e="${esc(ent)}">
       </div>
 
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🔥 Betriebsmodus</span></div>
+        <div class="dd-sec-hd"><span>🔥 ${t('klima.mode')}</span></div>
         <div class="dd-pills">
           ${hvacModes.map(m => `<button class="chip ${s.state === m ? 'on' : ''}" data-act="kMode" data-e="${esc(ent)}" data-m="${esc(m)}">${esc(HVAC_LABELS[m] || m)}</button>`).join('')}
         </div>
@@ -1232,7 +1231,7 @@ function renderDeviceDetailModal() {
 
       ${presets.length ? `
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>⚡ Profil (Preset)</span></div>
+        <div class="dd-sec-hd"><span>⚡ ${t('klima.preset')}</span></div>
         <div class="dd-pills">
           ${presets.map(p => `<button class="chip ${a.preset_mode === p ? 'on' : ''}" data-act="kPreset" data-e="${esc(ent)}" data-p="${esc(p)}">${esc(PRESET_LABELS[p] || p)}</button>`).join('')}
         </div>
@@ -1240,7 +1239,7 @@ function renderDeviceDetailModal() {
 
       ${fanModes.length ? `
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>🌀 Lüfterstufe</span></div>
+        <div class="dd-sec-hd"><span>🌀 ${t('klima.fan')}</span></div>
         <div class="dd-pills">
           ${fanModes.map(f => `<button class="chip ${a.fan_mode === f ? 'on' : ''}" data-act="kFan" data-e="${esc(ent)}" data-f="${esc(f)}">${esc(FAN_LABELS[f] || f)}</button>`).join('')}
         </div>
@@ -1259,7 +1258,7 @@ function renderDeviceDetailModal() {
           <div class="dd-badge ${isOn ? 'on' : ''}">${IC.plug}</div>
           <div>
             <div class="dd-state-lbl">${esc(stateLabel(s.state))}${unit ? ' ' + esc(unit) : ''}</div>
-            <div class="dd-sub-lbl">${since ? `Seit ${esc(since)}` : esc(ent)}</div>
+            <div class="dd-sub-lbl">${since ? `${esc(since)}` : esc(ent)}</div>
           </div>
         </div>
         ${canToggle ? `<button class="sw ${isOn ? 'on' : ''}" data-act="ddToggle" data-e="${esc(ent)}"></button>` : ''}
@@ -1267,13 +1266,13 @@ function renderDeviceDetailModal() {
 
       ${(powerVal != null || energyVal != null) ? `
       <div class="dd-metrics-grid">
-        ${powerVal != null ? `<div class="dd-metric-box"><small>Aktuelle Leistung</small><strong>${fmt(powerVal, 0)} W</strong></div>` : ''}
-        ${energyVal != null ? `<div class="dd-metric-box"><small>Energie / Verbrauch</small><strong>${fmt(energyVal, 2)} kWh</strong></div>` : ''}
+        ${powerVal != null ? `<div class="dd-metric-box"><small>${t('dev.col_power')}</small><strong>${fmt(powerVal, 0)} W</strong></div>` : ''}
+        ${energyVal != null ? `<div class="dd-metric-box"><small>${t('dev.col_today')}</small><strong>${fmt(energyVal, 2)} kWh</strong></div>` : ''}
       </div>` : ''}
 
       ${hasChart ? `
       <div class="dd-sec">
-        <div class="dd-sec-hd"><span>📈 24h Verlauf</span></div>
+        <div class="dd-sec-hd"><span>📈 ${t('chart.history_24h')}</span></div>
         <div class="chart" style="height:120px">${spark(ser, 'ddsp_' + ent.replace(/\W/g, ''), { fit: true, W: 520, H: 120, unit, dec: 1 })}</div>
       </div>` : ''}
     `;
@@ -1319,14 +1318,14 @@ function renderLightGroupModal() {
 
   const exclCount = exGrpArr.filter(e => ents.includes(e)).length;
   const subInfo = exclCount > 0
-    ? `Gruppenschalter steuert ${toggleEnts.length} von ${ents.length} Lampen (${exclCount} ausgenommen)`
-    : 'Gesamte Gruppe steuern';
+    ? `${toggleEnts.length} / ${ents.length}`
+    : t('lights.title');
 
   const sheet = document.getElementById('smsheet');
   sheet.classList.remove('wfc-wide');
   sheet.innerHTML = `
     <div class="smh">
-      <div><b>💡 ${esc(grp.name || 'Lichtgruppe')}</b><div class="mut" style="font-size:11px;font-weight:400">${onEnts.length} von ${ents.length} aktiv</div></div>
+      <div><b>💡 ${esc(grp.name || t('lights.title'))}</b><div class="mut" style="font-size:11px;font-weight:400">${t('lights.on_count', { on: onEnts.length, total: ents.length })}</div></div>
       <button class="x2" data-act="smClose">✕</button>
     </div>
 
@@ -1334,15 +1333,15 @@ function renderLightGroupModal() {
       <div class="dd-hero-stat">
         <div class="dd-badge ${isAnyOn ? 'on' : ''}">${IC.bulb}</div>
         <div>
-          <div class="dd-state-lbl">${isAnyOn ? `${onEnts.length} eingeschaltet (${avgBri}%)` : 'Alle ausgeschaltet'}</div>
+          <div class="dd-state-lbl">${isAnyOn ? `${t('lights.on_count', { on: onEnts.length, total: ents.length })} (${avgBri}%)` : t('lights.all_off')}</div>
           <div class="dd-sub-lbl">${esc(subInfo)}</div>
         </div>
       </div>
-      <button class="sw ${isToggleOn ? 'on' : ''}" data-act="lgrp" data-i="${sm.lgrpIdx}" title="Gekoppelte Lampen der Gruppe ein-/ausschalten"></button>
+      <button class="sw ${isToggleOn ? 'on' : ''}" data-act="lgrp" data-i="${sm.lgrpIdx}"></button>
     </div>
 
     <div class="dd-sec">
-      <div class="dd-sec-hd"><span>☀️ Gruppen-Helligkeit</span><strong id="dd-grp-bri-lbl">${avgBri}%</strong></div>
+      <div class="dd-sec-hd"><span>☀️ ${t('chart.brightness')}</span><strong id="dd-grp-bri-lbl">${avgBri}%</strong></div>
       <input type="range" class="dd-slider dd-slider-bri" min="0" max="100" value="${avgBri}" data-act="ddGrpBri" data-i="${sm.lgrpIdx}">
       <div class="dd-pills">
         ${[10, 25, 50, 75, 100].map(p => `<button class="chip ${Math.abs(avgBri - p) <= 5 && isAnyOn ? 'on' : ''}" data-act="ddGrpBriBtn" data-i="${sm.lgrpIdx}" data-v="${p}">${p}%</button>`).join('')}
@@ -1350,7 +1349,7 @@ function renderLightGroupModal() {
     </div>
 
     <div class="dd-sec">
-      <div class="dd-sec-hd"><span>🎨 Gruppen-Farbe & Temperatur</span></div>
+      <div class="dd-sec-hd"><span>🎨 ${t('chart.color')}</span></div>
       <div class="dd-swatches">
         ${RGB_PRESETS.map(p => `<button class="dd-swatch" style="background:${p.hex}" title="${esc(p.name)}" data-act="ddGrpRgbSwatch" data-i="${sm.lgrpIdx}" data-rgb="${p.rgb.join(',')}"></button>`).join('')}
       </div>
@@ -1358,8 +1357,7 @@ function renderLightGroupModal() {
 
     <div class="dd-sec">
       <div class="dd-sec-hd">
-        <span>💡 Einzelne Lampen & Schalter-Kopplung (${ents.length})</span>
-        <span class="mut" style="font-size:11px">💡=Gruppenschalter · ⚡=Hauptschalter</span>
+        <span>💡 ${t('chart.individual_lights')} (${ents.length})</span>
       </div>
       <div class="dd-lamp-list">
         ${ents.map(e => {
@@ -1371,19 +1369,19 @@ function renderLightGroupModal() {
           const exMain = exMainArr.includes(e);
           return `
             <div class="dd-lamp-row">
-              <div class="dd-lamp-info" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(nm)}" title="Details & Farbe öffnen">
+              <div class="dd-lamp-info" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(nm)}">
                 <span class="dot ${on ? 'ok' : 'off'}"></span>
                 <div>
                   <div class="dd-lamp-name">${esc(nm)}</div>
-                  <div class="dd-lamp-sub">${on ? `An · ${b}%` : 'Aus'} · <span class="link-hint">Feinsteuerung ↗</span></div>
+                  <div class="dd-lamp-sub">${on ? `${t('state.on')} · ${b}%` : t('state.off')}</div>
                 </div>
               </div>
               <div class="dd-lamp-actions">
-                <button type="button" class="dd-excl-btn ${exGrp ? 'excl' : 'on'}" data-act="ddToggleExclGrp" data-i="${sm.lgrpIdx}" data-e="${esc(e)}" title="${exGrp ? 'Vom Gruppenschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Gruppenschalter enthalten (Klick zum Ausschließen)'}">
-                  ${exGrp ? '🔒 Gruppe' : '💡 Gruppe'}
+                <button type="button" class="dd-excl-btn ${exGrp ? 'excl' : 'on'}" data-act="ddToggleExclGrp" data-i="${sm.lgrpIdx}" data-e="${esc(e)}">
+                  ${exGrp ? '🔒 ' + tr('Gruppe', 'Group') : '💡 ' + tr('Gruppe', 'Group')}
                 </button>
-                <button type="button" class="dd-excl-btn ${exMain ? 'excl' : 'on'}" data-act="ddToggleExclMain" data-i="${sm.lgrpIdx}" data-e="${esc(e)}" title="${exMain ? 'Vom Master-Hauptschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Master-Hauptschalter enthalten (Klick zum Ausschließen)'}">
-                  ${exMain ? '🔒 Haupt' : '⚡ Haupt'}
+                <button type="button" class="dd-excl-btn ${exMain ? 'excl' : 'on'}" data-act="ddToggleExclMain" data-i="${sm.lgrpIdx}" data-e="${esc(e)}">
+                  ${exMain ? '🔒 ' + tr('Haupt', 'Main') : '⚡ ' + tr('Haupt', 'Main')}
                 </button>
                 <button class="sw ${on ? 'on' : ''}" data-act="ddToggle" data-e="${esc(e)}"></button>
               </div>

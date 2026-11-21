@@ -144,18 +144,106 @@ const WIDGET_TYPE_GROUPS = [
   }
 ];
 
+const EDITOR_EN_MAP = {
+  '🎨 Design-Vorlagen, Farben & Form': '🎨 Theme Presets, Colors & Shape',
+  'Wähle ein fertiges Farbschema per 1-Klick oder passe Farben, Rundungen und Abstände frei an.': 'Pick a ready-made color theme with 1 click or customize colors, corner radius, and spacing.',
+  '🏠 Seitenleiste, Begrüßung & Uhrzeit': '🏠 Sidebar, Greeting & Clock',
+  'Grundlegende Texte, Begrüßung und Zeitanzeige im Start-Banner.': 'Basic texts, language, greeting, and time display in the home banner.',
+  '🏷️ Header-Badges im Startseiten-Banner': '🏷️ Header Badges in Home Banner',
+  'Dynamische Status-Chips unter der Begrüßung im Home-Banner (z.B. Akku leer/voll, Waschmaschine, Spülmaschine, Müll).': 'Dynamic status chips below the greeting in the home banner (e.g. battery, washer, dishwasher, waste).',
+  '⚡ Szenen & Routinen (Schnellzugriff)': '⚡ Scenes & Routines (Quick Access)',
+  'Prominente 1-Klick Buttons für tägliche Szenen (z. B. Gute Nacht, Haus verlassen, Alle Lichter aus).': 'Prominent 1-click buttons for daily scenes (e.g. Good Night, Leave Home, All Lights Off).',
+  '👥 Familien-Präsenz (Status & Avatare)': '👥 Family Presence (Status & Avatars)',
+  'Zeigt Familienmitglieder als kleine Profil-Chips mit Status (Zuhause, Unterwegs) an.': 'Displays family members as profile chips with status (Home, Away).',
+  '📱 Endgeräte-Profil (Nur für dieses Gerät / Tablet)': '📱 Device Profile (Only for this device / tablet)',
+  'Speichert Startansicht, Start-Raum und Kiosk-/Screensaver-Verhalten lokal nur für dieses Gerät (z. B. Wandtablet Flur vs. Tablet Büro vs. PC), während alle Kacheln & Entitäten global synchron bleiben.': 'Saves start view, start room, language, and kiosk/screensaver behavior locally for this device only.',
+  '🔐 Globale Sicherheit, PIN-Schutz & Screensaver': '🔐 Global Security, PIN Protection & Screensaver',
+  'Globale PIN- und Vollbild-Vorgaben für alle Geräte ohne eigenes Endgeräte-Profil.': 'Global PIN and fullscreen settings for all devices without a custom device profile.',
+  '📐 Haupt-Dashboard Spalten & Kachel-Reihenfolge': '📐 Main Dashboard Columns & Card Order',
+  'Bestimme das Spalten-Raster und ordne alle Dashboard-Kacheln frei an (Sichtbarkeit, Raum-Filter & Spalte).': 'Configure the column grid and arrange all dashboard cards (visibility, room scope & column).',
+  '⭐ Schnellauswahl / Favoriten': '⭐ Quick Access / Favorites',
+  'Kleine Direkt-Kacheln für häufig genutzte Schalter, Lampen, Szenen oder Rollos.': 'Compact direct tiles for frequently used switches, lights, scenes, or covers.',
+  '🖥️ System-Health (Server, NAS & Docker)': '🖥️ System Health (Server, NAS & Docker)',
+  'Überwache CPU, RAM, Speicherplatz, Temperatur und Container-Status.': 'Monitor CPU, RAM, disk space, temperature, and container states.',
+  '💡 Lichter-Gruppen & Hauptschalter': '💡 Light Groups & Master Switch',
+  'Gruppiere Lampen nach Bereichen und bestimme, was der Hauptschalter schaltet.': 'Group lights by area and configure what the master switch controls.',
+  '🧺 Haushaltsgeräte-Monitor (Waschmaschine, Trockner, Spülmaschine)': '🧺 Appliances Monitor (Washer, Dryer, Dishwasher)',
+  'Zeigt laufende Geräte, Fortschritt, Restlaufzeit und Fertig-Status an.': 'Displays running appliances, progress, remaining time, and finished status.',
+  '🪟 Rolläden & Jalousien': '🪟 Covers & Blinds',
+  'Alle Rolläden mit Positions-Slider und Auf/Stopp/Ab-Tasten.': 'All covers with position slider and Up/Stop/Down controls.',
+  '🌡️ Hauptbereich-Klima (Startseiten-Bogen)': '🌡️ Main Area Climate (Home Gauge)',
+  'Klima-Entität und Unterkacheln für das Raumklima-Widget auf dem Dashboard.': 'Climate entity and sub-tiles for the room climate widget on the dashboard.',
+  '☀️ Wetter-Kachel & 7-Tage-Vorhersage': '☀️ Weather Card & 7-Day Forecast',
+  'Wetter-Entität, Zusatzwerte (Wind, Feuchte, Druck), Regenradar und Vorhersage-Popup.': 'Weather entity, extra metrics (wind, humidity, pressure), rain radar, and forecast popup.',
+  '🌬️ Smarte Lüftungsempfehlung & Fenster-Offen-Timer': '🌬️ Smart Ventilation Advice & Open Window Timer',
+  'Vergleicht absolute Luftfeuchtigkeit innen/außen und warnt bei zu lange offenen Fenstern.': 'Compares indoor/outdoor absolute humidity and warns when windows are left open too long.',
+  '⚡ Energie- & Verbrauchs-Metriken (24h & Vergleich)': '⚡ Energy & Consumption Metrics (24h & Comparison)',
+  'Große Statistik-Kacheln mit 24h-Sparkline, Gestern-Vergleich, Autarkie und Detail-Popups.': 'Large metric cards with 24h sparkline, yesterday comparison, autarky, and detail popups.',
+  '🔄 Power Flow (Live Energiefluss)': '🔄 Power Flow (Live Energy Flow)',
+  'Sensoren für PV, Hausverbrauch, Netzbezug/-einspeisung und Batteriespeicher.': 'Sensors for PV, home load, grid import/export, and battery storage.',
+  '🔋 Batteriespeicher-Restlaufzeit & Ladeprognose': '🔋 Battery Runtime & Charge Forecast',
+  'Berechnet live, wie lange der Akku noch reicht oder wann er voll geladen ist.': 'Calculates live how long the battery will last or when it will be fully charged.',
+  '💶 Dynamische Strompreise (Tibber / EPEX Spot / Nordpool)': '💶 Dynamic Electricity Prices (Tibber / EPEX Spot / Nordpool)',
+  '24h-Preiskurve mit Farbmarkierung für günstige und teure Stunden.': '24h price chart with color coding for cheap and expensive hours.',
+  '🚗 Wallbox & E-Auto': '🚗 Wallbox & EV',
+  'Fahrzeug-SoC, Ladeleistung, Verbindungsstatus und Lademodus.': 'Vehicle SoC, charging power, connection status, and charge mode.',
+  '🔒 Türschlösser, Türen & Fensterkontakte': '🔒 Door Locks, Doors & Window Sensors',
+  'Sicherheits-Status oben rechts und in der Sicherheits-Kachel.': 'Security status in top-right header and security card.',
+  '🔔 Ereignis-Kamera-Popup (z. B. Türklingel / Bewegung)': '🔔 Event Camera Popup (e.g. Doorbell / Motion)',
+  'Öffnet automatisch das Kamera-Popup, sobald ein Sensor (z. B. Klingel oder Bewegung) auslöst.': 'Automatically opens the camera popup when a sensor (e.g. doorbell or motion) triggers.',
+  '🚨 Bedingte Warn-Karten (Conditional Alerts)': '🚨 Conditional Alert Cards',
+  'Zeigt Warnbanner ganz oben im Dashboard, wenn eine Bedingung erfüllt ist (z. B. Wasserleck, Rauch, Akku kritisch).': 'Displays alert banners at the top of the dashboard when a condition is met.',
+  '📅 Familienkalender & Abfallkalender (Home Assistant)': '📅 Family Calendar & Waste Collection (Home Assistant)',
+  'Wähle deine calendar.* Entitäten und die gewünschte Kalender-Optik für Startseite und Kalender-Seite.': 'Select your calendar.* entities and preferred calendar style for Home and Calendar page.',
+  '🚀 Schnellstart, Live-Sync & Automatische Erkennung': '🚀 Quick Start, Live Sync & Auto-Discovery',
+  'Lasse deine Home Assistant Räume, Lichter, Klimageräte, Rolläden und Kameras vollautomatisch erkennen oder erzwinge einen Tablet-Reload.': 'Automatically discover your Home Assistant areas, lights, climate devices, covers, and cameras or force a tablet reload.',
+  '💾 JSON Export / Import (Backup)': '💾 JSON Export / Import (Backup)',
+  'Sichere deine komplette Konfiguration als Datei oder spiele ein Backup ein.': 'Back up your complete configuration as a file or restore a backup.',
+  'Hintergrund': 'Background',
+  'Primärfarbe': 'Primary color',
+  'Akzent hell': 'Light accent',
+  'Grün / OK': 'Green / OK',
+  'Warnung': 'Warning',
+  'Blau / Kühl': 'Blue / Cool',
+  'Karten-Rundung (Form)': 'Card Corner Radius',
+  'Abstands-Dichte (Layout)': 'Spacing Density',
+  'HA-Seitenleisten-Titel': 'HA Sidebar Title',
+  'HA-Seitenleisten-Icon': 'HA Sidebar Icon',
+  'Dashboard-Titel': 'Dashboard Title',
+  'Untertitel': 'Subtitle',
+  'Begrüßungs-Name': 'Greeting Name',
+  'Rolle (z.B. Bewohner)': 'Role (e.g. Homeowner)',
+  'Begrüßungstext-Entität (optional)': 'Greeting Text Entity (optional)',
+  'Name': 'Name',
+  'Titel': 'Title',
+  'Titel (optional)': 'Title (optional)',
+  'Icon': 'Icon',
+  'Farbe': 'Color',
+  'Typ': 'Type',
+  'Einheit': 'Unit',
+  'Nachkommastellen': 'Decimals'
+};
+
+function tEditor(s) {
+  if (s == null) return '';
+  const str = String(s);
+  if (getLang() !== 'en') return str;
+  if (EDITOR_EN_MAP[str] !== undefined) return EDITOR_EN_MAP[str];
+  return tDefault(str);
+}
+
 function buildScopeSelectOptions(currentScope) {
   const rooms = (cfgDraft && cfgDraft.rooms) || [];
   const baseOpts = [
-    ['all', '🌐 In allen Raum-Tabs anzeigen'],
-    ['home', '🏠 Nur auf Startseite (Home)']
+    ['all', tr('🌐 In allen Raum-Tabs anzeigen', '🌐 Show in all room tabs')],
+    ['home', tr('🏠 Nur auf Startseite (Home)', '🏠 Only on Home tab')]
   ];
   rooms.forEach((rm, idx) => {
     if (idx > 0 && rm && rm.name) {
-      baseOpts.push([`room:${rm.name}`, `📍 Nur im Raum-Tab: ${rm.name}`]);
+      baseOpts.push([`room:${rm.name}`, `📍 ${tr('Nur im Raum-Tab:', 'Only in room tab:')} ${rm.name}`]);
     }
   });
-  baseOpts.push(['custom', '🎯 Mehrere Räume gezielt auswählen…']);
+  baseOpts.push(['custom', tr('🎯 Mehrere Räume gezielt auswählen…', '🎯 Select specific rooms…')]);
   return baseOpts.map(([v, l]) => `<option value="${esc(v)}" ${(currentScope || 'all') === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
 }
 
@@ -169,20 +257,20 @@ function placementStatusBadgeHtml(cardId, widgetType = null, extraInfo = '') {
     const item = (cfgDraft.dashboardLayout || []).find(x => x && x.id === cardId);
     if (item && item.show !== false) {
       const sc = item.scope || 'all';
-      let locTxt = 'Alle Räume';
+      let locTxt = t('dev.all_rooms');
       if (sc === 'home') locTxt = 'Home';
       else if (sc.startsWith('room:')) locTxt = sc.slice(5);
-      else if (sc === 'custom') locTxt = (item.scopeRooms && item.scopeRooms.length) ? item.scopeRooms.join(', ') : 'Keine Räume';
-      const colTxt = item.col === 'full' ? 'Voll' : `Sp.${item.col || 1}`;
-      badges.push(`<span class="cfg-badge-on" title="Auf Haupt-Dashboard aktiv">🟢 ${esc(locTxt)} · ${esc(colTxt)}</span>`);
+      else if (sc === 'custom') locTxt = (item.scopeRooms && item.scopeRooms.length) ? item.scopeRooms.join(', ') : tr('Keine Räume', 'No rooms');
+      const colTxt = item.col === 'full' ? tr('Voll', 'Full') : `${tr('Sp.', 'Col.')}${item.col || 1}`;
+      badges.push(`<span class="cfg-badge-on" title="${tr('Auf Haupt-Dashboard aktiv', 'Active on main dashboard')}">🟢 ${esc(locTxt)} · ${esc(colTxt)}</span>`);
     } else {
-      badges.push(`<span class="cfg-badge-off" title="Auf Haupt-Dashboard ausgeblendet">⚪ Dashboard: Aus</span>`);
+      badges.push(`<span class="cfg-badge-off" title="${tr('Auf Haupt-Dashboard ausgeblendet', 'Hidden on main dashboard')}">⚪ Dashboard: ${t('hvac.off')}</span>`);
     }
   }
   if (widgetType && Array.isArray(cfgDraft.customPages)) {
     const activePages = cfgDraft.customPages.filter(pg => (pg.widgets || []).some(w => w && w.type === widgetType && w.show !== false));
     if (activePages.length) {
-      badges.push(`<span class="cfg-badge-page" title="Auf eigenen Unterseiten platziert">📄 ${esc(activePages.map(p => p.label).join(', '))}</span>`);
+      badges.push(`<span class="cfg-badge-page" title="${tr('Auf eigenen Unterseiten platziert', 'Placed on custom pages')}">📄 ${esc(activePages.map(p => p.label).join(', '))}</span>`);
     }
   }
   return `<div class="cfg-sum-badges" data-act="noop">${badges.join('')}</div>`;
@@ -197,15 +285,15 @@ function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
   const dashColsParsed = parseColsMode(cfgDraft.dashboardCols || '2-asym', 'asym', 2);
   const maxDashColOpts = clamp(Math.max(dashColsParsed.cols || 2, 6), 4, 12);
   const dashColOpts = [
-    ...Array.from({ length: maxDashColOpts }, (_, i) => [String(i + 1), `Spalte ${i + 1}`]),
-    ['full', 'Volle Breite']
+    ...Array.from({ length: maxDashColOpts }, (_, i) => [String(i + 1), `${tr('Spalte', 'Column')} ${i + 1}`]),
+    ['full', tr('Volle Breite', 'Full Width')]
   ];
 
   let dashControls = '';
   if (item) {
     const customRoomPills = item.scope === 'custom'
       ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.08)">
-          <span class="mut sm">Sichtbar in diesen Raum-Tabs:</span>
+          <span class="mut sm">${tr('Sichtbar in diesen Raum-Tabs:', 'Visible in these room tabs:')}</span>
           ${(cfgDraft.rooms || []).map(rm => {
             const on = Array.isArray(item.scopeRooms) && item.scopeRooms.includes(rm.name);
             return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgScopeRoomToggle" data-card="${esc(cardId)}" data-room="${esc(rm.name)}" style="font-size:11px;padding:3px 9px">${on ? '✓ ' : '+ '}${esc(rm.name)}</button>`;
@@ -217,26 +305,26 @@ function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1">
         <label style="font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:${item.show !== false ? 'rgba(52,211,153,.12)' : 'rgba(255,255,255,.04)'};border:1px solid ${item.show !== false ? 'rgba(52,211,153,.35)' : 'var(--line)'}">
           <input type="checkbox" data-dl-i="${li}" data-dl-k="show" ${item.show !== false ? 'checked' : ''}>
-          <span>${item.show !== false ? '👁️ Im Dashboard sichtbar' : '🙈 Im Dashboard ausgeblendet'}</span>
+          <span>${item.show !== false ? '👁️ ' + t('qe.card_visible') : '🙈 ' + t('qe.card_hidden')}</span>
         </label>
         ${item.show !== false ? `
           <div style="display:inline-flex;align-items:center;gap:6px">
-            <span class="mut sm">Wo:</span>
+            <span class="mut sm">${tr('Wo:', 'Where:')}</span>
             <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="scope">
               ${buildScopeSelectOptions(item.scope || 'all')}
             </select>
           </div>
           ${!isGrid12 ? `
           <div style="display:inline-flex;align-items:center;gap:6px">
-            <span class="mut sm">Spalte:</span>
+            <span class="mut sm">${tr('Spalte:', 'Column:')}</span>
             <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="col">
               ${dashColOpts.map(([v, l]) => `<option value="${v}" ${String(item.col || '1') === v ? 'selected' : ''}>${l}</option>`).join('')}
             </select>
           </div>` : `
           <div style="display:inline-flex;align-items:center;gap:6px">
-            <span class="mut sm">Raster-Breite:</span>
+            <span class="mut sm">${tr('Raster-Breite:', 'Grid Width:')}</span>
             <select class="cfg-in" style="padding:5px 10px;min-height:32px;width:auto" data-dl-i="${li}" data-dl-k="span">
-              ${[['12','12 (Voll)'],['8','8 (2/3)'],['6','6 (1/2)'],['4','4 (1/3)'],['3','3 (1/4)']].map(([v, l]) => `<option value="${v}" ${String(item.span || '6') === v ? 'selected' : ''}>${l}</option>`).join('')}
+              ${[['12','12 (100%)'],['8','8 (2/3)'],['6','6 (1/2)'],['4','4 (1/3)'],['3','3 (1/4)']].map(([v, l]) => `<option value="${v}" ${String(item.span || '6') === v ? 'selected' : ''}>${l}</option>`).join('')}
             </select>
           </div>`}
         ` : ''}
@@ -248,11 +336,11 @@ function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
   if (widgetType && Array.isArray(cfgDraft.customPages) && cfgDraft.customPages.length) {
     const pagePills = cfgDraft.customPages.map((pg, pi) => {
       const hasW = (pg.widgets || []).some(w => w && w.type === widgetType && w.show !== false);
-      return `<button type="button" class="chip ${hasW ? 'on' : ''}" data-act="cfgTogglePageWidget" data-pi="${pi}" data-wtype="${esc(widgetType)}" data-wtitle="${esc(defaultTitle)}" style="font-size:11px;padding:3px 9px" title="1-Klick: Diese Kachel auf der Unterseite „${esc(pg.label)}“ ${hasW ? 'entfernen' : 'hinzufügen'}">${hasW ? '✓ ' : '+ '}📄 ${esc(pg.label)}</button>`;
+      return `<button type="button" class="chip ${hasW ? 'on' : ''}" data-act="cfgTogglePageWidget" data-pi="${pi}" data-wtype="${esc(widgetType)}" data-wtitle="${esc(defaultTitle)}" style="font-size:11px;padding:3px 9px">${hasW ? '✓ ' : '+ '}📄 ${esc(pg.label)}</button>`;
     }).join('');
     subpageControls = `
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;${item ? 'margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.08)' : ''}">
-        <span class="mut sm" style="font-weight:600">📄 Auch auf Unterseite anzeigen:</span>
+        <span class="mut sm" style="font-weight:600">📄 ${tr('Auch auf Unterseite anzeigen:', 'Also show on custom page:')}</span>
         ${pagePills}
       </div>`;
   }
@@ -260,7 +348,7 @@ function placementBarHtml(cardId, widgetType = null, defaultTitle = '') {
   if (!dashControls && !subpageControls) return '';
   return `<div class="cfg-placement-bar">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <span style="font-size:11.5px;font-weight:700;color:var(--acc2);letter-spacing:.02em">📍 ANZEIGE-ORT &amp; PLATZIERUNG</span>
+      <span style="font-size:11.5px;font-weight:700;color:var(--acc2);letter-spacing:.02em">📍 ${tr('ANZEIGE-ORT & PLATZIERUNG', 'DISPLAY LOCATION & PLACEMENT')}</span>
       ${dashControls}
     </div>
     ${subpageControls}
@@ -276,34 +364,35 @@ function itemShowOnPickerHtml(item, kind, idx) {
   const pages = Array.isArray(cfgDraft.customPages) ? cfgDraft.customPages : [];
 
   const roomPills = rooms.map((rm, rIdx) => {
-    const rName = (rm && rm.name) ? rm.name : `Raum ${rIdx + 1}`;
+    const rName = (rm && rm.name) ? rm.name : `${tr('Raum', 'Room')} ${rIdx + 1}`;
     const on = !isAll && !isNone && showOn.some(x => String(x).toLowerCase() === rName.toLowerCase());
     const icon = rIdx === 0 || rName.toLowerCase() === 'home' ? '🏠' : '🚪';
-    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(rName)}" style="font-size:11px;padding:3px 9px" title="Klick: Auf Raum-Tab „${esc(rName)}“ ${on ? 'ausblenden' : 'anzeigen'}">${on ? '✓ ' : ''}${icon} ${esc(rName)}</button>`;
+    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(rName)}" style="font-size:11px;padding:3px 9px">${on ? '✓ ' : ''}${icon} ${esc(rName)}</button>`;
   }).join('');
 
   const pagePills = pages.map(pg => {
     if (!pg || !pg.id) return '';
     const locKey = `page:${pg.id}`;
     const on = !isAll && !isNone && showOn.some(x => String(x).toLowerCase() === locKey.toLowerCase());
-    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(locKey)}" style="font-size:11px;padding:3px 9px" title="Klick: Auf Unterseite „${esc(pg.label || pg.title || pg.id)}“ ${on ? 'ausblenden' : 'anzeigen'}">${on ? '✓ ' : ''}📄 ${esc(pg.label || pg.title || pg.id)}</button>`;
+    return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="${esc(locKey)}" style="font-size:11px;padding:3px 9px">${on ? '✓ ' : ''}📄 ${esc(pg.label || pg.title || pg.id)}</button>`;
   }).join('');
 
   const summary = formatItemShowOnSummary(item, cfgDraft);
 
   return `<div style="width:100%;margin-top:6px;padding:7px 10px;border-radius:8px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:700;color:var(--acc2);margin-right:2px">📍 Sichtbar auf:</span>
-      <button type="button" class="chip ${isAll ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="all" style="font-size:11px;padding:3px 9px" title="Auf allen Seiten &amp; Räumen anzeigen">${isAll ? '✓ ' : ''}🌐 Überall</button>
+      <span style="font-size:11px;font-weight:700;color:var(--acc2);margin-right:2px">📍 ${tr('Sichtbar auf:', 'Visible on:')}</span>
+      <button type="button" class="chip ${isAll ? 'on' : ''}" data-act="cfgItemLocToggle" data-kind="${esc(kind)}" data-i="${idx}" data-loc="all" style="font-size:11px;padding:3px 9px">${isAll ? '✓ ' : ''}🌐 ${t('showon.everywhere')}</button>
       ${roomPills}
       ${pagePills}
     </div>
-    <span class="mut sm" style="font-size:10.5px;white-space:nowrap">Aktuell: <b style="color:var(--txt)">${esc(summary)}</b></span>
+    <span class="mut sm" style="font-size:10.5px;white-space:nowrap">${t('klima.actual')}: <b style="color:var(--txt)">${esc(summary)}</b></span>
   </div>`;
 }
 
 /* ---------- Visueller Multi-Entitäts Chip-Picker (ohne Komma-Listen!) ---------- */
-function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = 'Entität suchen & auswählen…') {
+function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = null) {
+  const effPlaceholder = placeholder || tr('Entität suchen & auswählen…', 'Search & select entity…');
   const arr = Array.isArray(list) ? list : [];
   const isLightGrp = groupKey === 'lightGrp' && cfgDraft && cfgDraft.lights && cfgDraft.lights[+parentIdx];
   const exGrpArr = isLightGrp && Array.isArray(cfgDraft.lights[+parentIdx].excludeGroup) ? cfgDraft.lights[+parentIdx].excludeGroup : [];
@@ -317,22 +406,22 @@ function entityChipsHtml(list, groupKey, parentIdx = '', placeholder = 'Entität
       const exG = exGrpArr.includes(ent);
       const exM = exMainArr.includes(ent);
       exclBtns = `
-        <button type="button" class="ent-chip-excl ${exG ? 'excl' : 'on'}" data-act="cfgLightExclGrp" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}" title="${exG ? 'Vom Gruppenschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Gruppenschalter aktiv (Klick zum Ausschließen)'}">${exG ? '🔒 Gruppe' : '💡 Gruppe'}</button>
-        <button type="button" class="ent-chip-excl ${exM ? 'excl' : 'on'}" data-act="cfgLightExclMain" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}" title="${exM ? 'Vom Master-Hauptschalter ausgeschlossen (Klick zum Einschließen)' : 'Im Master-Hauptschalter aktiv (Klick zum Ausschließen)'}">${exM ? '🔒 Haupt' : '⚡ Haupt'}</button>`;
+        <button type="button" class="ent-chip-excl ${exG ? 'excl' : 'on'}" data-act="cfgLightExclGrp" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}">${exG ? '🔒 ' + tr('Gruppe', 'Group') : '💡 ' + tr('Gruppe', 'Group')}</button>
+        <button type="button" class="ent-chip-excl ${exM ? 'excl' : 'on'}" data-act="cfgLightExclMain" data-p="${esc(String(parentIdx))}" data-e="${esc(ent)}">${exM ? '🔒 ' + tr('Haupt', 'Main') : '⚡ ' + tr('Haupt', 'Main')}</button>`;
     }
     return `<span class="ent-chip" title="${esc(ent)}">
       <span class="ent-chip-txt">${fn ? `<b>${esc(fn)}</b> <small>${esc(ent)}</small>` : `<b>${esc(ent)}</b>`}</span>
       ${exclBtns}
-      <button type="button" class="ent-chip-del" data-act="cfgChipDel" data-grp="${esc(groupKey)}" data-p="${esc(String(parentIdx))}" data-ci="${ci}" title="Entfernen">✕</button>
+      <button type="button" class="ent-chip-del" data-act="cfgChipDel" data-grp="${esc(groupKey)}" data-p="${esc(String(parentIdx))}" data-ci="${ci}">✕</button>
     </span>`;
   }).join('');
 
   const inputId = `chip-in-${groupKey}-${parentIdx}`;
   return `<div class="ent-chips-wrap">
-    <div class="ent-chips-list">${chips || '<span class="mut sm">Noch keine Entitäten ausgewählt.</span>'}</div>
+    <div class="ent-chips-list">${chips || `<span class="mut sm">${tr('Noch keine Entitäten ausgewählt.', 'No entities selected yet.')}</span>`}</div>
     <div class="ent-chips-add">
-      <input type="text" id="${esc(inputId)}" class="cfg-in" list="ha-entities-list" placeholder="${esc(placeholder)}" style="flex:1;min-width:200px">
-      <button type="button" class="iconbtn" data-act="cfgChipAdd" data-grp="${esc(groupKey)}" data-p="${esc(String(parentIdx))}" data-in="${esc(inputId)}">+ Hinzufügen</button>
+      <input type="text" id="${esc(inputId)}" class="cfg-in" list="ha-entities-list" placeholder="${esc(effPlaceholder)}" style="flex:1;min-width:200px">
+      <button type="button" class="iconbtn" data-act="cfgChipAdd" data-grp="${esc(groupKey)}" data-p="${esc(String(parentIdx))}" data-in="${esc(inputId)}">+ ${tr('Hinzufügen', 'Add')}</button>
     </div>
   </div>`;
 }
@@ -350,15 +439,15 @@ function climateTilesEditorHtml(scope) {
     const at = `data-ct-s="${scope}" data-ct-i="${i}"`;
     const defIcon = t.type === 'fan' ? 'fan' : t.type === 'custom' ? 'thermo' : 'sun';
     return `<div class="cfg-row" style="background:rgba(255,255,255,.025);padding:8px;border-radius:8px;border:1px solid var(--line)">
-      <label><input type="checkbox" ${at} data-ct-k="show" ${t.show !== false ? 'checked' : ''}> Anzeigen</label>
-      <div class="cfg-field"><label>Typ</label>
+      <label><input type="checkbox" ${at} data-ct-k="show" ${t.show !== false ? 'checked' : ''}> ${tr('Anzeigen', 'Show')}</label>
+      <div class="cfg-field"><label>${tEditor('Typ')}</label>
         <select class="cfg-in" ${at} data-ct-k="type">${CTILE_TYPE_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(t.type || 'custom') === val ? 'selected' : ''}>${lab}</option>`).join('')}</select>
       </div>
-      <div class="cfg-field"><label>Bezeichnung</label><input class="cfg-in" ${at} data-ct-k="label" placeholder="Modus / Lüfter" value="${esc(t.label || '')}"></div>
-      <div class="cfg-field"><label>Entität (leer = Klima-Entität des Raums)</label><input class="cfg-in" list="ha-entities-list" ${at} data-ct-k="entity" placeholder="climate.* / fan.* / select.* / switch.*" value="${esc(t.entity || '')}"></div>
-      <div class="cfg-field"><label>Attribut (optional, ersetzt den Status)</label><input class="cfg-in" ${at} data-ct-k="attr" placeholder="z. B. fan_mode" value="${esc(t.attr || '')}"></div>
-      <div class="cfg-field"><label>Einheit</label><input class="cfg-in" ${at} data-ct-k="unit" value="${esc(t.unit || '')}"></div>
-      <div class="cfg-field"><label>Nachkommastellen</label><input type="number" min="0" max="3" class="cfg-in" ${at} data-ct-k="decimals" value="${t.decimals ?? 1}"></div>
+      <div class="cfg-field"><label>${tr('Bezeichnung', 'Label')}</label><input class="cfg-in" ${at} data-ct-k="label" placeholder="Modus / Lüfter" value="${esc(t.label || '')}"></div>
+      <div class="cfg-field"><label>${tr('Entität (leer = Klima-Entität des Raums)', 'Entity (empty = room climate entity)')}</label><input class="cfg-in" list="ha-entities-list" ${at} data-ct-k="entity" placeholder="climate.* / fan.* / select.* / switch.*" value="${esc(t.entity || '')}"></div>
+      <div class="cfg-field"><label>${tr('Attribut (optional)', 'Attribute (optional)')}</label><input class="cfg-in" ${at} data-ct-k="attr" placeholder="fan_mode" value="${esc(t.attr || '')}"></div>
+      <div class="cfg-field"><label>${tEditor('Einheit')}</label><input class="cfg-in" ${at} data-ct-k="unit" value="${esc(t.unit || '')}"></div>
+      <div class="cfg-field"><label>${tEditor('Nachkommastellen')}</label><input type="number" min="0" max="3" class="cfg-in" ${at} data-ct-k="decimals" value="${t.decimals ?? 1}"></div>
       <div class="cfg-field"><label>Icon</label>
         <select class="cfg-in" ${at} data-ct-k="icon">${CHIP_ICON_OPTIONS.map(([val, lab]) => `<option value="${val}" ${(t.icon || defIcon) === val ? 'selected' : ''}>${lab}</option>`).join('')}</select>
       </div>
@@ -369,8 +458,8 @@ function climateTilesEditorHtml(scope) {
       </div>
     </div>`;
   }).join('');
-  return `${rows || '<span class="mut sm">Keine Kacheln – die Karte zeigt dann nur die Temperatur-Anzeige.</span>'}
-    <div><button class="iconbtn" data-act="cfgAddCT" data-s="${scope}">+ Kachel hinzufügen</button></div>`;
+  return `${rows || `<span class="mut sm">${tr('Keine Kacheln – die Karte zeigt dann nur die Temperatur-Anzeige.', 'No tiles – card shows temperature gauge only.')}</span>`}
+    <div><button class="iconbtn" data-act="cfgAddCT" data-s="${scope}">+ ${tr('Kachel hinzufügen', 'Add tile')}</button></div>`;
 }
 
 function openCfgEditor(initialTab = null, initialSubTab = null) {
@@ -400,7 +489,7 @@ function openCfgEditor(initialTab = null, initialSubTab = null) {
     cfgSearchPreOpen = null;
     renderCfgModal(false);
     document.getElementById('cfgmodal').classList.add('show');
-  }, 'Dashboard-Editor entsperren');
+  }, t('pin.config_title'));
 }
 
 function renderCfgModal(preserveScroll = true) {
@@ -417,29 +506,29 @@ function renderCfgModal(preserveScroll = true) {
   }
 
   const tabs = [
-    ['allgemein', '🎨 Design & Start-Banner'],
-    ['layout', '📐 Layout & Platzierung'],
-    ['raeume', '🏠 Räume'],
-    ['geraete', '🔌 Geräte, Licht & Rollos'],
-    ['klima', '🌡️ Klima, Wetter & Lüftung'],
-    ['energie', '⚡ Energie, PV & Wallbox'],
-    ['kameras', '🔒 Sicherheit, Kameras & Alerts'],
-    ['kalender', '📅 Kalender & Eigene Seiten'],
-    ['backup', '💾 System & Backup']
+    ['allgemein', tr('🎨 Design & Start-Banner', '🎨 Theme & Home Banner')],
+    ['layout', tr('📐 Layout & Platzierung', '📐 Layout & Placement')],
+    ['raeume', tr('🏠 Räume', '🏠 Rooms')],
+    ['geraete', tr('🔌 Geräte, Licht & Rollos', '🔌 Devices, Lights & Covers')],
+    ['klima', tr('🌡️ Klima, Wetter & Lüftung', '🌡️ Climate, Weather & Ventilation')],
+    ['energie', tr('⚡ Energie, PV & Wallbox', '⚡ Energy, PV & Wallbox')],
+    ['kameras', tr('🔒 Sicherheit, Kameras & Alerts', '🔒 Security, Cameras & Alerts')],
+    ['kalender', tr('📅 Kalender & Eigene Seiten', '📅 Calendar & Custom Pages')],
+    ['backup', tr('💾 System & Backup', '💾 System & Backup')]
   ];
   if (cfgTab === 'seiten') cfgTab = 'kalender';
   const tabBtns = tabs.map(([id, label]) => `<button class="pill ${cfgTab === id ? 'on' : ''}" data-act="cfgtab" data-tab="${id}">${label}</button>`).join('');
 
-  const fld = (lbl, attrs, type = 'text') => `<div class="cfg-field float"><input type="${type}" class="cfg-in" placeholder=" " ${attrs}><label>${esc(lbl)}</label></div>`;
-  const sel = (lbl, opts, attrs) => `<div class="cfg-field float"><select class="cfg-in" style="padding-top:16px" ${attrs}>${opts}</select><label style="top:4px;font-size:9px;color:var(--acc2)">${esc(lbl)}</label></div>`;
-  const txt = (lbl, attrs, val) => `<div class="cfg-field float"><textarea class="cfg-in" placeholder=" " ${attrs}>${esc(val)}</textarea><label>${esc(lbl)}</label></div>`;
+  const fld = (lbl, attrs, type = 'text') => `<div class="cfg-field float"><input type="${type}" class="cfg-in" placeholder=" " ${attrs}><label>${esc(tEditor(lbl))}</label></div>`;
+  const sel = (lbl, opts, attrs) => `<div class="cfg-field float"><select class="cfg-in" style="padding-top:16px" ${attrs}>${opts}</select><label style="top:4px;font-size:9px;color:var(--acc2)">${esc(tEditor(lbl))}</label></div>`;
+  const txt = (lbl, attrs, val) => `<div class="cfg-field float"><textarea class="cfg-in" placeholder=" " ${attrs}>${esc(val)}</textarea><label>${esc(tEditor(lbl))}</label></div>`;
   const box = (title, desc, content, defaultOpen = false, headRight = '', boxKey = '') => {
     const key = boxKey || safeId(title);
     if (!cfgOpenBoxesInit && defaultOpen) {
       cfgOpenBoxes.add(key);
     }
     const isOpen = cfgOpenBoxes.has(key);
-    return `<details class="cfg-box" data-box-key="${esc(key)}" ${isOpen ? 'open' : ''}><summary><div style="display:flex;flex-direction:column;gap:3px;margin-right:auto"><b>${title}</b><span class="cfg-desc">${desc}</span></div>${headRight}</summary><div class="cfg-box-body">${content}</div></details>`;
+    return `<details class="cfg-box" data-box-key="${esc(key)}" ${isOpen ? 'open' : ''}><summary><div style="display:flex;flex-direction:column;gap:3px;margin-right:auto"><b>${tEditor(title)}</b><span class="cfg-desc">${tEditor(desc)}</span></div>${headRight}</summary><div class="cfg-box-body">${content}</div></details>`;
   };
 
   const th = cfgDraft.theme || {};
@@ -508,6 +597,11 @@ function renderCfgModal(preserveScroll = true) {
     </div>`, true, '', 'allgemein_design') +
     box('🏠 Seitenleiste, Begrüßung & Uhrzeit', 'Grundlegende Texte, Begrüßung und Zeitanzeige im Start-Banner.', `
     <div class="cfg-row">
+      ${sel(t('cfg.lang_label'), [
+        ['auto', t('cfg.lang_auto')],
+        ['de', t('cfg.lang_de')],
+        ['en', t('cfg.lang_en')]
+      ].map(([v, l]) => `<option value="${v}" ${(cfgDraft.language || 'auto') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="language"`)}
       ${fld('HA-Seitenleisten-Titel', `data-cpath="sidebarTitle" value="${esc(cfgDraft.sidebarTitle)}"`)}
       ${fld('HA-Seitenleisten-Icon', `data-cpath="sidebarIcon" value="${esc(cfgDraft.sidebarIcon)}"`)}
       ${fld('Dashboard-Titel', `data-cpath="title" value="${esc(cfgDraft.title)}"`)}
@@ -519,11 +613,11 @@ function renderCfgModal(preserveScroll = true) {
       ${fld('Begrüßungstext-Entität (optional)', `list="ha-entities-list" data-cpath="greetingEntity" value="${esc(cfgDraft.greetingEntity)}"`)}
     </div>
     <div class="cfg-row">
-      <label><input type="checkbox" data-cbool="showDateTime" ${cfgDraft.showDateTime !== false ? 'checked' : ''}> Datum & Live-Uhrzeit im Raum-Banner anzeigen</label>
+      <label><input type="checkbox" data-cbool="showDateTime" ${cfgDraft.showDateTime !== false ? 'checked' : ''}> ${tr('Datum & Live-Uhrzeit im Raum-Banner anzeigen', 'Show date & live clock in room banner')}</label>
       ${fld('Schriftgröße Datum & Uhrzeit (px, 10–48)', `min="10" max="48" data-cpath="dateTimeSize" value="${esc(cfgDraft.dateTimeSize || 13)}"`, 'number')}
     </div>
     <div class="cfg-row" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
-      <span class="cfg-desc" style="display:block;width:100%;font-weight:600;margin-bottom:4px">🎨 Farben für Begrüßung, Name, Status & Datum (Banner):</span>
+      <span class="cfg-desc" style="display:block;width:100%;font-weight:600;margin-bottom:4px">🎨 ${tr('Farben für Begrüßung, Name, Status & Datum (Banner):', 'Colors for Greeting, Name, Status & Date (Banner):')}</span>
       ${fld('Farbe: Begrüßung ("Guten Tag")', `data-cpath="theme.greetingColor" value="${esc((cfgDraft.theme || {}).greetingColor || '#d5d7ea')}"`, 'color')}
       ${fld('Farbe: Name ("Timo 👋")', `data-cpath="theme.nameColor" value="${esc((cfgDraft.theme || {}).nameColor || '#f2f3fa')}"`, 'color')}
       ${fld('Farbe: "Das passiert gerade..."', `data-cpath="theme.activityColor" value="${esc((cfgDraft.theme || {}).activityColor || '#c4c7dc')}"`, 'color')}
@@ -580,21 +674,27 @@ function renderCfgModal(preserveScroll = true) {
       <button class="iconbtn" data-act="cfgAddPresence" style="margin-top:6px">+ Person hinzufügen</button>
     `, false, placementStatusBadgeHtml('presence', 'presence', `${((cfgDraft.presence && cfgDraft.presence.members) || []).length} Personen`), 'allgemein_presence') +
     box('📱 Endgeräte-Profil (Nur für dieses Gerät / Tablet)', 'Speichert Startansicht, Start-Raum und Kiosk-/Screensaver-Verhalten lokal nur für dieses Gerät (z. B. Wandtablet Flur vs. Tablet Büro vs. PC), während alle Kacheln & Entitäten global synchron bleiben.', (() => {
-      const dp = typeof getDeviceProfile === 'function' ? getDeviceProfile() : { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global' };
+      const dp = typeof getDeviceProfile === 'function' ? getDeviceProfile() : { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global', language: 'global' };
       const startViewOpts = [
-        ['', '🔄 Automatisch (zuletzt geöffnete Ansicht merken)'],
-        ['dashboard', '🏠 Haupt-Dashboard (Startseite / Raum-Tabs)'],
-        ['klima', '🌡️ Klima-Unterseite'],
-        ['kameras', '📷 Kamera-Unterseite'],
-        ...(cfgDraft.customPages || []).map(p => [`page:${p.id}`, `📄 Eigene Unterseite: ${p.label}`])
+        ['', tr('🔄 Automatisch (zuletzt geöffnete Ansicht merken)', '🔄 Automatic (remember last view)')],
+        ['dashboard', tr('🏠 Haupt-Dashboard (Startseite / Raum-Tabs)', '🏠 Main Dashboard (Home / Room Tabs)')],
+        ['klima', tr('🌡️ Klima-Unterseite', '🌡️ Climate Page')],
+        ['kameras', tr('📷 Kamera-Unterseite', '📷 Cameras Page')],
+        ...(cfgDraft.customPages || []).map(p => [`page:${p.id}`, `📄 ${p.label}`])
       ];
       const startRoomOpts = [
-        ['', '🏠 Standard (1. Raum / Home)'],
-        ...(cfgDraft.rooms || []).map(r => [r.name, `📍 Raum-Tab: ${r.name}`])
+        ['', tr('🏠 Standard (1. Raum / Home)', '🏠 Default (1st Room / Home)')],
+        ...(cfgDraft.rooms || []).map(r => [r.name, `📍 ${r.name}`])
       ];
       return `
       <div class="cfg-row">
         ${fld('Gerätename (optional, z.B. Tablet Büro, Wandtablet Flur, PC)', `data-devprof-k="deviceName" value="${esc(dp.deviceName || '')}"`)}
+        ${sel(t('cfg.lang_label'), [
+          ['global', t('cfg.lang_global')],
+          ['auto', t('cfg.lang_auto')],
+          ['de', t('cfg.lang_de')],
+          ['en', t('cfg.lang_en')]
+        ].map(([v, l]) => `<option value="${v}" ${(dp.language || 'global') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-devprof-k="language"`)}
         ${sel('Start-Ansicht auf diesem Gerät', startViewOpts.map(([v, l]) => `<option value="${esc(v)}" ${(dp.startView || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-devprof-k="startView"`)}
         ${(!dp.startView || dp.startView === 'dashboard')
           ? sel('Start-Raum-Tab (auf Haupt-Dashboard)', startRoomOpts.map(([v, l]) => `<option value="${esc(v)}" ${(dp.startRoom || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-devprof-k="startRoom"`)
@@ -602,27 +702,27 @@ function renderCfgModal(preserveScroll = true) {
       </div>
       <div class="cfg-row" style="margin-top:8px">
         ${sel('Kiosk-Vollbildmodus auf diesem Gerät', [
-          ['global', `🌐 Globale Einstellung nutzen (${cfgDraft.kioskMode ? 'Aktuell: An' : 'Aktuell: Aus'})`],
-          ['on', '⛶ Auf diesem Gerät IMMER Kiosk-Vollbild (Ideal für Wandtablet)'],
-          ['off', '🖥️ Auf diesem Gerät NIE Kiosk-Vollbild (Ideal für PC / Laptop)']
+          ['global', `🌐 ${t('cfg.lang_global')}`],
+          ['on', tr('⛶ Auf diesem Gerät IMMER Kiosk-Vollbild (Ideal für Wandtablet)', '⛶ ALWAYS Kiosk Fullscreen on this device')],
+          ['off', tr('🖥️ Auf diesem Gerät NIE Kiosk-Vollbild (Ideal für PC / Laptop)', '🖥️ NEVER Kiosk Fullscreen on this device')]
         ].map(([v, l]) => `<option value="${v}" ${(dp.kioskOverride || 'global') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-devprof-k="kioskOverride"`)}
         ${sel('OLED-Screensaver auf diesem Gerät', [
-          ['global', '🌐 Globale Einstellung nutzen'],
-          ['on', '🌙 Auf diesem Gerät IMMER aktiv'],
-          ['off', '🚫 Auf diesem Gerät DEAKTIVIERT (z.B. am PC)']
+          ['global', `🌐 ${t('cfg.lang_global')}`],
+          ['on', tr('🌙 Auf diesem Gerät IMMER aktiv', '🌙 ALWAYS active on this device')],
+          ['off', tr('🚫 Auf diesem Gerät DEAKTIVIERT (z.B. am PC)', '🚫 DISABLED on this device')]
         ].map(([v, l]) => `<option value="${v}" ${(dp.screensaverOverride || 'global') === v ? 'selected' : ''}>${l}</option>`).join(''), `data-devprof-k="screensaverOverride"`)}
         ${fld('Auto-Rückkehr zur Startansicht nach Inaktivität (Minuten, 0 = Aus)', `type="number" min="0" max="120" data-devprof-k="returnToStartMins" value="${dp.returnToStartMins || 0}"`)}
       </div>
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button type="button" class="btn-pri" data-act="cfgPinCurrentAsDeviceStart">📌 Aktuell geöffnete Ansicht als Startseite für dieses Gerät festlegen</button>
-        <button type="button" class="iconbtn" data-act="cfgResetDeviceProfile">↺ Endgeräte-Profil zurücksetzen</button>
+        <button type="button" class="btn-pri" data-act="cfgPinCurrentAsDeviceStart">📌 ${tr('Aktuell geöffnete Ansicht als Startseite für dieses Gerät festlegen', 'Pin current view as start page for this device')}</button>
+        <button type="button" class="iconbtn" data-act="cfgResetDeviceProfile">↺ ${tr('Endgeräte-Profil zurücksetzen', 'Reset device profile')}</button>
       </div>`;
     })(), true, (() => {
       const dp = typeof getDeviceProfile === 'function' ? getDeviceProfile() : {};
-      const hasCustom = dp.deviceName || dp.startView || dp.startRoom || (dp.kioskOverride && dp.kioskOverride !== 'global') || (dp.screensaverOverride && dp.screensaverOverride !== 'global');
+      const hasCustom = dp.deviceName || dp.startView || dp.startRoom || (dp.kioskOverride && dp.kioskOverride !== 'global') || (dp.screensaverOverride && dp.screensaverOverride !== 'global') || (dp.language && dp.language !== 'global');
       return hasCustom
-        ? `<span class="cfg-badge-page">📱 ${esc(dp.deviceName || 'Geräte-Profil aktiv')}</span>`
-        : `<span class="cfg-badge-off">🌐 Globaler Standard</span>`;
+        ? `<span class="cfg-badge-page">📱 ${esc(dp.deviceName || tr('Geräte-Profil aktiv', 'Device profile active'))}</span>`
+        : `<span class="cfg-badge-off">🌐 ${tr('Globaler Standard', 'Global default')}</span>`;
     })(), 'allgemein_device_profile') +
     box('🔐 Globale Sicherheit, PIN-Schutz & Screensaver', 'Globale PIN- und Vollbild-Vorgaben für alle Geräte ohne eigenes Endgeräte-Profil.', `
     <div class="cfg-row">
@@ -1649,18 +1749,18 @@ function renderCfgModal(preserveScroll = true) {
 
   document.getElementById('cfgsheet').innerHTML = `
     <div class="cfg-hdr">
-      <b>Dashboard-Konfigurator</b>
-      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="Suche (Räume, Geräte, Entitäten, Layout, Büro...)" autocomplete="off" value="${esc(searchVal)}"><span id="cfgSearchCount" class="cfg-search-count" hidden></span></div>
-      <button type="button" class="iconbtn" data-act="forceReloadApp" title="Ansicht & Cache neu laden" style="padding:6px 10px;font-size:12px">🔄 Sync</button>
+      <b>${t('cfg.title')}</b>
+      <div class="cfg-search">${ic('search', 16)}<input type="text" id="cfgSearch" class="cfg-in" placeholder="${esc(t('cfg.search_placeholder'))}" autocomplete="off" value="${esc(searchVal)}"><span id="cfgSearchCount" class="cfg-search-count" hidden></span></div>
+      <button type="button" class="iconbtn" data-act="forceReloadApp" title="Sync" style="padding:6px 10px;font-size:12px">🔄 Sync</button>
       <button class="x2" data-act="cfgClose">✕</button>
     </div>
     <div class="cfg-tabs">${tabBtns}</div>
     <div class="cfg-body">${body}</div>
     <div class="cfg-ftr">
-      <span class="mut sm">100% No-Code UI · Änderungen werden beim Speichern live an alle offenen Tablets &amp; Geräte übertragen.</span>
+      <span class="mut sm">${tr('100% No-Code UI · Änderungen werden beim Speichern live an alle offenen Tablets & Geräte übertragen.', '100% No-Code UI · Changes are synced live to all open tablets & devices upon saving.')}</span>
       <div style="display:flex;gap:10px">
-        <button class="iconbtn" data-act="cfgClose">Abbrechen</button>
-        <button class="btn-pri" data-act="cfgSave">💾 Speichern &amp; Live Übertragen</button>
+        <button class="iconbtn" data-act="cfgClose">${t('cfg.cancel')}</button>
+        <button class="btn-pri" data-act="cfgSave">💾 ${t('cfg.save')}</button>
       </div>
     </div>`;
 
@@ -1771,7 +1871,7 @@ function applyCfgSearch(rawQuery) {
     });
     if (countEl) {
       countEl.hidden = false;
-      countEl.textContent = `${matchedBoxes} Treffer`;
+      countEl.textContent = t('cfg.search_matches', { n: matchedBoxes });
       countEl.classList.toggle('empty', matchedBoxes === 0);
     }
   } else {
@@ -1827,6 +1927,10 @@ document.addEventListener('input', e => {
       val = Math.max(0, parseInt(t.value, 10) || 0);
     }
     setByPath(cfgDraft, t.dataset.cpath, val);
+    if (t.dataset.cpath === 'language') {
+      renderCfgModal(true);
+      if (typeof tick === 'function') tick(true);
+    }
     if (t.dataset.cpath === 'bellPopup.behavior') {
       if (!cfgDraft.bellPopup) cfgDraft.bellPopup = {};
       cfgDraft.bellPopup.show = val === 'popup';
@@ -1877,8 +1981,9 @@ document.addEventListener('input', e => {
     const k = t.dataset.devprofK;
     const val = k === 'returnToStartMins' ? (parseInt(t.value, 10) || 0) : t.value;
     saveDeviceProfile({ [k]: val });
-    if (k === 'startView' || k === 'kioskOverride' || k === 'screensaverOverride') {
+    if (k === 'startView' || k === 'kioskOverride' || k === 'screensaverOverride' || k === 'language') {
       renderCfgModal(true);
+      if (k === 'language' && typeof tick === 'function') tick(true);
     }
     return;
   }

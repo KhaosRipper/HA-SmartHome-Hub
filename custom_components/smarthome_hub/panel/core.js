@@ -3,17 +3,992 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.5.2';
+const VERSION = '3.6.0';
 
-const CALENDAR_STYLES = [
-  ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
-  ['agenda', '⚡ Kompakt-Agenda (Nur Termine)', 'Agenda'],
-  ['google', '🟦 Google-Kalender-Stil',        'Google'],
-  ['apple',  '🍎 Apple-Kalender-Stil (Split)', 'Apple'],
-  ['board',  '🗂️ Wochen-Board (7 Spalten)',    'Board'],
-  ['month',  '📅 Monats-Kalender (Raster)',    'Monat']
-];
-const VALID_CALENDAR_STYLES = new Set(CALENDAR_STYLES.map(x => x[0]));
+/* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
+const I18N = {
+  de: {
+    'cal.style.list': '📋 7-Tage-Liste (Classic)',
+    'cal.style.agenda': '⚡ Kompakt-Agenda (Nur Termine)',
+    'cal.style.google': '🟦 Google-Kalender-Stil',
+    'cal.style.apple': '🍎 Apple-Kalender-Stil (Split)',
+    'cal.style.board': '🗂️ Wochen-Board (7 Spalten)',
+    'cal.style.month': '📅 Monats-Kalender (Raster)',
+    'cal.short.list': 'Liste',
+    'cal.short.agenda': 'Agenda',
+    'cal.short.google': 'Google',
+    'cal.short.apple': 'Apple',
+    'cal.short.board': 'Board',
+    'cal.short.month': 'Monat',
+    'cal.title': 'Kalender',
+    'cal.page_title': 'Familienkalender',
+    'cal.sub_14d': 'Familienkalender · 14 Tage',
+    'cal.sub_month': 'Monatsübersicht',
+    'cal.sub_7d': 'Familienkalender · 7 Tage',
+    'cal.today': 'Heute',
+    'cal.tomorrow': 'Morgen',
+    'cal.all_day': 'Ganztägig',
+    'cal.clock_suffix': ' Uhr',
+    'cal.no_events': 'Keine Termine',
+    'cal.no_events_period': 'Keine Termine im gewählten Zeitraum',
+    'cal.more_events': '+{n} weitere',
+    'cal.events_count': '{n} Termine',
+    'cal.single_event': '1 Termin',
+    'cal.prev_month': 'Vorheriger Monat',
+    'cal.next_month': 'Nächster Monat',
+    'cal.switch_style': 'Kalender-Optik wechseln',
+    'cal.wd_mon': 'Mo',
+    'cal.wd_tue': 'Di',
+    'cal.wd_wed': 'Mi',
+    'cal.wd_thu': 'Do',
+    'cal.wd_fri': 'Fr',
+    'cal.wd_sat': 'Sa',
+    'cal.wd_sun': 'So',
+    'trash.title': 'Abfallkalender',
+    'trash.sub_30d': 'Nächste 30 Tage',
+    'trash.empty': 'Keine anstehenden Abholtermine gefunden',
+    'trash.today': 'Heute!',
+    'trash.tomorrow': 'Morgen!',
+    'trash.in_days': 'in {n} Tagen',
+    'trash.alert_title': 'Müllabfuhr {when}: {types}',
+    'trash.alert_sub': 'Bitte Tonne(n) rechtzeitig bereitstellen ({date})',
+    'trash.alert_done': '✓ Erledigt',
+    'state.on': 'Eingeschaltet',
+    'state.off': 'Ausgeschaltet',
+    'state.open': 'Geöffnet',
+    'state.closed': 'Geschlossen',
+    'state.playing': 'Spielt ab',
+    'state.paused': 'Pausiert',
+    'state.idle': 'Bereit',
+    'state.standby': 'Standby',
+    'state.locked': 'Verriegelt',
+    'state.unlocked': 'Entriegelt',
+    'state.unavailable': 'Nicht verfügbar',
+    'state.unknown': 'Unbekannt',
+    'state.heating': 'Heizt',
+    'state.active': 'Aktiv',
+    'state.ready': 'Bereit',
+    'state.mowing': 'Mäht',
+    'state.docked': 'In Station',
+    'state.returning': 'Fährt zur Station',
+    'state.error': 'Fehler!',
+    'hvac.heat': 'Heizen',
+    'hvac.cool': 'Kühlen',
+    'hvac.auto': 'Auto',
+    'hvac.off': 'Aus',
+    'hvac.dry': 'Entfeuchten',
+    'hvac.fan_only': 'Lüfter',
+    'hvac.heat_cool': 'Auto',
+    'preset.boost': 'Boost',
+    'preset.eco': 'Eco',
+    'preset.comfort': 'Komfort',
+    'preset.away': 'Abwesend',
+    'preset.home': 'Zuhause',
+    'preset.sleep': 'Schlafen',
+    'preset.activity': 'Aktiv',
+    'preset.none': 'Normal',
+    'fan.auto': 'Auto',
+    'fan.low': 'Niedrig',
+    'fan.medium': 'Mittel',
+    'fan.high': 'Hoch',
+    'fan.quiet': 'Leise',
+    'fan.turbo': 'Turbo',
+    'fan.off': 'Aus',
+    'weather_cond.clear-night': 'Klare Nacht',
+    'weather_cond.cloudy': 'Bewölkt',
+    'weather_cond.exceptional': 'Besondere Wetterlage',
+    'weather_cond.fog': 'Nebelig',
+    'weather_cond.hail': 'Hagel',
+    'weather_cond.lightning': 'Gewitter',
+    'weather_cond.lightning-rainy': 'Gewitter mit Regen',
+    'weather_cond.partlycloudy': 'Teilweise bewölkt',
+    'weather_cond.pouring': 'Starker Regen',
+    'weather_cond.rainy': 'Regen',
+    'weather_cond.snowy': 'Schnee',
+    'weather_cond.snowy-rainy': 'Schneeregen',
+    'weather_cond.sunny': 'Sonnig',
+    'weather_cond.windy': 'Windig',
+    'weather_cond.windy-variant': 'Windig',
+    'weather.title': 'Wetter',
+    'weather.home': 'Zuhause',
+    'weather.forecast_7d': 'Wettervorhersage · 7 Tage',
+    'weather.hourly': 'Stündlich (Nächste 24h)',
+    'weather.daily_7d': '7-Tage-Trend',
+    'weather.loading': 'Lade Vorhersage von Home Assistant…',
+    'weather.no_data': 'Keine Vorhersagedaten verfügbar.',
+    'weather.humidity': 'Luftfeuchtigkeit',
+    'weather.wind': 'Wind',
+    'weather.pressure': 'Luftdruck',
+    'weather.precipitation': 'Niederschlag',
+    'weather.outdoor_temp': 'Außentemperatur',
+    'rain.title': 'Regenradar · 60 Min.',
+    'rain.sub': 'Niederschlags-Timeline',
+    'rain.now': 'Jetzt',
+    'rain.dry_60m': 'Trocken (60m)',
+    'rain.raining_stop': '🌧️ Aktuell Niederschlag (~{mm} mm) – Lässt gegen {time} Uhr nach.',
+    'rain.raining_cont': '🌧️ Aktuell Niederschlag (~{mm} mm) in der nächsten Stunde.',
+    'rain.soon': '🌦️ Regen droht in ca. {mins} Min. ({time} Uhr) – Vor dem Gassigehen noch abwarten!',
+    'rain.advice_dry': '🌤️ Nächste 60 Minuten trocken – Perfekt zum Lüften & Gassigehen 🐕',
+    'rain.prob_max': 'Max. {prob}% Regenrisiko',
+    'nav.dashboard': 'Dashboard',
+    'nav.rooms': 'Räume',
+    'nav.klima': 'Raumklima',
+    'nav.cameras': 'Kameras',
+    'nav.calendar': 'Kalender',
+    'nav.quick_edit': 'Quick-Edit Layout',
+    'nav.quick_edit_exit': 'Quick-Edit beenden',
+    'nav.fullscreen': 'Vollbild umschalten',
+    'nav.configurator': 'Dashboard-Konfigurator',
+    'nav.ha_settings': 'Einstellungen',
+    'nav.family': 'Familie',
+    'nav.owner': 'Hausbesitzer',
+    'hero.hello': 'Hallo',
+    'hero.active_in': 'in {room} aktiv',
+    'hero.no_active_in': 'Keine aktiven Geräte in {room}',
+    'hero.device_singular': 'Gerät',
+    'hero.device_plural': 'Geräte',
+    'hero.all_closed': 'Alle geschlossen',
+    'hero.open_count': '{n} geöffnet',
+    'hero.door_locked': 'Verriegelt',
+    'hero.door_unlocked': 'Entriegelt',
+    'hero.window': 'Fenster',
+    'hero.door': 'Tür',
+    'hero.lock': 'Türschloss',
+    'dev.all_rooms': 'Alle Räume',
+    'dev.only_room': 'Nur {room}',
+    'dev.none_in_room': 'Keine Geräte in „{room}“. Tippe oben rechts auf „Alle Räume“.',
+    'dev.target': 'Ziel',
+    'dev.opened': 'Geöffnet',
+    'dev.closed': 'Geschlossen',
+    'dev.open_pct': 'Offen · {pct}%',
+    'dev.covers_title': 'Rolläden',
+    'dev.all_up': 'Alle hoch',
+    'dev.all_stop': 'Stopp',
+    'dev.all_down': 'Alle runter',
+    'dev.no_covers': 'Keine Rolläden für diesen Raum hinterlegt.',
+    'klima.title': 'Raumklima',
+    'klima.main_area': 'Hauptbereich',
+    'klima.actual': 'Aktuell',
+    'klima.target': 'Ziel',
+    'klima.heating_to': 'Heizt auf {t}°',
+    'klima.cooling_to': 'Kühlt auf {t}°',
+    'klima.holding': 'Hält {t}°',
+    'klima.off': 'Ausgeschaltet',
+    'klima.mode': 'Modus',
+    'klima.fan': 'Lüfter',
+    'klima.preset': 'Profil',
+    'klima.comfort': 'Komfort',
+    'klima.normal_mode': 'Normalbetrieb',
+    'klima.no_entity': 'Keine Klima-Entität für diesen Raum hinterlegt.',
+    'klima.rooms_overview': 'Räume im Überblick',
+    'klima.devices_total': '{n} Klimageräte',
+    'klima.active_count': '{n} aktiv',
+    'klima.all_off': 'Alle aus',
+    'klima.avg_actual': 'Ø Ist-Temperatur',
+    'klima.avg_humidity': 'Ø Luftfeuchtigkeit',
+    'klima.boost_all': '🔥 Boost alle',
+    'klima.eco_all': '🌿 Eco (19°C)',
+    'klima.off_all': '⏻ Alle aus',
+    'sec.title': 'Sicherheit',
+    'sec.locks_doors': 'Türschloss & Türen',
+    'sec.windows': 'Fensterkontakte',
+    'sec.tap_confirm': 'Tippen zum Bestätigen!',
+    'sec.unlock': 'Aufschließen',
+    'sec.lock': 'Abschließen',
+    'sec.open': 'Offen',
+    'sec.closed': 'Geschlossen',
+    'sec.open_since': 'Offen ({m} Min.)',
+    'fav.title': 'Schnellauswahl',
+    'fav.sub': 'Favoriten',
+    'lights.title': 'Lichter',
+    'lights.on_count': '{on} / {total} an',
+    'lights.all_off': 'Alle aus',
+    'alert.attention': 'Achtung',
+    'alert.fix': 'Beheben',
+    'pres.title': 'Familien-Präsenz',
+    'pres.attendance': 'Anwesenheit',
+    'pres.empty': 'Keine Familienmitglieder konfiguriert. Konfigurator → Allgemein → Familien-Präsenz.',
+    'pres.home': 'Zuhause',
+    'pres.away': 'Unterwegs',
+    'pres.home_count': '{home} / {total} zuhause',
+    'rout.title': 'Szenen & Routinen',
+    'rout.empty': 'Keine Routinen konfiguriert. Konfigurator → Allgemein → Szenen & Routinen.',
+    'rout.tap_run': 'Antippen zum Starten',
+    'rout.started': 'Routine gestartet: {name}',
+    'vent.title': 'Lüftungsempfehlung',
+    'vent.empty': 'Keine Räume konfiguriert. Konfigurator → Klima & Wetter → Lüftungsempfehlung.',
+    'vent.open_warn_title': 'Fenster zu lange geöffnet! (Auskühlungsschutz)',
+    'vent.outdoor': 'Außen',
+    'vent.recommend_count': '{n}× Lüften empfohlen',
+    'vent.optimal_all': 'Klima optimal',
+    'vent.abs_diff': 'Δ {diff} g/m³ abs. Feuchte',
+    'vent.status_recommend': '🌬️ Jetzt lüften! Außenluft trockener',
+    'vent.status_warm': '☀️ Außen zu warm – Fenster geschlossen halten',
+    'vent.status_humid': '💧 Außen schwüler – Nicht lüften',
+    'vent.status_ok': '✓ Raumklima optimal',
+    'vent.inside': 'Innen',
+    'vent.outside': 'Außen',
+    'bat.title': 'Speicher-Prognose',
+    'bat.empty': 'Kein Batteriespeicher-Sensor gefunden. Konfigurator → Energie → Speicher-Prognose.',
+    'bat.charging': 'Lädt ({w} W)',
+    'bat.discharging': 'Entlädt ({w} W)',
+    'bat.standby': 'Standby (~{w} W)',
+    'bat.full_at': 'Voll um ca.',
+    'bat.empty_at': 'Reicht bis ca.',
+    'bat.remaining': 'Restlaufzeit',
+    'bat.charge_dur': 'Ladedauer',
+    'bat.cap_usable': 'Nutzbar ({kwh} kWh)',
+    'bat.eta_today': '{time} Uhr',
+    'bat.eta_tomorrow': 'Morgen {time} Uhr',
+    'bat.desc_charging': 'Voll in ca. {dur} ({eta}) bei {w} W Ladung',
+    'bat.desc_discharging': 'Reicht ca. {dur} ({eta}) bei {w} W Entladung',
+    'bat.desc_idle': 'Reicht ca. {dur} (bei Ø {w} W Grundlast)',
+    'bat.short_charging': 'Voll in ca. {dur}',
+    'bat.short_discharging': 'Reicht ca. {dur}',
+    'sys.title': 'Server & Docker',
+    'sys.empty': 'Keine System-Sensoren konfiguriert. Konfigurator → Geräte → System-Health.',
+    'sys.cpu': 'CPU-Last',
+    'sys.ram': 'RAM',
+    'sys.disk': 'SSD / Disk',
+    'sys.temp': 'Temperatur',
+    'energy.flow_title': 'Energiefluss',
+    'energy.flow_sub': 'Live Power Flow',
+    'energy.autarky': 'Autarkie',
+    'energy.self_consumption': 'Eigenverbrauch',
+    'energy.live_flow': 'Aktueller Energiefluss',
+    'energy.pv_gen': 'PV-Erzeugung',
+    'energy.home_consumption': 'Hausverbrauch',
+    'energy.battery': 'Speicher',
+    'energy.grid': 'Stromnetz',
+    'energy.charging': 'Lädt mit {v}',
+    'energy.discharging': 'Entlädt mit {v}',
+    'energy.standby': 'Standby',
+    'energy.feed_in': 'Einspeisung {v}',
+    'energy.grid_import': 'Netzbezug {v}',
+    'energy.balanced': 'Ausgeglichen',
+    'energy.prices_title': 'Dynamische Strompreise',
+    'energy.prices_empty': 'Kein Strompreis-Sensor (Tibber / EPEX Spot / Nordpool) hinterlegt.',
+    'energy.price_favorable': '🟢 Günstig',
+    'energy.price_expensive': '🔴 Teuer',
+    'energy.price_normal': '🟡 Normal',
+    'energy.now': 'Aktuell',
+    'energy.avg_today': 'Ø Heute',
+    'energy.min': 'Min',
+    'energy.max': 'Max',
+    'energy.wallbox_title': 'Wallbox',
+    'energy.wallbox_empty': 'Keine Wallbox-Sensoren konfiguriert.',
+    'energy.car_soc': 'Fahrzeug-Akku',
+    'energy.charge_power': 'Ladeleistung',
+    'energy.charge_mode': 'Lademodus',
+    'energy.connected': 'Verbunden',
+    'energy.not_connected': 'Nicht verbunden',
+    'energy.start': '▶ Start',
+    'energy.stop': '⏹ Stopp',
+    'energy.vs_yesterday': 'vs. gestern',
+    'energy.autarky_day': 'Autarkie (Heute)',
+    'energy.autarky_month': 'Autarkie (Monat)',
+    'energy.autarky_total': 'Autarkie (Gesamt)',
+    'energy.self_ratio': '{pct}% Eigenstrom',
+    'energy.history': 'Verlauf',
+    'energy.today': 'Heute',
+    'energy.month': 'Monat',
+    'energy.total': 'Gesamt',
+    'energy.live': 'Aktuell',
+    'app.title': 'Haushaltsgeräte',
+    'app.empty': 'Keine Haushaltsgeräte konfiguriert. Konfigurator → Geräte → Haushaltsgeräte.',
+    'app.finished': '✓ Fertig! (Antippen)',
+    'app.running': 'Läuft',
+    'app.off': 'Aus',
+    'app.tap_ack': 'Fertig bestätigt',
+    'app.rem_min': 'noch ~{m} Min.',
+    'task.points': 'Punkte',
+    'task.streak_days': 'Tage Streak',
+    'task.open_tasks': 'Offene Aufgaben ({n})',
+    'task.all_done': '🎉 Alle Aufgaben für heute erledigt!',
+    'task.rewards': 'Belohnungen ({n})',
+    'task.done_toast': 'Aufgabe erledigt!',
+    'cam.title': 'Kameras',
+    'cam.live_streams': '{n} Live-Streams',
+    'cam.connecting': 'Verbinde Live-Stream…',
+    'cam.paused': 'Pausiert (Tab inaktiv)',
+    'cam.live': 'LIVE',
+    'cam.snapshot': 'Snapshot',
+    'cam.unavailable': 'Kamera nicht erreichbar',
+    'cam.reload': 'Stream neu laden',
+    'cam.fullscreen': 'Vollbild',
+    'cam.hold_badge': 'Schließt in {s}s',
+    'cam.doorbell': 'Türklingel',
+    'pin.required': 'PIN erforderlich',
+    'pin.wrong': 'Falsche PIN',
+    'pin.unlock_title': 'PIN zum Aufschließen',
+    'pin.kiosk_exit_title': 'PIN für Kiosk-Exit',
+    'pin.config_title': 'PIN für Konfigurator',
+    'toast.saved_server': 'Konfiguration gespeichert & an alle Geräte übertragen',
+    'toast.saved_local': 'Lokal gespeichert (Backend-Verbindung prüfen)',
+    'toast.saved_demo': 'Konfiguration im Browser gespeichert (Demo)',
+    'toast.reloading': '🔄 Lade Dashboard komplett neu…',
+    'toast.no_ha': 'Keine Verbindung zu Home Assistant',
+    'toast.discovered': '{rooms} Räume & {devs} Geräte erkannt!',
+    'toast.discover_err': 'Fehler beim Auto-Import: {msg}',
+    'toast.default_set': 'Als Standard gesetzt – Seite neu laden (F5)',
+    'toast.default_err': 'Konnte Standard nicht setzen',
+    'qe.active': 'Quick-Edit Modus aktiv',
+    'qe.card_visible': 'Sichtbar',
+    'qe.card_hidden': 'Ausgeblendet',
+    'qe.open_config': 'Konfigurator öffnen',
+    'qe.done': '✓ Fertig & Speichern',
+    'qe.col_left': '⬅️ Hauptspalte',
+    'qe.col_right': '➡️ Seitenspalte',
+    'qe.col_full': '↔️ Volle Breite',
+    'qe.width_full': '100% Breite',
+    'qe.width_half': '50% Breite (1/2)',
+    'qe.width_third': '33% Breite (1/3)',
+    'qe.width_twothird': '66% Breite (2/3)',
+    'qe.width_quarter': '25% Breite (1/4)',
+    'qe.move_up': 'Nach oben',
+    'qe.move_down': 'Nach unten',
+    'qe.hide': 'Ausblenden',
+    'qe.show': 'Einblenden',
+    'cfg.title': 'Dashboard Konfigurator',
+    'cfg.search_placeholder': 'Einstellung, Modul oder Begriff suchen (z. B. Kamera, Wetter, PIN, Müll, Akku)…',
+    'cfg.search_clear': 'Suche löschen',
+    'cfg.search_matches': '{n} Treffer',
+    'cfg.search_no_results': 'Keine Einstellungen für „{q}“ gefunden.',
+    'cfg.reset_search': 'Suche zurücksetzen',
+    'cfg.expand_all': 'Alle ausklappen',
+    'cfg.collapse_all': 'Alle einklappen',
+    'cfg.export': 'Export',
+    'cfg.import': 'Import',
+    'cfg.cancel': 'Abbrechen',
+    'cfg.save': 'Speichern & Anwenden',
+    'cfg.tab_general': '🏠 Allgemein & Layout',
+    'cfg.tab_rooms': '🛋️ Räume & Banner',
+    'cfg.tab_devices': '💡 Geräte & Licht',
+    'cfg.tab_climate': '🌡️ Klima & Wetter',
+    'cfg.tab_energy': '⚡ Energie & PV',
+    'cfg.tab_calendar': '📅 Kalender & Müll',
+    'cfg.tab_cameras': '🛡️ Sicherheit & Kameras',
+    'cfg.tab_pages': '📑 Eigene Seiten',
+    'cfg.lang_label': 'Sprache / Language',
+    'cfg.lang_auto': '🌐 Automatisch (Home Assistant Sprache)',
+    'cfg.lang_de': '🇩🇪 Deutsch',
+    'cfg.lang_en': '🇬🇧 English',
+    'cfg.lang_global': 'Globale Einstellung übernehmen',
+    'chart.current': 'Aktuell',
+    'chart.min': 'Minimum',
+    'chart.max': 'Maximum',
+    'chart.avg': 'Durchschnitt',
+    'chart.close': 'Schließen',
+    'chart.brightness': 'Helligkeit',
+    'chart.color_temp': 'Farbtemperatur',
+    'chart.color': 'Farbe',
+    'chart.effects': 'Effekte',
+    'chart.volume': 'Lautstärke',
+    'chart.source': 'Quelle',
+    'chart.position': 'Position',
+    'chart.history_24h': '24h Verlauf',
+    'chart.individual_lights': 'Einzellampen in dieser Gruppe',
+    'sports.live': 'LIVE',
+    'sports.finished': 'Beendet',
+    'sports.upcoming': 'Anstehend',
+    'sports.matchday': 'Spieltag',
+    'sports.table': 'Tabelle',
+    'sports.standings': 'WM-Stand',
+    'sports.next_race': 'Nächstes Rennen',
+    'sports.qualifying': 'Qualifying',
+    'sports.sprint': 'Sprint',
+    'sports.race': 'Rennen',
+    'sports.calendar': 'Rennkalender',
+    'sports.drivers': 'Fahrer-WM',
+    'sports.constructors': 'Konstrukteure',
+    'sports.focus': 'Fokus',
+    'sports.schedule': 'Spielplan',
+    'sports.results': 'Ergebnisse',
+    'showon.everywhere': 'Überall',
+    'cal.no_events_day': 'Keine Termine an diesem Tag.',
+    'cal.no_events_next_days': 'Keine anstehenden Termine in den nächsten {n} Tagen.',
+    'cal.free': 'Frei',
+    'cal.sub_days': 'Familienkalender · {n} Tage',
+    'trash.next_days': 'Nächste {n} Tage',
+    'trash.no_pickup': 'Keine Abholung ({sub}).',
+    'trash.green': 'Grüngut',
+    'trash.bio': 'Biotonne',
+    'trash.yellow': 'Gelber Sack',
+    'trash.glass': 'Altglas',
+    'trash.paper': 'Papier',
+    'trash.residual': 'Restmüll',
+    'trash.bulky': 'Sperrmüll',
+    'trash.general': 'Abfall',
+    'status.all_normal': 'Alle Systeme normal',
+    'status.home_secure': 'Zuhause ist gesichert',
+    'status.unlocked_item': '{name} entriegelt',
+    'status.windows_open': '{n} Fenster offen',
+    'hero.night': 'Gute Nacht',
+    'hero.morning': 'Guten Morgen',
+    'hero.day': 'Guten Tag',
+    'hero.evening': 'Guten Abend',
+    'hero.guest': 'Gast',
+    'hero.default_greet': 'Das passiert gerade bei dir zuhause.',
+    'hero.motion': 'Erkennung',
+    'dev.this_room': 'Dieser Raum',
+    'dev.col_device': 'Gerät',
+    'dev.col_status': 'Status',
+    'dev.col_power': 'Leistung',
+    'dev.col_runtime': 'Laufzeit',
+    'dev.col_today': 'Heute',
+    'dev.col_position': 'Position',
+    'dev.col_control': 'Steuerung'
+  },
+  en: {
+    'cal.style.list': '📋 7-Day List (Classic)',
+    'cal.style.agenda': '⚡ Compact Agenda (Events only)',
+    'cal.style.google': '🟦 Google Calendar Style',
+    'cal.style.apple': '🍎 Apple Calendar Style (Split)',
+    'cal.style.board': '🗂️ Weekly Board (7 Columns)',
+    'cal.style.month': '📅 Monthly Calendar (Grid)',
+    'cal.short.list': 'List',
+    'cal.short.agenda': 'Agenda',
+    'cal.short.google': 'Google',
+    'cal.short.apple': 'Apple',
+    'cal.short.board': 'Board',
+    'cal.short.month': 'Month',
+    'cal.title': 'Calendar',
+    'cal.page_title': 'Family Calendar',
+    'cal.sub_14d': 'Family Calendar · 14 Days',
+    'cal.sub_month': 'Monthly Overview',
+    'cal.sub_7d': 'Family Calendar · 7 Days',
+    'cal.today': 'Today',
+    'cal.tomorrow': 'Tomorrow',
+    'cal.all_day': 'All day',
+    'cal.clock_suffix': '',
+    'cal.no_events': 'No events',
+    'cal.no_events_period': 'No events in selected period',
+    'cal.more_events': '+{n} more',
+    'cal.events_count': '{n} events',
+    'cal.single_event': '1 event',
+    'cal.prev_month': 'Previous month',
+    'cal.next_month': 'Next month',
+    'cal.switch_style': 'Switch calendar style',
+    'cal.wd_mon': 'Mon',
+    'cal.wd_tue': 'Tue',
+    'cal.wd_wed': 'Wed',
+    'cal.wd_thu': 'Thu',
+    'cal.wd_fri': 'Fri',
+    'cal.wd_sat': 'Sat',
+    'cal.wd_sun': 'Sun',
+    'trash.title': 'Waste Collection',
+    'trash.sub_30d': 'Next 30 Days',
+    'trash.empty': 'No upcoming collection dates found',
+    'trash.today': 'Today!',
+    'trash.tomorrow': 'Tomorrow!',
+    'trash.in_days': 'in {n} days',
+    'trash.alert_title': 'Waste pickup {when}: {types}',
+    'trash.alert_sub': 'Please put out bin(s) in time ({date})',
+    'trash.alert_done': '✓ Done',
+    'state.on': 'On',
+    'state.off': 'Off',
+    'state.open': 'Open',
+    'state.closed': 'Closed',
+    'state.playing': 'Playing',
+    'state.paused': 'Paused',
+    'state.idle': 'Idle',
+    'state.standby': 'Standby',
+    'state.locked': 'Locked',
+    'state.unlocked': 'Unlocked',
+    'state.unavailable': 'Unavailable',
+    'state.unknown': 'Unknown',
+    'state.heating': 'Heating',
+    'state.active': 'Active',
+    'state.ready': 'Ready',
+    'state.mowing': 'Mowing',
+    'state.docked': 'Docked',
+    'state.returning': 'Returning to dock',
+    'state.error': 'Error!',
+    'hvac.heat': 'Heat',
+    'hvac.cool': 'Cool',
+    'hvac.auto': 'Auto',
+    'hvac.off': 'Off',
+    'hvac.dry': 'Dry',
+    'hvac.fan_only': 'Fan',
+    'hvac.heat_cool': 'Auto',
+    'preset.boost': 'Boost',
+    'preset.eco': 'Eco',
+    'preset.comfort': 'Comfort',
+    'preset.away': 'Away',
+    'preset.home': 'Home',
+    'preset.sleep': 'Sleep',
+    'preset.activity': 'Active',
+    'preset.none': 'Normal',
+    'fan.auto': 'Auto',
+    'fan.low': 'Low',
+    'fan.medium': 'Medium',
+    'fan.high': 'High',
+    'fan.quiet': 'Quiet',
+    'fan.turbo': 'Turbo',
+    'fan.off': 'Off',
+    'weather_cond.clear-night': 'Clear night',
+    'weather_cond.cloudy': 'Cloudy',
+    'weather_cond.exceptional': 'Exceptional weather',
+    'weather_cond.fog': 'Foggy',
+    'weather_cond.hail': 'Hail',
+    'weather_cond.lightning': 'Thunderstorm',
+    'weather_cond.lightning-rainy': 'Thunderstorm & rain',
+    'weather_cond.partlycloudy': 'Partly cloudy',
+    'weather_cond.pouring': 'Heavy rain',
+    'weather_cond.rainy': 'Rainy',
+    'weather_cond.snowy': 'Snowy',
+    'weather_cond.snowy-rainy': 'Sleet',
+    'weather_cond.sunny': 'Sunny',
+    'weather_cond.windy': 'Windy',
+    'weather_cond.windy-variant': 'Windy',
+    'weather.title': 'Weather',
+    'weather.home': 'Home',
+    'weather.forecast_7d': 'Weather Forecast · 7 Days',
+    'weather.hourly': 'Hourly (Next 24h)',
+    'weather.daily_7d': '7-Day Trend',
+    'weather.loading': 'Loading forecast from Home Assistant…',
+    'weather.no_data': 'No forecast data available.',
+    'weather.humidity': 'Humidity',
+    'weather.wind': 'Wind',
+    'weather.pressure': 'Pressure',
+    'weather.precipitation': 'Precipitation',
+    'weather.outdoor_temp': 'Outdoor Temp',
+    'rain.title': 'Rain Radar · 60 Min',
+    'rain.sub': 'Precipitation Timeline',
+    'rain.now': 'Now',
+    'rain.dry_60m': 'Dry (60m)',
+    'rain.raining_stop': '🌧️ Currently raining (~{mm} mm) – Expected to stop around {time}.',
+    'rain.raining_cont': '🌧️ Currently raining (~{mm} mm) for the next hour.',
+    'rain.soon': '🌦️ Rain expected in ~{mins} min ({time}) – Hold off before heading out!',
+    'rain.advice_dry': '🌤️ Dry for the next 60 minutes – Great for airing out & walks 🐕',
+    'rain.prob_max': 'Max {prob}% rain risk',
+    'nav.dashboard': 'Dashboard',
+    'nav.rooms': 'Rooms',
+    'nav.klima': 'Climate',
+    'nav.cameras': 'Cameras',
+    'nav.calendar': 'Calendar',
+    'nav.quick_edit': 'Quick-Edit Layout',
+    'nav.quick_edit_exit': 'Exit Quick-Edit',
+    'nav.fullscreen': 'Toggle Fullscreen',
+    'nav.configurator': 'Dashboard Configurator',
+    'nav.ha_settings': 'Settings',
+    'nav.family': 'Family',
+    'nav.owner': 'Homeowner',
+    'hero.hello': 'Hello',
+    'hero.active_in': 'active in {room}',
+    'hero.no_active_in': 'No active devices in {room}',
+    'hero.device_singular': 'device',
+    'hero.device_plural': 'devices',
+    'hero.all_closed': 'All closed',
+    'hero.open_count': '{n} open',
+    'hero.door_locked': 'Locked',
+    'hero.door_unlocked': 'Unlocked',
+    'hero.window': 'Windows',
+    'hero.door': 'Door',
+    'hero.lock': 'Door Lock',
+    'dev.all_rooms': 'All rooms',
+    'dev.only_room': 'Only {room}',
+    'dev.none_in_room': 'No devices in "{room}". Tap "All rooms" in the top right.',
+    'dev.target': 'Target',
+    'dev.opened': 'Open',
+    'dev.closed': 'Closed',
+    'dev.open_pct': 'Open · {pct}%',
+    'dev.covers_title': 'Covers',
+    'dev.all_up': 'All up',
+    'dev.all_stop': 'Stop',
+    'dev.all_down': 'All down',
+    'dev.no_covers': 'No covers configured for this room.',
+    'klima.title': 'Room Climate',
+    'klima.main_area': 'Main area',
+    'klima.actual': 'Current',
+    'klima.target': 'Target',
+    'klima.heating_to': 'Heating to {t}°',
+    'klima.cooling_to': 'Cooling to {t}°',
+    'klima.holding': 'Holding {t}°',
+    'klima.off': 'Off',
+    'klima.mode': 'Mode',
+    'klima.fan': 'Fan',
+    'klima.preset': 'Preset',
+    'klima.comfort': 'Comfort',
+    'klima.normal_mode': 'Normal mode',
+    'klima.no_entity': 'No climate entity configured for this room.',
+    'klima.rooms_overview': 'Rooms Overview',
+    'klima.devices_total': '{n} climate devices',
+    'klima.active_count': '{n} active',
+    'klima.all_off': 'All off',
+    'klima.avg_actual': 'Avg Current Temp',
+    'klima.avg_humidity': 'Avg Humidity',
+    'klima.boost_all': '🔥 Boost all',
+    'klima.eco_all': '🌿 Eco (19°C)',
+    'klima.off_all': '⏻ All off',
+    'sec.title': 'Security',
+    'sec.locks_doors': 'Door Locks & Doors',
+    'sec.windows': 'Window Sensors',
+    'sec.tap_confirm': 'Tap again to confirm!',
+    'sec.unlock': 'Unlock',
+    'sec.lock': 'Lock',
+    'sec.open': 'Open',
+    'sec.closed': 'Closed',
+    'sec.open_since': 'Open ({m} min)',
+    'fav.title': 'Quick Access',
+    'fav.sub': 'Favorites',
+    'lights.title': 'Lights',
+    'lights.on_count': '{on} / {total} on',
+    'lights.all_off': 'All off',
+    'alert.attention': 'Alert',
+    'alert.fix': 'Resolve',
+    'pres.title': 'Family Presence',
+    'pres.attendance': 'Presence',
+    'pres.empty': 'No family members configured. Configurator → General → Family Presence.',
+    'pres.home': 'Home',
+    'pres.away': 'Away',
+    'pres.home_count': '{home} / {total} home',
+    'rout.title': 'Scenes & Routines',
+    'rout.empty': 'No routines configured. Configurator → General → Scenes & Routines.',
+    'rout.tap_run': 'Tap to run',
+    'rout.started': 'Routine started: {name}',
+    'vent.title': 'Ventilation Advice',
+    'vent.empty': 'No rooms configured. Configurator → Climate & Weather → Ventilation Advice.',
+    'vent.open_warn_title': 'Window open too long! (Heat loss protection)',
+    'vent.outdoor': 'Outdoor',
+    'vent.recommend_count': '{n}× Air out recommended',
+    'vent.optimal_all': 'Climate optimal',
+    'vent.abs_diff': 'Δ {diff} g/m³ abs. humidity',
+    'vent.status_recommend': '🌬️ Ventilate now! Outdoor air is drier',
+    'vent.status_warm': '☀️ Too warm outside – Keep windows closed',
+    'vent.status_humid': '💧 More humid outside – Do not ventilate',
+    'vent.status_ok': '✓ Room climate optimal',
+    'vent.inside': 'Indoor',
+    'vent.outside': 'Outdoor',
+    'bat.title': 'Battery Forecast',
+    'bat.empty': 'No battery sensor found. Configurator → Energy → Battery Forecast.',
+    'bat.charging': 'Charging ({w} W)',
+    'bat.discharging': 'Discharging ({w} W)',
+    'bat.standby': 'Standby (~{w} W)',
+    'bat.full_at': 'Full around',
+    'bat.empty_at': 'Lasts until',
+    'bat.remaining': 'Remaining time',
+    'bat.charge_dur': 'Charge duration',
+    'bat.cap_usable': 'Usable ({kwh} kWh)',
+    'bat.eta_today': '{time}',
+    'bat.eta_tomorrow': 'Tomorrow {time}',
+    'bat.desc_charging': 'Full in ~{dur} ({eta}) at {w} W charge',
+    'bat.desc_discharging': 'Lasts ~{dur} ({eta}) at {w} W discharge',
+    'bat.desc_idle': 'Lasts ~{dur} (at avg {w} W base load)',
+    'bat.short_charging': 'Full in ~{dur}',
+    'bat.short_discharging': 'Lasts ~{dur}',
+    'sys.title': 'Server & Docker',
+    'sys.empty': 'No system sensors configured. Configurator → Devices → System Health.',
+    'sys.cpu': 'CPU Load',
+    'sys.ram': 'RAM',
+    'sys.disk': 'SSD / Disk',
+    'sys.temp': 'Temperature',
+    'energy.flow_title': 'Power Flow',
+    'energy.flow_sub': 'Live Power Flow',
+    'energy.autarky': 'Autarky',
+    'energy.self_consumption': 'Self-Consumption',
+    'energy.live_flow': 'Current Power Flow',
+    'energy.pv_gen': 'PV Generation',
+    'energy.home_consumption': 'Home Load',
+    'energy.battery': 'Battery',
+    'energy.grid': 'Grid',
+    'energy.charging': 'Charging at {v}',
+    'energy.discharging': 'Discharging at {v}',
+    'energy.standby': 'Standby',
+    'energy.feed_in': 'Exporting {v}',
+    'energy.grid_import': 'Importing {v}',
+    'energy.balanced': 'Balanced',
+    'energy.prices_title': 'Dynamic Electricity Prices',
+    'energy.prices_empty': 'No electricity price sensor (Tibber / EPEX Spot / Nordpool) configured.',
+    'energy.price_favorable': '🟢 Low',
+    'energy.price_expensive': '🔴 High',
+    'energy.price_normal': '🟡 Normal',
+    'energy.now': 'Current',
+    'energy.avg_today': 'Avg Today',
+    'energy.min': 'Min',
+    'energy.max': 'Max',
+    'energy.wallbox_title': 'Wallbox',
+    'energy.wallbox_empty': 'No wallbox sensors configured.',
+    'energy.car_soc': 'Vehicle Battery',
+    'energy.charge_power': 'Charging Power',
+    'energy.charge_mode': 'Charge Mode',
+    'energy.connected': 'Connected',
+    'energy.not_connected': 'Disconnected',
+    'energy.start': '▶ Start',
+    'energy.stop': '⏹ Stop',
+    'energy.vs_yesterday': 'vs. yesterday',
+    'energy.autarky_day': 'Autarky (Today)',
+    'energy.autarky_month': 'Autarky (Month)',
+    'energy.autarky_total': 'Autarky (Total)',
+    'energy.self_ratio': '{pct}% self-powered',
+    'energy.history': 'History',
+    'energy.today': 'Today',
+    'energy.month': 'Month',
+    'energy.total': 'Total',
+    'energy.live': 'Live',
+    'app.title': 'Appliances',
+    'app.empty': 'No appliances configured. Configurator → Devices → Appliances.',
+    'app.finished': '✓ Done! (Tap)',
+    'app.running': 'Running',
+    'app.off': 'Off',
+    'app.tap_ack': 'Acknowledged',
+    'app.rem_min': '~{m} min left',
+    'task.points': 'Points',
+    'task.streak_days': 'Day Streak',
+    'task.open_tasks': 'Open Tasks ({n})',
+    'task.all_done': '🎉 All tasks completed for today!',
+    'task.rewards': 'Rewards ({n})',
+    'task.done_toast': 'Task completed!',
+    'cam.title': 'Cameras',
+    'cam.live_streams': '{n} Live Streams',
+    'cam.connecting': 'Connecting live stream…',
+    'cam.paused': 'Paused (tab inactive)',
+    'cam.live': 'LIVE',
+    'cam.snapshot': 'Snapshot',
+    'cam.unavailable': 'Camera unreachable',
+    'cam.reload': 'Reload stream',
+    'cam.fullscreen': 'Fullscreen',
+    'cam.hold_badge': 'Closes in {s}s',
+    'cam.doorbell': 'Doorbell',
+    'pin.required': 'PIN required',
+    'pin.wrong': 'Incorrect PIN',
+    'pin.unlock_title': 'PIN to Unlock',
+    'pin.kiosk_exit_title': 'PIN to Exit Kiosk',
+    'pin.config_title': 'PIN for Configurator',
+    'toast.saved_server': 'Configuration saved & synced to all devices',
+    'toast.saved_local': 'Saved locally (check backend connection)',
+    'toast.saved_demo': 'Configuration saved in browser (Demo)',
+    'toast.reloading': '🔄 Reloading dashboard…',
+    'toast.no_ha': 'No connection to Home Assistant',
+    'toast.discovered': '{rooms} rooms & {devs} devices discovered!',
+    'toast.discover_err': 'Auto-import error: {msg}',
+    'toast.default_set': 'Set as default – reload page (F5)',
+    'toast.default_err': 'Could not set default panel',
+    'qe.active': 'Quick-Edit Mode active',
+    'qe.card_visible': 'Visible',
+    'qe.card_hidden': 'Hidden',
+    'qe.open_config': 'Open Configurator',
+    'qe.done': '✓ Done & Save',
+    'qe.col_left': '⬅️ Main column',
+    'qe.col_right': '➡️ Side column',
+    'qe.col_full': '↔️ Full width',
+    'qe.width_full': '100% Width',
+    'qe.width_half': '50% Width (1/2)',
+    'qe.width_third': '33% Width (1/3)',
+    'qe.width_twothird': '66% Width (2/3)',
+    'qe.width_quarter': '25% Width (1/4)',
+    'qe.move_up': 'Move up',
+    'qe.move_down': 'Move down',
+    'qe.hide': 'Hide',
+    'qe.show': 'Show',
+    'cfg.title': 'Dashboard Configurator',
+    'cfg.search_placeholder': 'Search setting, module or keyword (e.g. camera, weather, PIN, waste, battery)…',
+    'cfg.search_clear': 'Clear search',
+    'cfg.search_matches': '{n} matches',
+    'cfg.search_no_results': 'No settings found for "{q}".',
+    'cfg.reset_search': 'Reset search',
+    'cfg.expand_all': 'Expand all',
+    'cfg.collapse_all': 'Collapse all',
+    'cfg.export': 'Export',
+    'cfg.import': 'Import',
+    'cfg.cancel': 'Cancel',
+    'cfg.save': 'Save & Apply',
+    'cfg.tab_general': '🏠 General & Layout',
+    'cfg.tab_rooms': '🛋️ Rooms & Banner',
+    'cfg.tab_devices': '💡 Devices & Lights',
+    'cfg.tab_climate': '🌡️ Climate & Weather',
+    'cfg.tab_energy': '⚡ Energy & PV',
+    'cfg.tab_calendar': '📅 Calendar & Waste',
+    'cfg.tab_cameras': '🛡️ Security & Cameras',
+    'cfg.tab_pages': '📑 Custom Pages',
+    'cfg.lang_label': 'Language / Sprache',
+    'cfg.lang_auto': '🌐 Automatic (Home Assistant language)',
+    'cfg.lang_de': '🇩🇪 Deutsch',
+    'cfg.lang_en': '🇬🇧 English',
+    'cfg.lang_global': 'Use global setting',
+    'chart.current': 'Current',
+    'chart.min': 'Minimum',
+    'chart.max': 'Maximum',
+    'chart.avg': 'Average',
+    'chart.close': 'Close',
+    'chart.brightness': 'Brightness',
+    'chart.color_temp': 'Color Temperature',
+    'chart.color': 'Color',
+    'chart.effects': 'Effects',
+    'chart.volume': 'Volume',
+    'chart.source': 'Source',
+    'chart.position': 'Position',
+    'chart.history_24h': '24h History',
+    'chart.individual_lights': 'Individual lights in this group',
+    'sports.live': 'LIVE',
+    'sports.finished': 'Finished',
+    'sports.upcoming': 'Upcoming',
+    'sports.matchday': 'Matchday',
+    'sports.table': 'Standings',
+    'sports.standings': 'Standings',
+    'sports.next_race': 'Next Race',
+    'sports.qualifying': 'Qualifying',
+    'sports.sprint': 'Sprint',
+    'sports.race': 'Race',
+    'sports.calendar': 'Race Calendar',
+    'sports.drivers': 'Drivers',
+    'sports.constructors': 'Constructors',
+    'sports.focus': 'Focus',
+    'sports.schedule': 'Schedule',
+    'sports.results': 'Results',
+    'showon.everywhere': 'Everywhere',
+    'cal.no_events_day': 'No events on this day.',
+    'cal.no_events_next_days': 'No upcoming events in the next {n} days.',
+    'cal.free': 'Free',
+    'cal.sub_days': 'Family Calendar · {n} Days',
+    'trash.next_days': 'Next {n} Days',
+    'trash.no_pickup': 'No pickup ({sub}).',
+    'trash.green': 'Green waste',
+    'trash.bio': 'Organic waste',
+    'trash.yellow': 'Recycling',
+    'trash.glass': 'Glass',
+    'trash.paper': 'Paper',
+    'trash.residual': 'Residual waste',
+    'trash.bulky': 'Bulky waste',
+    'trash.general': 'Waste',
+    'status.all_normal': 'All systems normal',
+    'status.home_secure': 'Home is secure',
+    'status.unlocked_item': '{name} unlocked',
+    'status.windows_open': '{n} windows open',
+    'hero.night': 'Good night',
+    'hero.morning': 'Good morning',
+    'hero.day': 'Good afternoon',
+    'hero.evening': 'Good evening',
+    'hero.guest': 'Guest',
+    'hero.default_greet': 'Here is what is happening at home.',
+    'hero.motion': 'Motion',
+    'dev.this_room': 'This room',
+    'dev.col_device': 'Device',
+    'dev.col_status': 'Status',
+    'dev.col_power': 'Power',
+    'dev.col_runtime': 'Runtime',
+    'dev.col_today': 'Today',
+    'dev.col_position': 'Position',
+    'dev.col_control': 'Controls'
+  }
+};
+
+const DEFAULT_DE_TO_EN = {
+  'Wetter': 'Weather',
+  'Zuhause': 'Home',
+  'Wettervorhersage · 7 Tage': 'Weather Forecast · 7 Days',
+  'Luftfeuchtigkeit': 'Humidity',
+  'Wind': 'Wind',
+  'Luftdruck': 'Pressure',
+  'Niederschlag': 'Precipitation',
+  'Raumklima': 'Room Climate',
+  'Hauptbereich': 'Main area',
+  'Modus': 'Mode',
+  'Lüfter': 'Fan',
+  'Geräte': 'Devices',
+  'Rolläden': 'Covers',
+  'Kalender': 'Calendar',
+  'Familienkalender': 'Family Calendar',
+  'Familienkalender · 14 Tage': 'Family Calendar · 14 Days',
+  'Abfallkalender': 'Waste Collection',
+  'Nächste 30 Tage': 'Next 30 Days',
+  'Statistik': 'Statistics',
+  'Aufgaben': 'Tasks',
+  'Energie': 'Energy',
+  'Wasser': 'Water',
+  'Autarkie': 'Autarky',
+  'Vergrößern': 'Expand',
+  'Haustür': 'Front Door',
+  'Türklingel': 'Doorbell',
+  'Dynamische Strompreise': 'Dynamic Electricity Prices',
+  'Haushaltsgeräte': 'Appliances',
+  'Haushaltsgerät': 'Appliance',
+  'Server & Docker': 'Server & Docker',
+  'Familie': 'Family',
+  'Hausbesitzer': 'Homeowner',
+  '🚨 Bedingte Warn-Karten': '🚨 Conditional Alert Cards',
+  '🖼️ Raum-Banner (Hero & Kamera)': '🖼️ Room Banner (Hero & Camera)',
+  '👥 Familien-Präsenz': '👥 Family Presence',
+  '⚡ Szenen & Routinen': '⚡ Scenes & Routines',
+  '🔌 Geräteübersicht': '🔌 Devices Overview',
+  '📑 Zusätzliche Geräte-Reiter': '📑 Extra Device Tabs',
+  '🧺 Haushaltsgeräte-Monitor': '🧺 Appliances Monitor',
+  '🪟 Rolläden-Steuerung': '🪟 Covers Control',
+  '📅 Familienkalender': '📅 Family Calendar',
+  '🛡️ Sicherheits-Status & Türschloss': '🛡️ Security Status & Door Lock',
+  '🌡️ Raumklima & Wetter-Kachel': '🌡️ Room Climate & Weather Card',
+  '🌧️ Regenradar (60-Minuten-Vorschau)': '🌧️ Rain Radar (60-Min Preview)',
+  '🌬️ Smarte Lüftungsempfehlung': '🌬️ Smart Ventilation Advice',
+  '⭐ Schnellauswahl / Favoriten': '⭐ Quick Access / Favorites',
+  '💶 Dynamische Strompreise': '💶 Dynamic Electricity Prices',
+  '⚡ Metriken (Energie / Wasser)': '⚡ Metrics (Energy / Water)',
+  '🔄 Power Flow (Energiefluss)': '🔄 Power Flow',
+  '🔋 Speicher-Restlaufzeit & Prognose': '🔋 Battery Runtime & Forecast',
+  '🚗 Wallbox & E-Auto': '🚗 Wallbox & EV',
+  '🔒 Sicherheit (Schlösser/Fenster)': '🔒 Security (Locks/Windows)',
+  '💡 Lichter-Gruppen': '💡 Light Groups',
+  '🖥️ System-Health (Server/Docker)': '🖥️ System Health (Server/Docker)',
+  '🗑️ Abfallkalender': '🗑️ Waste Collection'
+};
+
+function getLang() {
+  try {
+    const prof = typeof getDeviceProfile === 'function' ? getDeviceProfile() : null;
+    if (prof && (prof.language === 'de' || prof.language === 'en')) return prof.language;
+  } catch (e) {}
+  const cfgObj = (typeof cfgDraft !== 'undefined' && cfgDraft && document.getElementById('cfgmodal')?.classList?.contains('show'))
+    ? cfgDraft
+    : (typeof CONFIG !== 'undefined' ? CONFIG : null);
+  const cfgLang = cfgObj && cfgObj.language;
+  if (cfgLang === 'de' || cfgLang === 'en') return cfgLang;
+  try {
+    const h = typeof getHass === 'function' ? getHass() : null;
+    const haLang = h && (h.language || (h.locale && h.locale.language));
+    if (haLang) return String(haLang).toLowerCase().startsWith('de') ? 'de' : 'en';
+  } catch (e) {}
+  try {
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      return String(navigator.language).toLowerCase().startsWith('de') ? 'de' : 'en';
+    }
+  } catch (e) {}
+  return 'de';
+}
+
+function getLocale() {
+  return getLang() === 'en' ? 'en-US' : 'de-DE';
+}
+
+function t(key, vars = null) {
+  const lang = getLang();
+  const dict = I18N[lang] || I18N.de;
+  let str = dict[key] !== undefined ? dict[key] : (I18N.de[key] !== undefined ? I18N.de[key] : String(key));
+  if (vars && typeof vars === 'object') {
+    Object.keys(vars).forEach(k => {
+      str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), String(vars[k] ?? ''));
+    });
+  }
+  return str;
+}
+
+function tDefault(str) {
+  if (str == null) return '';
+  const s = String(str);
+  if (getLang() !== 'en') return s;
+  return DEFAULT_DE_TO_EN[s] !== undefined ? DEFAULT_DE_TO_EN[s] : s;
+}
+
+function tr(deStr, enStr) {
+  return getLang() === 'en' ? enStr : deStr;
+}
+
+const CALENDAR_STYLE_IDS = ['list', 'agenda', 'google', 'apple', 'board', 'month'];
+const CALENDAR_STYLES = CALENDAR_STYLE_IDS.map(id => {
+  const row = [id, '', ''];
+  Object.defineProperty(row, 1, { get: () => t('cal.style.' + id), enumerable: true });
+  Object.defineProperty(row, 2, { get: () => t('cal.short.' + id), enumerable: true });
+  return row;
+});
+const VALID_CALENDAR_STYLES = new Set(CALENDAR_STYLE_IDS);
 function normalizeCalendarStyle(val, fallback = 'agenda') {
   const s = String(val || '').trim().toLowerCase();
   return VALID_CALENDAR_STYLES.has(s) ? s : fallback;
@@ -87,24 +1062,32 @@ const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dom = id => String(id || '').split('.')[0];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const fmt = (v, d = 1) => v == null || isNaN(v) ? '—' : v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: d });
+const fmt = (v, d = 1) => v == null || isNaN(v) ? '—' : v.toLocaleString(getLocale(), { minimumFractionDigits: 0, maximumFractionDigits: d });
 const pad = n => String(n).padStart(2, '0');
 const fmtDur = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`; };
-const HVAC_DE = { heat:'Heizen', cool:'Kühlen', auto:'Auto', off:'Aus', dry:'Entfeuchten', fan_only:'Lüfter', heat_cool:'Auto' };
-const PRESET_DE = { boost:'Boost', eco:'Eco', comfort:'Komfort', away:'Abwesend', home:'Zuhause', sleep:'Schlafen', activity:'Aktiv', none:'Normal' };
+const HVAC_DE = new Proxy({ heat:'Heizen', cool:'Kühlen', auto:'Auto', off:'Aus', dry:'Entfeuchten', fan_only:'Lüfter', heat_cool:'Auto' }, {
+  get: (target, k) => typeof k === 'string' && I18N.de['hvac.' + k] ? t('hvac.' + k) : target[k]
+});
+const PRESET_DE = new Proxy({ boost:'Boost', eco:'Eco', comfort:'Komfort', away:'Abwesend', home:'Zuhause', sleep:'Schlafen', activity:'Aktiv', none:'Normal' }, {
+  get: (target, k) => typeof k === 'string' && I18N.de['preset.' + k] ? t('preset.' + k) : target[k]
+});
 const HVAC_LABELS = HVAC_DE;
 const PRESET_LABELS = PRESET_DE;
-const FAN_LABELS = { auto:'Auto', low:'Niedrig', medium:'Mittel', high:'Hoch', quiet:'Leise', turbo:'Turbo', off:'Aus' };
+const FAN_LABELS = new Proxy({ auto:'Auto', low:'Niedrig', medium:'Mittel', high:'Hoch', quiet:'Leise', turbo:'Turbo', off:'Aus' }, {
+  get: (target, k) => typeof k === 'string' && I18N.de['fan.' + k] ? t('fan.' + k) : target[k]
+});
 const IC = new Proxy(ICONS, { get: (_, k) => ic(String(k), 20) });
 const sinceStr = iso => { const ms = Date.parse(iso); return Number.isFinite(ms) ? fmtDur(Date.now() - ms) : ''; };
-const stateLabel = st => ({ on:'Eingeschaltet', off:'Ausgeschaltet', open:'Geöffnet', closed:'Geschlossen', playing:'Spielt ab', paused:'Pausiert', idle:'Bereit', standby:'Standby', locked:'Verriegelt', unlocked:'Entriegelt', unavailable:'Nicht verfügbar', unknown:'Unbekannt' }[st] || st);
+const stateLabel = st => (I18N.de['state.' + st] ? t('state.' + st) : st);
 const safeId = s => String(s).replace(/[^a-z0-9]/gi, '_');
 
-const WEATHER_CONDITIONS_DE = {
+const WEATHER_CONDITIONS_DE = new Proxy({
   'clear-night': 'Klare Nacht', cloudy: 'Bewölkt', exceptional: 'Besondere Wetterlage', fog: 'Nebelig', hail: 'Hagel',
   lightning: 'Gewitter', 'lightning-rainy': 'Gewitter mit Regen', partlycloudy: 'Teilweise bewölkt', pouring: 'Starker Regen',
   rainy: 'Regen', snowy: 'Schnee', 'snowy-rainy': 'Schneeregen', sunny: 'Sonnig', windy: 'Windig', 'windy-variant': 'Windig'
-};
+}, {
+  get: (target, k) => typeof k === 'string' && I18N.de['weather_cond.' + k] ? t('weather_cond.' + k) : target[k]
+});
 const WEATHER_SYMBOLS = {
   'clear-night': '🌙', cloudy: '☁️', exceptional: '🌡️', fog: '🌫️', hail: '🌨️', lightning: '🌩️',
   'lightning-rainy': '⛈️', partlycloudy: '🌤️', pouring: '🌧️', rainy: '🌧️', snowy: '❄️',
@@ -266,13 +1249,13 @@ function isItemVisibleInContext(item, ctx = {}) {
 
 function formatItemShowOnSummary(item, cfg = CONFIG) {
   const locs = normalizeItemShowOn(item, 'Home');
-  if (locs.includes('all')) return 'Überall';
+  if (locs.includes('all')) return t('showon.everywhere');
   const pages = (cfg && cfg.customPages) || [];
   return locs.map(l => {
     if (l.startsWith('page:')) {
       const pid = l.slice(5);
       const pg = pages.find(p => p && p.id === pid);
-      return pg ? `📄 ${pg.label}` : l;
+      return pg ? `📄 ${tDefault(pg.label)}` : l;
     }
     if (l.startsWith('room:')) return l.slice(5);
     return l;
@@ -404,8 +1387,9 @@ function calcBatteryForecast() {
     const h = Math.floor(hoursToFull);
     const m = Math.round((hoursToFull - h) * 60);
     const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const etaStr = eta.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
     const isToday = eta.getDate() === now.getDate();
+    const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
     return {
       state: 'charging',
@@ -413,9 +1397,9 @@ function calcBatteryForecast() {
       powerW: chgPower,
       hoursRemaining: hoursToFull,
       durationStr: durStr,
-      etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
-      desc: `Voll in ca. ${durStr} (${isToday ? etaStr : 'Morgen ' + etaStr} Uhr) bei ${fmt(chgPower, 0)} W Ladung`,
-      shortDesc: `Voll in ca. ${durStr}`,
+      etaStr: etaFmt,
+      desc: t('bat.desc_charging', { dur: durStr, eta: etaFmt, w: fmt(chgPower, 0) }),
+      shortDesc: t('bat.short_charging', { dur: durStr }),
       targetTime: etaStr
     };
   }
@@ -428,8 +1412,9 @@ function calcBatteryForecast() {
     const h = Math.floor(hoursToEmpty);
     const m = Math.round((hoursToEmpty - h) * 60);
     const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const etaStr = eta.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
     const isToday = eta.getDate() === now.getDate();
+    const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
     return {
       state: 'discharging',
@@ -437,9 +1422,9 @@ function calcBatteryForecast() {
       powerW: disPower,
       hoursRemaining: hoursToEmpty,
       durationStr: durStr,
-      etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
-      desc: `Reicht ca. ${durStr} (${isToday ? etaStr : 'Morgen ' + etaStr} Uhr) bei ${fmt(disPower, 0)} W Entladung`,
-      shortDesc: `Reicht ca. ${durStr}`,
+      etaStr: etaFmt,
+      desc: t('bat.desc_discharging', { dur: durStr, eta: etaFmt, w: fmt(disPower, 0) }),
+      shortDesc: t('bat.short_discharging', { dur: durStr }),
       targetTime: etaStr
     };
   }
@@ -452,8 +1437,9 @@ function calcBatteryForecast() {
   const h = Math.floor(hoursToEmpty);
   const m = Math.round((hoursToEmpty - h) * 60);
   const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-  const etaStr = eta.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const etaStr = eta.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
   const isToday = eta.getDate() === now.getDate();
+  const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
   return {
     state: 'idle',
@@ -461,9 +1447,9 @@ function calcBatteryForecast() {
     powerW: effectiveLoad,
     hoursRemaining: hoursToEmpty,
     durationStr: durStr,
-    etaStr: isToday ? `${etaStr} Uhr` : `Morgen ${etaStr} Uhr`,
-    desc: `Reicht ca. ${durStr} (bei Ø ${fmt(effectiveLoad, 0)} W Grundlast)`,
-    shortDesc: `Reicht ca. ${durStr}`,
+    etaStr: etaFmt,
+    desc: t('bat.desc_idle', { dur: durStr, w: fmt(effectiveLoad, 0) }),
+    shortDesc: t('bat.short_discharging', { dur: durStr }),
     targetTime: etaStr
   };
 }
@@ -495,7 +1481,7 @@ function getRainTimeline60Min() {
     for (let i = 0; i <= 6; i++) {
       const frac = i / 6;
       const slotTime = new Date(now.getTime() + i * 10 * 60000);
-      const slotLabel = i === 0 ? 'Jetzt' : `+${i * 10}m`;
+      const slotLabel = i === 0 ? t('rain.now') : `+${i * 10}m`;
       const timeStr = `${pad(slotTime.getHours())}:${pad(slotTime.getMinutes())}`;
       
       const prob = Math.round(curProb + (nextProb - curProb) * frac);
@@ -517,7 +1503,7 @@ function getRainTimeline60Min() {
       const prob = isRainingNow ? Math.max(0, 90 - i * 12) : 5;
       slots.push({
         idx: i,
-        label: i === 0 ? 'Jetzt' : `+${i * 10}m`,
+        label: i === 0 ? t('rain.now') : `+${i * 10}m`,
         time: `${pad(slotTime.getHours())}:${pad(slotTime.getMinutes())}`,
         prob,
         mm
@@ -535,14 +1521,14 @@ function getRainTimeline60Min() {
     statusClass = 'raining';
     const stopSlot = slots.find(s => s.mm <= 0.1 && s.prob < 40);
     advice = stopSlot
-      ? `🌧️ Aktuell Niederschlag (~${slots[0].mm} mm) – Lässt gegen ${stopSlot.time} Uhr nach.`
-      : `🌧️ Aktuell Niederschlag (~${slots[0].mm} mm) in der nächsten Stunde.`;
+      ? t('rain.raining_stop', { mm: slots[0].mm, time: stopSlot.time })
+      : t('rain.raining_cont', { mm: slots[0].mm });
   } else if (firstRainSlot && firstRainSlot.idx > 0) {
     statusClass = 'soon';
-    advice = `🌦️ Regen droht in ca. ${firstRainSlot.idx * 10} Min. (${firstRainSlot.time} Uhr) – Vor dem Gassigehen noch abwarten!`;
+    advice = t('rain.soon', { mins: firstRainSlot.idx * 10, time: firstRainSlot.time });
   } else {
     statusClass = 'dry';
-    advice = '🌤️ Nächste 60 Minuten trocken – Perfekt zum Lüften & Gassigehen 🐕';
+    advice = t('rain.advice_dry');
   }
 
   return {
@@ -555,6 +1541,7 @@ function getRainTimeline60Min() {
 }
 
 function ensureConfigDefaults(cfg) {
+  if (!cfg.language || !['auto', 'de', 'en'].includes(cfg.language)) cfg.language = 'auto';
   if (!cfg.theme) cfg.theme = {};
   if (!cfg.theme.bg) cfg.theme.bg = '#080912';
   if (!cfg.theme.acc) cfg.theme.acc = '#7c6cf0';
@@ -949,14 +1936,14 @@ function applyKioskMode(enable) {
 /* ---------- PIN-Schutz ---------- */
 const pinState = { buffer: '', onSuccess: null, title: '', verifying: false };
 
-function requirePin(featureKey, actionFn, title = 'PIN erforderlich') {
+function requirePin(featureKey, actionFn, title = null) {
   const pin = String(CONFIG.pinCode || '').trim();
   const protect = CONFIG.pinProtect || {};
   if (!pin || !protect[featureKey]) { actionFn(); return; }
   pinState.buffer = '';
   pinState.verifying = false;
   pinState.onSuccess = actionFn;
-  pinState.title = title;
+  pinState.title = title || t('pin.required');
   renderPinModal();
   document.getElementById('pinmodal').classList.add('show');
 }
@@ -1010,7 +1997,7 @@ async function handlePinKey(k) {
     pinState.onSuccess = null;
     if (cb) cb();
   } else {
-    toast('Falsche PIN');
+    toast(t('pin.wrong'));
     pinState.buffer = '';
     setTimeout(renderPinModal, 250);
   }
@@ -1029,10 +2016,11 @@ function getDeviceProfile() {
       startRoom: parsed.startRoom || '',
       returnToStartMins: parsed.returnToStartMins != null ? Number(parsed.returnToStartMins) : 0,
       kioskOverride: parsed.kioskOverride || 'global',
-      screensaverOverride: parsed.screensaverOverride || 'global'
+      screensaverOverride: parsed.screensaverOverride || 'global',
+      language: parsed.language || 'global'
     };
   } catch (e) {
-    return { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global' };
+    return { deviceName: '', startView: '', startRoom: '', returnToStartMins: 0, kioskOverride: 'global', screensaverOverride: 'global', language: 'global' };
   }
 }
 
@@ -1188,12 +2176,12 @@ async function saveConfigToServer(newCfg) {
       _lastKnownServerDigest = _configDigest(CONFIG);
       localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
-      toast('Konfiguration gespeichert & an alle Geräte übertragen');
+      toast(t('toast.saved_server'));
     } catch (e) {
-      toast('Lokal gespeichert (Backend-Verbindung prüfen)');
+      toast(t('toast.saved_local'));
     }
   } else {
-    toast('Konfiguration im Browser gespeichert (Demo)');
+    toast(t('toast.saved_demo'));
   }
   rebuildEntitiesList();
   refreshSeries();
@@ -1261,7 +2249,7 @@ async function checkRemoteConfigUpdate() {
 }
 
 function forceReloadApp(silent = false) {
-  if (!silent) toast('🔄 Lade Dashboard komplett neu…');
+  if (!silent) toast(t('toast.reloading'));
   try {
     const url = new URL(window.location.href);
     url.searchParams.set('_cb', String(Date.now()));
@@ -1284,7 +2272,7 @@ function populateEntityDatalist() {
 /* ---------- Auto-Discovery ---------- */
 async function autoDiscoverFromHA() {
   const h = getHass();
-  if (!h) { toast('Keine Verbindung zu Home Assistant'); return; }
+  if (!h) { toast(t('toast.no_ha')); return; }
   try {
     const [areas, devices, entities] = await Promise.all([
       h.callWS({ type: 'config/area_registry/list' }),
@@ -1325,9 +2313,9 @@ async function autoDiscoverFromHA() {
     cfgDraft.devices = newDevs.slice(0, 60);
     cfgDraft.covers = newCovers;
     renderCfgModal(true);
-    toast(`${newRooms.length} Räume & ${newDevs.length} Geräte erkannt!`);
+    toast(t('toast.discovered', { rooms: newRooms.length, devs: newDevs.length }));
   } catch (e) {
-    toast('Fehler beim Auto-Import: ' + e.message);
+    toast(t('toast.discover_err', { msg: e.message }));
   }
 }
 
@@ -1440,7 +2428,7 @@ const yesterdayMetricVals = {};
 async function setHubAsDefaultPanel() {
   const PANEL = 'smarthome-hub';
   const h = getHass();
-  if (!h) { toast('Keine Verbindung zu Home Assistant'); return; }
+  if (!h) { toast(t('toast.no_ha')); return; }
   let ok = false;
   // 1) Pro Browser/Gerät (ältere HA-Versionen & Fallback)
   try {
@@ -1454,5 +2442,5 @@ async function setHubAsDefaultPanel() {
     await h.callWS({ type: 'frontend/set_user_data', key: 'core', value: val });
     ok = true;
   } catch (e) {}
-  toast(ok ? 'Als Standard gesetzt – Seite neu laden (F5)' : 'Konnte Standard nicht setzen');
+  toast(ok ? t('toast.default_set') : t('toast.default_err'));
 }

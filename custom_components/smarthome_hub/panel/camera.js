@@ -335,7 +335,7 @@ function updateLBSwitchBtn() {
   const hasBoth = !!(lbs.stream && CONFIG.go2rtcHost && !isMixedContentBlocked(CONFIG.go2rtcHost) && lbs.entity && S(lbs.entity));
   if (hasBoth) {
     btn.style.display = '';
-    btn.textContent = lbs.activeSource === 'webrtc' ? '⇄ Auf HA-Stream wechseln' : '⇄ Auf go2rtc wechseln';
+    btn.textContent = lbs.activeSource === 'webrtc' ? tr('⇄ Auf HA-Stream wechseln', '⇄ Switch to HA stream') : tr('⇄ Auf go2rtc wechseln', '⇄ Switch to go2rtc');
   } else {
     btn.style.display = 'none';
   }
@@ -350,7 +350,7 @@ function openLB(id, mode, title) {
   lbs.activeSource = 'ha';
   updateLBSwitchBtn();
 
-  body.innerHTML = `<img src="" class="lb-media" alt="${esc(title || 'Kamera')}" />`;
+  body.innerHTML = `<img src="" class="lb-media" alt="${esc(title || t('cam.title'))}" />`;
   const img = body.querySelector('img');
   const poll = () => {
     clearInterval(lbs.timer);
@@ -393,7 +393,7 @@ function openSmartCamLB(stream, entity, fallbackEntity, mode, title) {
   lbs.stream = resolvedStream;
   lbs.entity = resolvedEnt;
   lbs.mode = mode || 'stream';
-  lbs.title = title || 'Kamera';
+  lbs.title = title || tr('Kamera', 'Camera');
 
   if (canUseGo2rtc() && resolvedStream) {
     openLBWebRtc(resolvedStream, lbs.title);
@@ -407,7 +407,7 @@ function openSmartCamLB(stream, entity, fallbackEntity, mode, title) {
     openLBWebRtc(resolvedStream, lbs.title);
     return;
   }
-  toast('Keine erreichbare Kamera-Quelle gefunden (Entität prüfen)');
+  toast(t('cam.unavailable'));
 }
 
 function switchLBSource() {
@@ -523,12 +523,12 @@ function initCamObserver() {
             if (badge) { badge.className = 'cam-badge live'; badge.textContent = '● LIVE (HA)'; }
           }
         } else {
-          wrap.innerHTML = `<div class="cam-placeholder">${ic('camera', 26)}<span>Keine Kamera-Entität für Fernzugriff hinterlegt</span></div>`;
+          wrap.innerHTML = `<div class="cam-placeholder">${ic('camera', 26)}<span>${t('cam.unavailable')}</span></div>`;
           if (badge) { badge.className = 'cam-badge standby'; badge.textContent = 'OFFLINE'; }
         }
       } else {
         clearCamWrapTimer(wrap);
-        wrap.innerHTML = `<div class="cam-placeholder">${ic('camera', 26)}<span>Stream pausiert</span></div>`;
+        wrap.innerHTML = `<div class="cam-placeholder">${ic('camera', 26)}<span>${t('cam.paused')}</span></div>`;
         if (badge) { badge.className = 'cam-badge standby'; badge.textContent = 'STANDBY'; }
       }
     });
@@ -539,7 +539,7 @@ function initCamObserver() {
 function kamerasView() {
   const useGo2 = canUseGo2rtc();
   const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
-  const modeLabel = useGo2 ? 'go2rtc (Lokales Netzwerk)' : 'Home Assistant Proxy (Companion App / Remote)';
+  const modeLabel = useGo2 ? tr('go2rtc (Lokales Netzwerk)', 'go2rtc (Local Network)') : 'Home Assistant Proxy (Companion App / Remote)';
   const colsRaw = String(CONFIG.camCols || 'auto');
   const parsed = parseColsMode(colsRaw, 'auto', 2);
   const colCls = parsed.mode === 'cols' ? 'cols-custom' : '';
@@ -552,48 +552,49 @@ function kamerasView() {
     const srcUrl = (useGo2 && host && resolvedStream)
       ? `${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`
       : '';
+    const camName = c.name || tr('Kamera', 'Camera');
     const qeBar = ui.editMode ? `<div class="qe-bar">
-      <span class="qe-title">📹 ${esc(c.name || 'Kamera')}</span>
+      <span class="qe-title">📹 ${esc(camName)}</span>
       <div class="qe-btns">
-        <button class="qe-btn" data-act="qeCamMove" data-i="${i}" data-dir="-1" title="Nach links/oben">↑</button>
-        <button class="qe-btn" data-act="qeCamMove" data-i="${i}" data-dir="1" title="Nach rechts/unten">↓</button>
-        <button class="qe-btn ${c.show === false ? 'off' : ''}" data-act="qeCamVis" data-i="${i}" title="Ein-/Ausblenden">${c.show === false ? '🙈 Ausgeblendet' : '👁️ Sichtbar'}</button>
-        <button class="qe-btn" data-act="cfgOpenTab" data-tab="sec" title="Im Editor öffnen">⚙️</button>
+        <button class="qe-btn" data-act="qeCamMove" data-i="${i}" data-dir="-1" title="${t('qe.move_up')}">↑</button>
+        <button class="qe-btn" data-act="qeCamMove" data-i="${i}" data-dir="1" title="${t('qe.move_down')}">↓</button>
+        <button class="qe-btn ${c.show === false ? 'off' : ''}" data-act="qeCamVis" data-i="${i}">${c.show === false ? '🙈 ' + t('qe.card_hidden') : '👁️ ' + t('qe.card_visible')}</button>
+        <button class="qe-btn" data-act="cfgOpenTab" data-tab="sec" title="${t('qe.open_config')}">⚙️</button>
       </div>
     </div>` : '';
-    return `<div class="qe-wrap ${c.show === false ? 'qe-hidden' : ''}">${qeBar}<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(c.name || 'Kamera')}">
+    return `<div class="qe-wrap ${c.show === false ? 'qe-hidden' : ''}">${qeBar}<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(camName)}">
       <div class="cam-hdr">
         <span>${esc(c.name)}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="cam-badge standby">STANDBY</span>
-          <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(c.name || 'Kamera')}" title="Vollbild öffnen">${ic('expand', 14)} Vollbild</button>
+          <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEntity)}" data-title="${esc(camName)}" title="${t('cam.fullscreen')}">${ic('expand', 14)} ${t('cam.fullscreen')}</button>
         </div>
       </div>
       <div class="cam-wrap" data-src="${esc(srcUrl)}" data-entity="${esc(resolvedEntity)}">
-        <div class="cam-placeholder">${ic('camera', 26)}<span>Wird bei Sichtbarkeit geladen…</span></div>
+        <div class="cam-placeholder">${ic('camera', 26)}<span>${t('cam.connecting')}</span></div>
       </div>
     </section></div>`;
   }).join('');
 
   const topToolbar = ui.editMode ? `<div class="qe-page-bar">
-    <span>📐 <b>Kamera-Spalten:</b></span>
-    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetCamCols" data-cols="auto">Automatisch</button>
-    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetCamCols" data-cols="${n}">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
-    <label class="qe-col-custom"><span>Frei:</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeCamColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>Sp.</span></label>
+    <span>📐 <b>${tr('Kamera-Spalten:', 'Camera Columns:')}</b></span>
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetCamCols" data-cols="auto">${tr('Automatisch', 'Automatic')}</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetCamCols" data-cols="${n}">${n} ${n === 1 ? tr('Spalte', 'Column') : tr('Spalten', 'Columns')}</button>`).join('')}
+    <label class="qe-col-custom"><span>${tr('Frei:', 'Custom:')}</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeCamColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>${tr('Sp.', 'Col.')}</span></label>
   </div>` : '';
 
   return `<div class="ktop" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
     <div>
-      <div class="hi">Sicherheit</div>
-      <div class="name">Kamera-Streams</div>
-      <div class="greet">Aktiver Modus: <strong style="color:var(--acc2)">${esc(modeLabel)}</strong> · Antippen einer Kamera öffnet Vollbild.</div>
+      <div class="hi">${t('sec.title')}</div>
+      <div class="name">${t('cam.title')}</div>
+      <div class="greet">${tr('Aktiver Modus:', 'Active mode:')} <strong style="color:var(--acc2)">${esc(modeLabel)}</strong> · ${tr('Antippen einer Kamera öffnet Vollbild.', 'Tap a camera to open fullscreen.')}</div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="pill ${go2rtcState.modeOverride === 'auto' ? 'on' : ''}" data-act="camMode" data-mode="auto" title="Zuhause go2rtc, unterwegs automatisch HA-Stream">⚡ Auto (LAN / App)</button>
-      <button class="pill ${go2rtcState.modeOverride === 'ha' ? 'on' : ''}" data-act="camMode" data-mode="ha" title="Immer über Home Assistant streamen (funktioniert weltweit)">🌐 Immer HA-Stream</button>
-      ${CONFIG.go2rtcHost ? `<button class="pill ${go2rtcState.modeOverride === 'go2rtc' ? 'on' : ''}" data-act="camMode" data-mode="go2rtc" title="Immer lokalen go2rtc-Server erzwingen">🏠 Immer go2rtc</button>` : ''}
+      <button class="pill ${go2rtcState.modeOverride === 'auto' ? 'on' : ''}" data-act="camMode" data-mode="auto">⚡ Auto (LAN / App)</button>
+      <button class="pill ${go2rtcState.modeOverride === 'ha' ? 'on' : ''}" data-act="camMode" data-mode="ha">🌐 ${tr('Immer HA-Stream', 'Always HA Stream')}</button>
+      ${CONFIG.go2rtcHost ? `<button class="pill ${go2rtcState.modeOverride === 'go2rtc' ? 'on' : ''}" data-act="camMode" data-mode="go2rtc">🏠 ${tr('Immer go2rtc', 'Always go2rtc')}</button>` : ''}
     </div>
   </div>
   ${topToolbar}
-  <div class="cam-grid ${colCls}" ${colStyle}>${cards || '<div class="mut">Keine Kameras konfiguriert.</div>'}</div>`;
+  <div class="cam-grid ${colCls}" ${colStyle}>${cards || `<div class="mut">${tr('Keine Kameras konfiguriert.', 'No cameras configured.')}</div>`}</div>`;
 }

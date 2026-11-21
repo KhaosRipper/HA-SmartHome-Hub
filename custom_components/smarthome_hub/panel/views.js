@@ -6,26 +6,26 @@
 /* ---------- Geräte-Status ---------- */
 function devInfo(d) {
   const s = S(d.entity), dm = dom(d.entity), st = s ? s.state : 'unavailable';
-  let on = false, label = 'Aus', cls = 'off';
-  if (!s || st === 'unavailable' || st === 'unknown') { label = 'Nicht verfügbar'; }
+  let on = false, label = t('hvac.off'), cls = 'off';
+  if (!s || st === 'unavailable' || st === 'unknown') { label = t('state.unavailable'); }
   else if (dm === 'climate') {
     if (st !== 'off') {
       on = true; const a = s.attributes.hvac_action;
-      if (a === 'heating') { label = 'Heizt'; cls = 'warn'; }
-      else if (a === 'cooling') { label = 'Kühlt'; cls = 'cool'; }
-      else if (a === 'idle' || a === 'off') { label = 'Standby'; cls = 'idle'; }
-      else { label = 'An'; cls = 'on'; }
+      if (a === 'heating') { label = t('state.heating'); cls = 'warn'; }
+      else if (a === 'cooling') { label = tr('Kühlt', 'Cooling'); cls = 'cool'; }
+      else if (a === 'idle' || a === 'off') { label = t('state.standby'); cls = 'idle'; }
+      else { label = tr('An', 'On'); cls = 'on'; }
     }
   }
-  else if (dm === 'cover') { on = st !== 'closed'; label = st === 'opening' ? 'Öffnet' : st === 'closing' ? 'Schließt' : on ? 'Offen' : 'Geschlossen'; cls = on ? 'on' : 'off'; }
-  else if (dm === 'lawn_mower') { on = st === 'mowing'; label = ({ mowing:'Mäht', docked:'Station', paused:'Pause', returning:'Rückfahrt', error:'Fehler' })[st] || st; cls = on ? 'on' : st === 'error' ? 'warn' : 'off'; }
-  else if (dm === 'lock') { on = st === 'unlocked'; label = on ? 'Offen' : 'Verriegelt'; cls = on ? 'warn' : 'on'; }
-  else if (dm === 'camera') { on = st !== 'off'; label = on ? 'Aktiv' : 'Aus'; cls = on ? 'on' : 'off'; }
+  else if (dm === 'cover') { on = st !== 'closed'; label = st === 'opening' ? tr('Öffnet', 'Opening') : st === 'closing' ? tr('Schließt', 'Closing') : on ? t('sec.open') : t('sec.closed'); cls = on ? 'on' : 'off'; }
+  else if (dm === 'lawn_mower') { on = st === 'mowing'; label = ({ mowing: t('state.mowing'), docked: t('state.docked'), paused: t('state.paused'), returning: t('state.returning'), error: t('state.error') })[st] || st; cls = on ? 'on' : st === 'error' ? 'warn' : 'off'; }
+  else if (dm === 'lock') { on = st === 'unlocked'; label = on ? t('sec.open') : t('state.locked'); cls = on ? 'warn' : 'on'; }
+  else if (dm === 'camera') { on = st !== 'off'; label = on ? t('state.active') : t('hvac.off'); cls = on ? 'on' : 'off'; }
   else if (dm === 'media_player') {
-    if (st === 'standby') { label = 'Standby'; cls = 'idle'; }
-    else if (st !== 'off') { on = true; label = st === 'playing' ? 'Spielt' : 'An'; cls = 'on'; }
+    if (st === 'standby') { label = t('state.standby'); cls = 'idle'; }
+    else if (st !== 'off') { on = true; label = st === 'playing' ? t('state.playing') : tr('An', 'On'); cls = 'on'; }
   }
-  else { on = st === 'on' || st === 'open'; label = on ? 'An' : 'Aus'; cls = on ? 'on' : 'off'; }
+  else { on = st === 'on' || st === 'open'; label = on ? tr('An', 'On') : t('hvac.off'); cls = on ? 'on' : 'off'; }
   return { s, on, label, cls, st };
 }
 
@@ -41,7 +41,7 @@ function toggleDevice(e) {
   else if (dm === 'climate') call('climate', info.on ? 'turn_off' : 'turn_on', { entity_id: e });
   else if (dm === 'lawn_mower') call('lawn_mower', st === 'mowing' ? 'dock' : 'start_mowing', { entity_id: e });
   else if (dm === 'lock') {
-    if (st === 'locked') requirePin('doorUnlock', () => call('lock', 'unlock', { entity_id: e }), 'Türschloss entriegeln');
+    if (st === 'locked') requirePin('doorUnlock', () => call('lock', 'unlock', { entity_id: e }), t('pin.unlock_title'));
     else call('lock', 'lock', { entity_id: e });
   }
   else call('homeassistant', 'toggle', { entity_id: e });
@@ -92,9 +92,10 @@ function renderLockBatteryHtml(l, targetLoc, locksCount = 1) {
 
   const lvlCls = val <= 20 ? 'crit' : val <= 40 ? 'low' : 'ok';
   const prefix = (locksCount > 1 && targetLoc === 'subtext') ? `${esc(l.name)}: ` : '';
+  const batWord = tr('Akku', 'Battery');
 
   if (targetLoc === 'subtext') {
-    if (style === 'text') return `<span class="lock-bat-inline ${lvlCls}">${prefix}Akku ${val}%</span>`;
+    if (style === 'text') return `<span class="lock-bat-inline ${lvlCls}">${prefix}${batWord} ${val}%</span>`;
     if (style === 'minimal') return `<span class="lock-bat-inline ${lvlCls}">${ic('battery', 12)} ${prefix}${val}%</span>`;
     return `<span class="lock-bat-badge sm ${lvlCls}">${ic('battery', 11)}<span>${prefix}${val}%</span></span>`;
   }
@@ -105,12 +106,12 @@ function renderLockBatteryHtml(l, targetLoc, locksCount = 1) {
 
   const posCls = targetLoc === 'above' ? 'above' : 'in-pill';
   if (style === 'text') {
-    return `<span class="lock-bat-txt ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${val}%</span>`;
+    return `<span class="lock-bat-txt ${posCls} ${lvlCls}" title="${esc(l.name)} ${batWord}: ${val}%">${val}%</span>`;
   }
   if (style === 'minimal') {
-    return `<span class="lock-bat-min ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
+    return `<span class="lock-bat-min ${posCls} ${lvlCls}" title="${esc(l.name)} ${batWord}: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
   }
-  return `<span class="lock-bat-badge ${posCls} ${lvlCls}" title="${esc(l.name)} Akku: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
+  return `<span class="lock-bat-badge ${posCls} ${lvlCls}" title="${esc(l.name)} ${batWord}: ${val}%">${ic('battery', 12)}<span>${val}%</span></span>`;
 }
 
 function rightTopStatus() {
@@ -118,13 +119,13 @@ function rightTopStatus() {
   const locks = getLocksList(sec);
   locks.forEach(l => {
     const lk = S(l.entity);
-    if (lk && lk.state !== 'locked') problems.push(`${l.name || 'Tür'} entriegelt`);
+    if (lk && lk.state !== 'locked') problems.push(t('status.unlocked_item', { name: tDefault(l.name || t('hero.door')) }));
   });
   const openW = (sec.windows || []).filter(w => { const s = S(w); return s && (s.state === 'on' || s.state === 'open'); }).length;
-  if (openW) problems.push(`${openW} Fenster offen`);
+  if (openW) problems.push(t('status.windows_open', { n: openW }));
 
   const subtextBats = locks.map(l => renderLockBatteryHtml(l, 'subtext', locks.length)).filter(Boolean);
-  const baseSubText = problems.length ? esc(problems.join(' · ')) : 'Alle Systeme normal';
+  const baseSubText = problems.length ? esc(problems.join(' · ')) : t('status.all_normal');
   const fullSubHtml = subtextBats.length ? `${baseSubText} <span class="sep">·</span> ${subtextBats.join(' ')}` : baseSubText;
 
   const lockPills = locks.map(l => {
@@ -133,18 +134,19 @@ function rightTopStatus() {
     const armed = ui.unlockArmedEntity === l.entity && ui.unlockArmedUntil > Date.now();
     const pillBatHtml = renderLockBatteryHtml(l, 'pill', locks.length);
     const aboveBatHtml = renderLockBatteryHtml(l, 'above', locks.length);
+    const lName = tDefault(l.name);
 
-    return `<div class="lockpill ${aboveBatHtml ? 'has-above' : ''}" title="${esc(l.name)}">
+    return `<div class="lockpill ${aboveBatHtml ? 'has-above' : ''}" title="${esc(lName)}">
       ${aboveBatHtml}
-      ${locks.length > 1 ? `<span class="mut sm" style="padding:0 6px">${esc(l.name)}</span>` : ''}
-      <button class="${locked ? 'on' : ''}" data-act="lockEntity" data-e="${esc(l.entity)}" title="${esc(l.name)} verriegeln">${ic('lock')}</button>
+      ${locks.length > 1 ? `<span class="mut sm" style="padding:0 6px">${esc(lName)}</span>` : ''}
+      <button class="${locked ? 'on' : ''}" data-act="lockEntity" data-e="${esc(l.entity)}" title="${esc(lName)} ${t('sec.lock')}">${ic('lock')}</button>
       ${pillBatHtml || `<span class="dots">›››</span>`}
-      <button class="${!locked ? 'open' : ''} ${armed ? 'armed' : ''}" data-act="unlockEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}" title="${esc(l.name)} entriegeln">${ic('unlock')}</button>
+      <button class="${!locked ? 'open' : ''} ${armed ? 'armed' : ''}" data-act="unlockEntity" data-e="${esc(l.entity)}" data-name="${esc(lName)}" title="${esc(lName)} ${t('sec.unlock')}">${ic('unlock')}</button>
     </div>`;
   }).join('');
 
   return `<div class="stat">
-    <div class="t"><b class="${problems.length ? 'warn' : 'ok'}">${problems.length ? 'Achtung' : 'Zuhause ist gesichert'}</b><span class="mut sm stat-subline">${fullSubHtml}</span></div>
+    <div class="t"><b class="${problems.length ? 'warn' : 'ok'}">${problems.length ? t('alert.attention') : t('status.home_secure')}</b><span class="mut sm stat-subline">${fullSubHtml}</span></div>
     ${lockPills}
   </div>`;
 }
@@ -152,12 +154,13 @@ function rightTopStatus() {
 function heroOverlayContent() {
   const now = new Date();
   const dtOpts = { timeZone: CONFIG.dateTimeTimeZone || 'Europe/Berlin' };
-  const dateText = now.toLocaleDateString(CONFIG.dateTimeLocale || 'de-DE', { ...dtOpts, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  const timeText = now.toLocaleTimeString(CONFIG.dateTimeLocale || 'de-DE', { ...dtOpts, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const effLocale = getLang() === 'en' ? 'en-US' : (CONFIG.dateTimeLocale || 'de-DE');
+  const dateText = now.toLocaleDateString(effLocale, { ...dtOpts, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const timeText = now.toLocaleTimeString(effLocale, { ...dtOpts, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const hour = Number(now.toLocaleString('en-US', { ...dtOpts, hour: '2-digit', hourCycle: 'h23' }));
-  const greet = hour < 5 ? 'Gute Nacht' : hour < 11 ? 'Guten Morgen' : hour < 17 ? 'Guten Tag' : 'Guten Abend';
+  const greet = hour < 5 ? t('hero.night') : hour < 11 ? t('hero.morning') : hour < 17 ? t('hero.day') : t('hero.evening');
   const hs = getHass();
-  const name = CONFIG.userName || (hs && hs.user && hs.user.name ? hs.user.name.split(' ')[0] : 'Gast');
+  const name = tDefault(CONFIG.userName) || (hs && hs.user && hs.user.name ? hs.user.name.split(' ')[0] : t('hero.guest'));
 
   const gs = CONFIG.greetingEntity ? S(CONFIG.greetingEntity) : null;
   const ign = (CONFIG.greetingIgnore || []).map(x => String(x).toLowerCase());
@@ -166,7 +169,7 @@ function heroOverlayContent() {
   const invalid = ['unknown', 'unavailable', 'none', ''];
   const validAttrText = attrText && !invalid.includes(attrText.toLowerCase()) && !ign.includes(attrText.toLowerCase());
   const validStateText = stateText && !invalid.includes(stateText.toLowerCase()) && !ign.includes(stateText.toLowerCase());
-  const gtxt = validAttrText ? attrText : validStateText ? stateText : 'Das passiert gerade bei dir zuhause.';
+  const gtxt = validAttrText ? attrText : validStateText ? stateText : t('hero.default_greet');
 
   const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home', chips: [] }];
   const r = rooms[ui.room] || rooms[0];
@@ -188,7 +191,7 @@ function heroOverlayContent() {
   const isBgLiveStream = useGo2 || useHaCam;
   const motionTriggered = r.dynamicMotion && r.motionEntity && (S(r.motionEntity) || {}).state === 'on';
   const showLive = isBgLiveStream && r.showLiveBadge !== false && (!r.dynamicMotion || motionTriggered);
-  const motionBadge = (r.dynamicMotion && motionTriggered) ? `<span class="chip on" style="background:var(--warn);color:#000;font-weight:700">🎯 ${esc(r.motionLabel || 'Erkennung')}</span>` : '';
+  const motionBadge = (r.dynamicMotion && motionTriggered) ? `<span class="chip on" style="background:var(--warn);color:#000;font-weight:700">🎯 ${esc(r.motionLabel || t('hero.motion'))}</span>` : '';
 
   const rawBtns = Array.isArray(r.camButtons) && r.camButtons.length
     ? r.camButtons
@@ -196,11 +199,11 @@ function heroOverlayContent() {
 
   const camBtns = rawBtns.map(b => {
     const btnIcon = b.icon || 'expand';
-    const btnName = b.name != null ? String(b.name).trim() : '';
+    const btnName = b.name != null ? tDefault(String(b.name).trim()) : '';
     const stream = b.stream || '';
     const entity = b.entity || '';
-    const showTxt = btnName && btnName !== 'Vergrößern';
-    return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}" title="${esc(btnName || 'Vollbild öffnen')}">${ic(btnIcon, 14)}${showTxt ? esc(btnName) : ''}</button>`;
+    const showTxt = btnName && b.name !== 'Vergrößern';
+    return `<button class="expand" data-act="camBig" data-webrtc="${esc(stream)}" data-cam="${esc(entity)}" data-title="${esc(btnName)}" title="${esc(btnName || t('cam.fullscreen'))}">${ic(btnIcon, 14)}${showTxt ? esc(btnName) : ''}</button>`;
   }).join('');
 
   const th = CONFIG.theme || {};
@@ -214,14 +217,14 @@ function heroOverlayContent() {
       <div class="name-row"><div class="name" ${nameStyle}>${esc(name)} 👋</div></div>
       <div class="greet" ${greetStyle}>${esc(gtxt)}</div>
       ${showHomeBadges ? homeHeaderBadges() : ''}
-      ${CONFIG.showDateTime ? `<div class="datetime" ${dtStyle}><span id="hub-date">${esc(dateText)}</span><span class="sep">•</span><span><span id="hub-time">${esc(timeText)}</span> Uhr</span></div>` : ''}
+      ${CONFIG.showDateTime ? `<div class="datetime" ${dtStyle}><span id="hub-date">${esc(dateText)}</span><span class="sep">•</span><span><span id="hub-time">${esc(timeText)}</span>${t('cal.clock_suffix')}</span></div>` : ''}
     </div>
     <div class="hero-bottom">
       <div class="pills">${pills}</div>
       <h2>${esc(r.name)}</h2>
       <div class="hero-bar">
         <div class="chips">${chips}</div>
-        ${(showLive || motionBadge || camBtns) ? `<div class="camtools">${motionBadge}${showLive ? '<span class="live" data-act="camBig" style="cursor:pointer" title="Vollbild öffnen">● LIVE</span>' : ''}${camBtns}</div>` : ''}
+        ${(showLive || motionBadge || camBtns) ? `<div class="camtools">${motionBadge}${showLive ? `<span class="live" data-act="camBig" style="cursor:pointer" title="${esc(t('cam.fullscreen'))}">● LIVE</span>` : ''}${camBtns}</div>` : ''}
       </div>
     </div>`;
 }
@@ -244,7 +247,8 @@ function getCurrentViewContext(explicitFilter = null, showAll = false) {
   };
 }
 
-function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht', tabFilter = 'geraete') {
+function devicesCard(customFilterRoom = null, customTitle = null, tabFilter = 'geraete') {
+  const effTitle = tDefault(customTitle || tr('Geräteübersicht', 'Devices Overview'));
   const ctx = getCurrentViewContext(customFilterRoom, customFilterRoom === null && ui.showAll);
   const list = (CONFIG.devices || []).filter(d => {
     const dTab = d.tab || 'geraete';
@@ -255,7 +259,7 @@ function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht',
   if (!list.length && !ui.editMode && ctx.pageId) return '';
   const infos = list.map(d => ({ d, i: devInfo(d) }));
   const active = infos.filter(x => x.i.on).length;
-  const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+  const today = new Date().toLocaleDateString(getLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
   const rows = infos.map(({ d, i }) => {
     const p = d.power ? num(d.power) : null, e = d.energy ? num(d.energy) : null;
     const since = i.on && i.s && i.s.last_changed ? Date.parse(i.s.last_changed) : 0;
@@ -264,7 +268,7 @@ function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht',
     const hasRichDetail = ['light', 'media_player', 'climate', 'cover'].includes(domType);
     const locLabel = typeof formatItemShowOnSummary === 'function' ? formatItemShowOnSummary(d) : (d.room || '');
     return `<div class="tr">
-      <div class="dv dv-clickable" data-act="devDetail" data-e="${esc(d.entity)}" data-name="${esc(d.name)}" title="Antippen für Feinsteuerung & Details">
+      <div class="dv dv-clickable" data-act="devDetail" data-e="${esc(d.entity)}" data-name="${esc(d.name)}" title="${esc(tr('Antippen für Feinsteuerung & Details', 'Tap for controls & details'))}">
         <div class="dvi ${i.on ? 'on' : ''}">${ic(devIcon(d), 17)}</div>
         <div style="min-width:0"><b>${esc(d.name)} ${hasRichDetail ? '<span class="dv-hint">⚙</span>' : ''}</b><small>${esc(locLabel)}</small></div>
       </div>
@@ -274,23 +278,24 @@ function devicesCard(customFilterRoom = null, customTitle = 'Geräteübersicht',
       <div>${e == null ? '—' : fmt(e, 1) + ' kWh'}</div>
       <div class="sw ${i.on ? 'on' : ''} ${canToggle ? '' : 'dis'}" data-act="dev" data-e="${esc(d.entity)}"><i></i></div></div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><div><b>${esc(customTitle)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${active} aktiv</span></div>
-    <div style="display:flex;gap:8px">${customFilterRoom === null && tabFilter === 'geraete' ? `<button class="iconbtn ${ui.showAll ? 'on' : ''}" data-act="all">${ic('filter', 14)}${ui.showAll ? 'Alle Räume' : 'Dieser Raum'}</button>` : ''}<span class="iconbtn">${today}</span></div></div>
-    <div class="tr h"><div>Gerät</div><div>Status</div><div>Leistung</div><div>Laufzeit</div><div>Heute</div><div></div></div>
-    ${rows || '<div class="mut" style="padding:18px 6px">Keine Geräte für diese Seite / diesen Raum zugeordnet.</div>'}</section>`;
+  return `<section class="card"><div class="ch"><div><b>${esc(effTitle)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${t('klima.active_count', { n: active })}</span></div>
+    <div style="display:flex;gap:8px">${customFilterRoom === null && tabFilter === 'geraete' ? `<button class="iconbtn ${ui.showAll ? 'on' : ''}" data-act="all">${ic('filter', 14)}${ui.showAll ? t('dev.all_rooms') : t('dev.this_room')}</button>` : ''}<span class="iconbtn">${today}</span></div></div>
+    <div class="tr h"><div>${t('dev.col_device')}</div><div>${t('dev.col_status')}</div><div>${t('dev.col_power')}</div><div>${t('dev.col_runtime')}</div><div>${t('dev.col_today')}</div><div></div></div>
+    ${rows || `<div class="mut" style="padding:18px 6px">${tr('Keine Geräte für diese Seite / diesen Raum zugeordnet.', 'No devices assigned to this page / room.')}</div>`}</section>`;
 }
 
 function extraDeviceTabsCards() {
   const extraTabs = (CONFIG.deviceTabs || []).filter(t => t.id !== 'geraete' && t.id !== 'covers');
-  return extraTabs.map(t => devicesCard(null, t.name, t.id)).join('');
+  return extraTabs.map(t => devicesCard(null, tDefault(t.name), t.id)).join('');
 }
 
 function coversCard(filterRoom = null, customTitle = null) {
   const ctx = getCurrentViewContext(filterRoom, false);
   const list = (CONFIG.covers || []).filter(c => isItemVisibleInContext(c, ctx));
+  const titleTxt = tDefault(customTitle || t('dev.covers_title'));
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Rolläden')}</b></div><div class="page-note">Keine Rolläden für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(titleTxt)}</b></div><div class="page-note">${tr('Keine Rolläden für diese Seite zugeordnet.', 'No covers assigned to this page.')}</div></section>`
       : '';
   }
   const openCount = list.filter(c => devInfo(c).on).length;
@@ -310,8 +315,8 @@ function coversCard(filterRoom = null, customTitle = null) {
       </div>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Rolladen')}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${openCount} offen</span></div></div>
-    <div class="cover-row h"><div>Rolladen</div><div>Status</div><div>Position</div><div style="text-align:right">Steuerung</div></div>
+  return `<section class="card"><div class="ch"><div><b>${esc(titleTxt)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${t('hero.open_count', { n: openCount })}</span></div></div>
+    <div class="cover-row h"><div>${t('dev.covers_title')}</div><div>${t('dev.col_status')}</div><div>${t('dev.col_position')}</div><div style="text-align:right">${t('dev.col_control')}</div></div>
     ${rows}</section>`;
 }
 
@@ -331,12 +336,12 @@ const TILE_TOGGLE_DOMAINS = ['switch', 'input_boolean', 'light', 'humidifier', '
 function climateTileInfo(tile, c) {
   const type = tile.type || 'custom';
   const entity = String(tile.entity || c.entity || '').trim();
-  const label = tile.label || (type === 'hvac' ? 'Modus' : type === 'fan' ? 'Lüfter' : 'Wert');
+  const label = tDefault(tile.label || (type === 'hvac' ? t('klima.mode') : type === 'fan' ? t('klima.fan') : tr('Wert', 'Value')));
   const icon = ICONS[tile.icon] ? tile.icon : (type === 'hvac' ? 'sun' : type === 'fan' ? 'fan' : 'thermo');
   const out = { entity, label, icon, value: '—', act: false };
   const s = entity ? S(entity) : null;
   if (!s) return out;
-  if (['unknown', 'unavailable'].includes(s.state)) { out.value = 'Nicht verfügbar'; return out; }
+  if (['unknown', 'unavailable'].includes(s.state)) { out.value = t('state.unavailable'); return out; }
   const a = s.attributes || {}, d = dom(entity);
   const unit = tile.unit || (!tile.attr && a.unit_of_measurement) || '';
   const fmtRaw = v => {
@@ -351,16 +356,16 @@ function climateTileInfo(tile, c) {
     out.value = shown(HVAC_DE[s.state] || s.state);
     out.act = (a.hvac_modes || []).length > 0;
   } else if (d === 'climate' && type === 'fan') {
-    out.value = shown(a.fan_mode || '—');
+    out.value = shown(FAN_LABELS[a.fan_mode] || a.fan_mode || '—');
     out.act = (a.fan_modes || []).length > 0;
   } else if (d === 'fan') {
-    out.value = shown(s.state === 'off' ? 'Aus' : (a.preset_mode || (a.percentage != null ? `${a.percentage} %` : 'An')));
+    out.value = shown(s.state === 'off' ? t('hvac.off') : (a.preset_mode || (a.percentage != null ? `${a.percentage} %` : tr('An', 'On'))));
     out.act = true;
   } else if (d === 'select' || d === 'input_select') {
     out.value = shown(s.state);
     out.act = (a.options || []).length > 1;
   } else if (TILE_TOGGLE_DOMAINS.includes(d)) {
-    out.value = shown(s.state === 'on' ? 'An' : s.state === 'off' ? 'Aus' : s.state);
+    out.value = shown(s.state === 'on' ? tr('An', 'On') : s.state === 'off' ? t('hvac.off') : s.state);
     out.act = true;
   } else {
     out.value = tile.attr ? fmtRaw(a[tile.attr]) : fmtRaw(s.state);
@@ -419,7 +424,9 @@ function weatherCard(c) {
 
   const s = hasWeatherEnt ? S(c.entity) : null;
   const a = (s && s.attributes) || {};
-  const title = `${c.title || 'Wetter'}${c.name ? ' · ' + c.name : ''}`;
+  const cTitle = tDefault(c.title || t('weather.title'));
+  const cName = tDefault(c.name || '');
+  const title = `${cTitle}${cName ? ' · ' + cName : ''}`;
 
   let tempVal = null;
   if (c.tempEntity) {
@@ -431,7 +438,7 @@ function weatherCard(c) {
   }
   const tempUnit = c.tempUnit || a.temperature_unit || '°C';
   const condState = s && !['unknown', 'unavailable'].includes(s.state) ? s.state : '';
-  const condText = condState ? (WEATHER_CONDITIONS_DE[condState] || condState) : (c.label || 'Aktuell');
+  const condText = condState ? (WEATHER_CONDITIONS_DE[condState] || condState) : tDefault(c.label || t('klima.actual'));
   const symbol = WEATHER_SYMBOLS[condState] || '🌤️';
 
   const itemsList = Array.isArray(c.items) ? c.items : [];
@@ -451,18 +458,18 @@ function weatherCard(c) {
     const formatted = Number.isFinite(numVal)
       ? `${fmt(numVal, it.decimals ?? 0)} ${esc(unit)}`
       : (raw != null && raw !== '' ? `${esc(raw)} ${esc(unit)}` : '—');
-    return `<div class="mini">${ic(it.icon || 'drop', 18)}<span><small>${esc(it.label)}</small>${formatted}</span></div>`;
+    return `<div class="mini">${ic(it.icon || 'drop', 18)}<span><small>${esc(tDefault(it.label))}</small>${formatted}</span></div>`;
   }).join('');
 
   const fcBtnHtml = c.showForecast
-    ? `<button class="iconbtn wfc-open-btn" data-act="wfcOpen">${ic('calendar', 15)}<span>${esc(c.forecastTitle || '7-Tage-Wettervorhersage öffnen')}</span></button>`
+    ? `<button class="iconbtn wfc-open-btn" data-act="wfcOpen">${ic('calendar', 15)}<span>${esc(tDefault(c.forecastTitle) || t('weather.forecast_7d'))}</span></button>`
     : '';
 
   const rainMiniHtml = (c.showRainTimeline !== false && CONFIG.weather?.showRainTimeline !== false)
     ? renderRainMiniTimeline()
     : '';
 
-  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuell</span></div>
+  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">${t('klima.actual')}</span></div>
     <div class="weather-now"><div class="weather-symbol">${symbol}</div><div><div class="weather-temp">${tempVal == null || isNaN(tempVal) ? '—' : fmt(tempVal, 1)}<sup>${esc(tempUnit)}</sup></div><div class="mut sm">${esc(condText)}</div></div></div>
     ${detailsHtml ? `<div class="two">${detailsHtml}</div>` : ''}
     ${rainMiniHtml}
@@ -495,7 +502,7 @@ function weatherForecastCard(customTitle) {
   const days = (weatherForecastState.days || []).slice(0, 7);
   const rows = days.map((d, i) => {
     const dt = d.datetime ? new Date(d.datetime) : new Date(Date.now() + i * 86400000);
-    const name = i === 0 ? 'Heute' : dt.toLocaleDateString('de-DE', { weekday: 'short' });
+    const name = i === 0 ? t('cal.today') : dt.toLocaleDateString(getLocale(), { weekday: 'short' });
     const sym = WEATHER_SYMBOLS[d.condition] || '🌤️';
     const hi = d.temperature != null ? `${fmt(Number(d.temperature), 0)}°` : '—';
     const lo = d.templow != null ? `${fmt(Number(d.templow), 0)}°` : '';
@@ -504,8 +511,8 @@ function weatherForecastCard(customTitle) {
       <span class="wfc-row-d">${esc(name)}</span><span class="wfc-row-i">${sym}</span>
       <span class="wfc-row-r">${esc(rain)}</span><span class="wfc-row-t"><b>${hi}</b>${lo ? `<small>${lo}</small>` : ''}</span></button>`;
   }).join('');
-  const body = rows || `<div class="mut sm" style="padding:10px 2px">${weatherForecastState.error ? esc(weatherForecastState.error) : (DEMO ? 'Vorhersage im HA-Modus aktiv.' : 'Lade Vorhersagedaten…')}</div>`;
-  return `<section class="card"><div class="ch"><b>${esc(customTitle || wCfg.forecastTitle || 'Wettervorhersage · 7 Tage')}</b><span class="mut sm">Antippen für Details</span></div><div class="wfc-list">${body}</div></section>`;
+  const body = rows || `<div class="mut sm" style="padding:10px 2px">${weatherForecastState.error ? esc(weatherForecastState.error) : (DEMO ? tr('Vorhersage im HA-Modus aktiv.', 'Forecast active in HA mode.') : t('weather.loading'))}</div>`;
+  return `<section class="card"><div class="ch"><b>${esc(tDefault(customTitle || wCfg.forecastTitle || t('weather.forecast_7d')))}</b><span class="mut sm">${tr('Antippen für Details', 'Tap for details')}</span></div><div class="wfc-list">${body}</div></section>`;
 }
 
 function climateCard() {
@@ -513,21 +520,22 @@ function climateCard() {
   if (c.type === 'weather') return weatherCard(c);
   if (!c.entity) return '';
   const s = S(c.entity);
-  const title = `${c.title || 'Raumklima'}${c.name ? ' · ' + c.name : ''}`;
-  if (!s) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut">Entität „${esc(c.entity)}“ nicht gefunden.</div></section>`;
+  const cTitle = tDefault(c.title || t('klima.title'));
+  const title = `${cTitle}${c.name ? ' · ' + c.name : ''}`;
+  if (!s) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut">${tr('Entität nicht gefunden.', 'Entity not found.')}</div></section>`;
   const a = s.attributes || {}, cur = a.current_temperature, tgt = a.temperature;
   const min = c.min ?? 16, max = c.max ?? 30;
   const f = v => clamp(((v ?? min) - min) / (max - min), 0.001, 1);
   const A0 = 135, SW = 270, curA = A0 + SW * f(cur), tgtA = A0 + SW * f(tgt);
   const k = [100 + 78 * Math.cos(tgtA * Math.PI / 180), 100 + 78 * Math.sin(tgtA * Math.PI / 180)];
-  let label = 'Aus';
-  if (s.state !== 'off') label = cur == null || tgt == null ? '—' : cur < tgt - 1 ? 'Zu kalt' : cur > tgt + 1 ? 'Zu warm' : 'Komfortabel';
-  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuell</span></div>
+  let label = t('hvac.off');
+  if (s.state !== 'off') label = cur == null || tgt == null ? '—' : cur < tgt - 1 ? tr('Zu kalt', 'Too cold') : cur > tgt + 1 ? tr('Zu warm', 'Too warm') : tr('Komfortabel', 'Comfortable');
+  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">${t('klima.actual')}</span></div>
     <div class="gauge"><svg viewBox="0 0 200 175"><defs><linearGradient id="gg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--ok)"/><stop offset="1" stop-color="var(--acc)"/></linearGradient></defs>
       <path d="${arc(100, 100, 78, A0, A0 + SW)}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="9" stroke-linecap="round"/>
       <path d="${arc(100, 100, 78, A0, curA)}" fill="none" stroke="url(#gg)" stroke-width="9" stroke-linecap="round"/>
       ${tgt != null ? `<circle cx="${k[0].toFixed(1)}" cy="${k[1].toFixed(1)}" r="6" fill="#fff" stroke="var(--acc)" stroke-width="3"/>` : ''}</svg>
-      <div class="gc"><div class="v">${fmt(cur, 1)}<sup>°C</sup></div><div class="mut sm">${label}${tgt != null ? ' · Soll ' + fmt(tgt, 1) + '°' : ''}</div>
+      <div class="gc"><div class="v">${fmt(cur, 1)}<sup>°C</sup></div><div class="mut sm">${label}${tgt != null ? ` · ${t('klima.target')} ` + fmt(tgt, 1) + '°' : ''}</div>
         <div class="b"><button data-act="tmin">−</button><button data-act="tplus">+</button></div></div></div>
     ${climateTilesHtml(c)}</section>`;
 }
@@ -538,19 +546,20 @@ function metricCard(m) {
   const cmp = yesterdayMetricVals[m.id];
   let trendHtml = '';
   if (m.showCompare !== false) {
-    trendHtml = `<div class="m-trend flat">– kein Vergleichswert</div>`;
+    trendHtml = `<div class="m-trend flat">${tr('– kein Vergleichswert', '– no comparison')}</div>`;
     if (cmp && cmp.today != null && cmp.yest != null && cmp.yest > 0) {
       const diff = cmp.today - cmp.yest;
       const pct = Math.round((diff / cmp.yest) * 100), absPct = Math.abs(pct);
-      const dir = pct < 0 ? 'weniger' : 'mehr';
+      const dir = pct < 0 ? tr('weniger', 'less') : tr('mehr', 'more');
       const cu = cmp.unit ? ' ' + cmp.unit : '';
       const absTxt = `${diff < 0 ? '−' : '+'}${fmt(Math.abs(diff), Math.abs(diff) < 10 ? 2 : 1)}${cu}`;
       const kind = m.cmpDisplay || 'percent';
+      const vsYest = tr('als gestern', 'than yesterday');
       let text;
-      if (pct === 0 && kind === 'percent') text = 'Gleich wie gestern';
-      else if (kind === 'absolute') text = `${absTxt} ${diff < 0 ? 'weniger' : 'mehr'} als gestern`;
-      else if (kind === 'both') text = `${absPct}% (${absTxt}) ${dir} als gestern`;
-      else text = `${absPct}% ${dir} als gestern`;
+      if (pct === 0 && kind === 'percent') text = tr('Gleich wie gestern', 'Same as yesterday');
+      else if (kind === 'absolute') text = `${absTxt} ${diff < 0 ? tr('weniger', 'less') : tr('mehr', 'more')} ${vsYest}`;
+      else if (kind === 'both') text = `${absPct}% (${absTxt}) ${dir} ${vsYest}`;
+      else text = `${absPct}% ${dir} ${vsYest}`;
       const arrow = pct < 0 ? '↓' : pct > 0 ? '↑' : '±';
       const cls = pct < 0 ? 'down' : pct > 0 ? 'up' : 'flat';
       const tip = `${cmp.tLabel}: ${fmt(cmp.today, 2)}${cu} · ${cmp.yLabel}: ${fmt(cmp.yest, 2)}${cu}`;
@@ -558,13 +567,13 @@ function metricCard(m) {
     }
   }
 
-  let headRight = 'Heute', liveText = '', extraHTML = '';
+  let headRight = t('energy.today'), liveText = '', extraHTML = '';
   const cv = num(m.chart);
   if (m.showLive !== false && m.chart) {
     if (m.subButtons && m.subButtons.length) {
-      liveText = `<div class="mut sm" style="margin-top:6px">Aktuell: ${cv != null ? fmt(cv, 0) + ' ' + (m.chartUnit || 'W') : '—'}</div>`;
+      liveText = `<div class="mut sm" style="margin-top:6px">${t('energy.live')}: ${cv != null ? fmt(cv, 0) + ' ' + (m.chartUnit || 'W') : '—'}</div>`;
     } else if (m.mode !== 'last' && m.chartUnit && cv != null) {
-      headRight = `Heute · ${fmt(cv, 0)} ${esc(m.chartUnit)}`;
+      headRight = `${t('energy.today')} · ${fmt(cv, 0)} ${esc(m.chartUnit)}`;
     }
   }
 
@@ -576,7 +585,6 @@ function metricCard(m) {
     } else if (dayMode && autarkyDayVals[m.id] != null) {
       autVal = autarkyDayVals[m.id];
     } else {
-      // Live-Berechnung (Modus "Live" oder solange der Tageswert noch lädt)
       const houseVal = num(m.chart) ?? num(m.entity);
       const gridVal = num(m.gridImportEntity);
       const pvVal = num(m.pvEntity);
@@ -590,21 +598,21 @@ function metricCard(m) {
     if (autVal != null && !isNaN(autVal)) {
       const autPct = clamp(Math.round(autVal), 0, 100);
       const autCol = autPct >= 80 ? 'var(--ok)' : autPct >= 50 ? 'var(--warn)' : 'var(--acc2)';
-      const autBadge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${autCol};font-weight:600" title="Autarkiegrad ${(m.autarkyEntity || (m.autarkyMode || 'day') !== 'day') ? 'aktuell' : 'heute (ab 00:00)'}: ${autPct}%">${ic('sun', 13)} ${autPct}% autark</span>`;
+      const autBadge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${autCol};font-weight:600" title="${t('energy.autarky')}: ${autPct}%">${ic('sun', 13)} ${autPct}% ${tr('autark', 'autarky')}</span>`;
       headRight = `${headRight} · ${autBadge}`;
     }
   }
 
   if (m.showSubButtons !== false && m.subButtons && m.subButtons.length) {
-    const btns = m.subButtons.map(b => `<button class="iconbtn" style="flex:1;justify-content:center;border-color:transparent;background:rgba(255,255,255,.04);color:var(--${b.color || 'acc2'})" data-act="energymodal" data-mid="${esc(m.id)}" data-bid="${esc(b.id)}">${ic(b.icon, 15)} <span style="color:var(--txt)">${esc(b.name)}</span></button>`).join('');
+    const btns = m.subButtons.map(b => `<button class="iconbtn" style="flex:1;justify-content:center;border-color:transparent;background:rgba(255,255,255,.04);color:var(--${b.color || 'acc2'})" data-act="energymodal" data-mid="${esc(m.id)}" data-bid="${esc(b.id)}">${ic(b.icon, 15)} <span style="color:var(--txt)">${esc(tDefault(b.name))}</span></button>`).join('');
     extraHTML = `<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${btns}</div>`;
   }
 
   const chartHtml = (m.showChart !== false && m.chart)
-    ? `<div class="chart clickable" data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="Antippen für Großansicht">${spark(series[m.chart], m.id, { unit: m.chartUnit || m.unit || '', dec: m.decimals ?? 1 }, series[m.chart + '_yest'])}</div>`
+    ? `<div class="chart clickable" data-act="chartModal" data-type="metric" data-mid="${esc(m.id)}" title="${tr('Antippen für Großansicht', 'Tap for full view')}">${spark(series[m.chart], m.id, { unit: m.chartUnit || m.unit || '', dec: m.decimals ?? 1 }, series[m.chart + '_yest'])}</div>`
     : '';
 
-  return `<section class="card"><div class="ch"><b>${esc(m.title)}</b><span class="mut sm">${headRight}</span></div>
+  return `<section class="card"><div class="ch"><b>${esc(tDefault(m.title))}</b><span class="mut sm">${headRight}</span></div>
     <div class="mv"><div><span class="big">${fmt(v, m.decimals ?? 1)}</span><span class="unit">${esc(m.unit)}</span><div class="m-sub">${trendHtml}${liveText}</div></div>
     ${chartHtml}</div>${extraHTML}</section>`;
 }
@@ -612,16 +620,17 @@ function metricCard(m) {
 function favoritesCard(filterRoom = null, customTitle = null) {
   const ctx = getCurrentViewContext(filterRoom, false);
   const list = (CONFIG.favorites || []).filter(f => f.show !== false && isItemVisibleInContext(f, ctx));
+  const titleTxt = tDefault(customTitle || t('fav.title'));
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Schnellauswahl / Favoriten')}</b></div><div class="page-note">Keine Favoriten für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(titleTxt)}</b></div><div class="page-note">${tr('Keine Favoriten für diese Seite zugeordnet.', 'No favorites assigned to this page.')}</div></section>`
       : '';
   }
   const tiles = list.map((f, i) => {
     const e = f.entity;
     const s = e ? S(e) : null;
     const d = dom(e);
-    const name = f.name || (s && s.attributes && s.attributes.friendly_name) || e || 'Favorit';
+    const name = f.name || (s && s.attributes && s.attributes.friendly_name) || e || t('fav.sub');
     const icon = f.icon || (d === 'light' ? 'bulb' : d === 'cover' ? 'blinds' : d === 'scene' ? 'scenes' : d === 'script' ? 'cal' : 'plug');
 
     let isOn = false;
@@ -632,19 +641,19 @@ function favoritesCard(filterRoom = null, customTitle = null) {
       if (d === 'cover') {
         const pos = s.attributes && s.attributes.current_position != null ? s.attributes.current_position : null;
         isOn = !['closed', 'unavailable', 'unknown'].includes(s.state) && (pos == null || pos > 0);
-        statusText = pos != null ? `${pos}%` : (isOn ? 'Offen' : 'Zu');
+        statusText = pos != null ? `${pos}%` : (isOn ? t('sec.open') : t('sec.closed'));
       } else if (d === 'scene' || d === 'script') {
         isOn = false;
-        statusText = d === 'scene' ? 'Szene ausführen' : 'Skript starten';
+        statusText = d === 'scene' ? tr('Szene ausführen', 'Run scene') : tr('Skript starten', 'Run script');
       } else if (d === 'lock') {
         isOn = s.state !== 'locked';
-        statusText = isOn ? 'Entriegelt' : 'Verriegelt';
+        statusText = isOn ? t('state.unlocked') : t('state.locked');
       } else {
         isOn = s.state === 'on';
-        statusText = isOn ? 'An' : 'Aus';
+        statusText = isOn ? tr('An', 'On') : t('hvac.off');
       }
     } else {
-      statusText = 'Nicht gefunden';
+      statusText = tr('Nicht gefunden', 'Not found');
       canToggle = false;
     }
 
@@ -656,7 +665,7 @@ function favoritesCard(filterRoom = null, customTitle = null) {
         <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(name)}</b>
         <small>${esc(statusText)}</small>
       </span>
-      ${hasDetails ? `<button type="button" class="tile-dots-btn" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(name)}" title="Details & Feineinstellung">⋯</button>` : ''}
+      ${hasDetails ? `<button type="button" class="tile-dots-btn" data-act="devDetail" data-e="${esc(e)}" data-name="${esc(name)}" title="${tr('Details & Feineinstellung', 'Details & controls')}">⋯</button>` : ''}
     </div>`;
   }).join('');
 
@@ -668,7 +677,7 @@ function favoritesCard(filterRoom = null, customTitle = null) {
     return s.state === 'on';
   }).length;
 
-  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Schnellauswahl')}</b><span class="mut sm" style="color:var(--acc2)">&nbsp;${activeCount} aktiv</span></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><div><b>${esc(titleTxt)}</b><span class="mut sm" style="color:var(--acc2)">&nbsp;${t('klima.active_count', { n: activeCount })}</span></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function securityCard(customTitle = null) {
@@ -685,14 +694,15 @@ function securityCard(customTitle = null) {
     const lk = S(l.entity);
     const locked = !lk || lk.state === 'locked';
     const cardBatHtml = renderLockBatteryHtml(l, 'card', locks.length);
-    return `<button class="tile ${locked ? '' : 'warn'}" data-act="doorEntity" data-e="${esc(l.entity)}" data-name="${esc(l.name)}">${ic(locked ? 'lock' : 'unlock', 18)}<span style="min-width:0"><b>${esc(l.name || 'Tür')}</b><small>${locked ? 'Verriegelt' : 'Entriegelt'}${cardBatHtml}</small></span></button>`;
+    const lName = tDefault(l.name || t('hero.door'));
+    return `<button class="tile ${locked ? '' : 'warn'}" data-act="doorEntity" data-e="${esc(l.entity)}" data-name="${esc(lName)}">${ic(locked ? 'lock' : 'unlock', 18)}<span style="min-width:0"><b>${esc(lName)}</b><small>${locked ? t('state.locked') : t('state.unlocked')}${cardBatHtml}</small></span></button>`;
   }).join('');
 
-  return `<section class="card"><div class="ch"><div><b>${esc(customTitle || 'Sicherheit')}</b><div class="sm" style="color:${allOk ? 'var(--ok)' : 'var(--warn)'}">${allOk ? 'Alle Systeme aktiv' : 'Bitte prüfen'}</div></div></div>
+  return `<section class="card"><div class="ch"><div><b>${esc(tDefault(customTitle || t('sec.title')))}</b><div class="sm" style="color:${allOk ? 'var(--ok)' : 'var(--warn)'}">${allOk ? tr('Alle Systeme aktiv', 'All systems active') : tr('Bitte prüfen', 'Please check')}</div></div></div>
     <div class="tiles">
       ${lockTiles}
-      <div class="tile ${openW ? 'warn' : ''}">${ic('window', 18)}<span><b>Fenster &amp; Türen</b><small>${openW ? openW + ' offen' : 'Geschlossen'}</small></span></div>
-      <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>Kameras</b><small>${camOn} aktiv</small></span></button></div></section>`;
+      <div class="tile ${openW ? 'warn' : ''}">${ic('window', 18)}<span><b>${tr('Fenster & Türen', 'Windows & Doors')}</b><small>${openW ? t('hero.open_count', { n: openW }) : t('sec.closed')}</small></span></div>
+      <button class="tile" data-act="nav" data-view="kameras">${ic('camera', 18)}<span><b>${t('nav.cameras')}</b><small>${t('klima.active_count', { n: camOn })}</small></span></button></div></section>`;
 }
 
 /* ---------- BEDINGTE WARN-KARTEN (Conditional Alerts & Vorabend-Müllerinnerung) ---------- */
@@ -710,11 +720,11 @@ function conditionalAlertsCard() {
         <div style="display:flex;align-items:center;gap:12px;min-width:0">
           <div style="color:#fbbf24;flex-shrink:0">${ic(tomorrowTrash.type.icon || 'trash', 22)}</div>
           <div style="min-width:0">
-            <b style="color:#fff;font-size:13px;display:block">Müllabfuhr morgen: ${esc(tomorrowTrash.type.label)}</b>
-            <span class="mut sm" style="color:rgba(255,255,255,.85)">Bitte heute Abend herausstellen: <b>${esc(tomorrowTrash.summary)}</b></span>
+            <b style="color:#fff;font-size:13px;display:block">${tr('Müllabfuhr morgen', 'Waste pickup tomorrow')}: ${esc(tomorrowTrash.type.label)}</b>
+            <span class="mut sm" style="color:rgba(255,255,255,.85)">${tr('Bitte heute Abend herausstellen', 'Please put out tonight')}: <b>${esc(tomorrowTrash.summary)}</b></span>
           </div>
         </div>
-        <span class="pill on" style="border-color:#fbbf24;color:#fbbf24;font-size:11px;padding:3px 9px">Morgen früh</span>
+        <span class="pill on" style="border-color:#fbbf24;color:#fbbf24;font-size:11px;padding:3px 9px">${tr('Morgen früh', 'Tomorrow morning')}</span>
       </div>`;
     }
   }
@@ -750,11 +760,11 @@ function conditionalAlertsCard() {
       <div style="display:flex;align-items:center;gap:12px;min-width:0">
         <div style="color:${col};flex-shrink:0">${ic(icon, 22)}</div>
         <div style="min-width:0">
-          <b style="color:#fff;font-size:13px;display:block">${esc(a.title || 'Achtung')}</b>
+          <b style="color:#fff;font-size:13px;display:block">${esc(a.title || t('alert.attention'))}</b>
           <span class="mut sm" style="color:rgba(255,255,255,.75)">${esc(a.message || (s ? (s.attributes.friendly_name || a.entity) + ': ' + s.state : ''))}</span>
         </div>
       </div>
-      ${a.actionEntity ? `<button class="btn-pri" style="padding:6px 14px;font-size:11.5px;white-space:nowrap" data-act="callService" data-e="${esc(a.actionEntity)}" data-srv="${esc(a.actionService || 'toggle')}">Beheben</button>` : ''}
+      ${a.actionEntity ? `<button class="btn-pri" style="padding:6px 14px;font-size:11.5px;white-space:nowrap" data-act="callService" data-e="${esc(a.actionEntity)}" data-srv="${esc(a.actionService || 'toggle')}">${t('alert.fix')}</button>` : ''}
     </div>`;
   }).join('');
 
@@ -768,16 +778,16 @@ function presenceCard(forceShow = false, customTitle = null) {
   const members = (p.members || []).filter(m => m.entity);
   if (!members.length) {
     return (ui.editMode || forceShow)
-      ? `<section class="card"><div class="ch"><b>👥 ${esc(customTitle || 'Familien-Präsenz')}</b></div><div class="page-note">Keine Familienmitglieder konfiguriert. Konfigurator → Allgemein → Familien-Präsenz.</div></section>`
+      ? `<section class="card"><div class="ch"><b>👥 ${esc(tDefault(customTitle || t('pres.title')))}</b></div><div class="page-note">${t('pres.empty')}</div></section>`
       : '';
   }
 
   const chips = members.map(m => {
     const s = S(m.entity);
-    const state = s ? String(s.state) : 'unbekannt';
+    const state = s ? String(s.state) : t('state.unknown');
     const isHome = state.toLowerCase() === 'home' || state.toLowerCase() === 'zuhause';
     const dotCol = isHome ? 'var(--ok)' : state.toLowerCase() === 'not_home' ? 'var(--warn)' : 'var(--acc2)';
-    const stateLabel = isHome ? 'Zuhause' : (state === 'not_home' ? 'Unterwegs' : state);
+    const stLbl = isHome ? t('pres.home') : (state === 'not_home' ? t('pres.away') : state);
     const name = m.name || (s && s.attributes && s.attributes.friendly_name) || 'Person';
     const avatar = m.avatar || (s && s.attributes && s.attributes.entity_picture) || '';
 
@@ -790,14 +800,14 @@ function presenceCard(forceShow = false, customTitle = null) {
       </div>
       <div style="min-width:0">
         <b style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(name)}</b>
-        <small class="mut" style="font-size:10.5px;color:rgba(255,255,255,.6)">${esc(stateLabel)}</small>
+        <small class="mut" style="font-size:10.5px;color:rgba(255,255,255,.6)">${esc(stLbl)}</small>
       </div>
     </div>`;
   }).join('');
 
   const homeCount = members.filter(m => { const s = S(m.entity); return s && (s.state === 'home' || s.state === 'zuhause'); }).length;
 
-  return `<section class="card"><div class="ch"><b>👥 ${esc(customTitle || 'Anwesenheit')}</b><span class="mut sm">${homeCount} / ${members.length} zuhause</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div></section>`;
+  return `<section class="card"><div class="ch"><b>👥 ${esc(tDefault(customTitle || t('pres.attendance')))}</b><span class="mut sm">${t('pres.home_count', { home: homeCount, total: members.length })}</span></div><div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div></section>`;
 }
 
 /* ---------- SZENEN- & ROUTINEN-SCHNELLZUGRIFF ---------- */
@@ -805,7 +815,7 @@ function routinesCard(customTitle = null) {
   const list = CONFIG.routines || [];
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Szenen & Routinen')}</b></div><div class="page-note">Keine Routinen konfiguriert. Konfigurator → Allgemein → Szenen & Routinen.</div></section>`
+      ? `<section class="card"><div class="ch"><b>⚡ ${esc(tDefault(customTitle || t('rout.title')))}</b></div><div class="page-note">${t('rout.empty')}</div></section>`
       : '';
   }
 
@@ -818,12 +828,12 @@ function routinesCard(customTitle = null) {
       </div>
       <div style="min-width:0;flex:1">
         <b style="font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)">${esc(r.name)}</b>
-        <small class="mut" style="font-size:10.5px">1-Klick Start</small>
+        <small class="mut" style="font-size:10.5px">${t('rout.tap_run')}</small>
       </div>
     </button>`;
   }).join('');
 
-  return `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Szenen & Routinen')}</b><span class="mut sm">Schnellzugriff</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
+  return `<section class="card"><div class="ch"><b>⚡ ${esc(tDefault(customTitle || t('rout.title')))}</b><span class="mut sm">${t('fav.title')}</span></div><div style="display:flex;flex-wrap:wrap;gap:10px">${buttons}</div></section>`;
 }
 
 /* ---------- SMARTE LÜFTUNGSEMPFEHLUNG & AUSKÜHLUNGSSCHUTZ ---------- */
@@ -846,13 +856,13 @@ function ventilationCard(forceShow = false, filterRoom = null, customTitle = nul
     let ok = false;
     if (outAH != null && inAH != null) {
       if (outAH < inAH - 0.5) {
-        advice = 'Lüften empfohlen (Außenluft trockener)';
+        advice = tr('Lüften empfohlen (Außenluft trockener)', 'Ventilate (outdoor air drier)');
         ok = true;
       } else if (outAH > inAH + 0.5) {
-        advice = 'Fenster schließen (Außenluft feuchter)';
+        advice = tr('Fenster schließen (Außenluft feuchter)', 'Keep closed (outdoor air more humid)');
         ok = false;
       } else {
-        advice = 'Gleiche Feuchte (Neutral)';
+        advice = tr('Gleiche Feuchte (Neutral)', 'Equal humidity (Neutral)');
         ok = true;
       }
     }
@@ -869,7 +879,7 @@ function ventilationCard(forceShow = false, filterRoom = null, customTitle = nul
       const openBadges = openInfo.openItems.map(it => {
         const icon = it.type === 'door' ? 'door' : 'window';
         const warnCls = it.warnTriggered ? 'warn' : 'info';
-        const statusTxt = it.warnTriggered ? 'Auskühlungsgefahr!' : 'Offen';
+        const statusTxt = it.warnTriggered ? tr('Auskühlungsgefahr!', 'Heat loss risk!') : t('sec.open');
         return `<div class="vent-timer-item ${warnCls}">
           <div style="display:flex;align-items:center;gap:7px;min-width:0">
             <span class="vent-timer-ico">${ic(icon, 14)}</span>
@@ -884,7 +894,7 @@ function ventilationCard(forceShow = false, filterRoom = null, customTitle = nul
 
       const hasAuskuehlung = openInfo.openItems.some(x => x.warnTriggered);
       const banner = hasAuskuehlung
-        ? `<div class="vent-open-alert warn">⚠️ <b>Auskühlungswarnung!</b> Ein Fenster/eine Tür ist seit über ${openInfo.warnMinutes} Min. geöffnet (${outT != null ? fmt(outT, 1) + '°C Außentemperatur' : 'kalte Außenluft'}). Bitte schließen, um Energieverlust zu vermeiden!</div>`
+        ? `<div class="vent-open-alert warn">⚠️ <b>${t('vent.open_warn_title')}</b></div>`
         : '';
 
       openTimerHtml = `<div class="vent-timer-box">${banner}<div class="vent-timer-grid">${openBadges}</div></div>`;
@@ -915,13 +925,13 @@ function ventilationCard(forceShow = false, filterRoom = null, customTitle = nul
     <div class="ch">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">${generalOk ? '🍃' : '🛑'}</span>
-        <b>${esc(customTitle || 'Smarte Lüftungsempfehlung')}</b>
+        <b>${esc(tDefault(customTitle || t('vent.title')))}</b>
       </div>
-      <span class="mut sm">Außen: ${outT != null ? fmt(outT, 1) + '°C' : '–'} · ${outH != null ? fmt(outH, 0) + '%' : '–'} ${outAH != null ? '(' + outAH + ' g/m³)' : ''}</span>
+      <span class="mut sm">${t('vent.outdoor')}: ${outT != null ? fmt(outT, 1) + '°C' : '–'} · ${outH != null ? fmt(outH, 0) + '%' : '–'} ${outAH != null ? '(' + outAH + ' g/m³)' : ''}</span>
     </div>
     ${openTimerHtml}
     ${rainNotice}
-    ${roomRows || '<div class="mut sm">Hinterlege Innen- und Außensensoren im Konfigurator → Klima → Lüftungsempfehlung.</div>'}
+    ${roomRows || `<div class="mut sm">${t('vent.empty')}</div>`}
   </section>`;
 }
 
@@ -930,9 +940,9 @@ function rainTimelineCard(customTitle, forceShow = false) {
   const wCfg = CONFIG.weather || {};
   if (!forceShow && wCfg.showRainTimeline === false) return '';
   const rain = getRainTimeline60Min();
-  const title = customTitle || 'Regenradar · 60 Min. Vorschau';
+  const title = tDefault(customTitle || t('rain.title'));
 
-  const statusLabel = rain.statusClass === 'dry' ? 'Trocken' : (rain.statusClass === 'soon' ? 'Regen erwartet' : 'Niederschlag');
+  const statusLabel = rain.statusClass === 'dry' ? tr('Trocken', 'Dry') : (rain.statusClass === 'soon' ? tr('Regen erwartet', 'Rain expected') : t('weather.precipitation'));
   const statusColor = rain.statusClass === 'dry' ? 'var(--ok)' : (rain.statusClass === 'soon' ? 'var(--cool)' : 'var(--warn)');
 
   const bars = rain.slots.map(s => {
@@ -940,7 +950,7 @@ function rainTimelineCard(customTitle, forceShow = false) {
     const barColor = s.mm > 2.0 ? '#f59e0b' : (s.mm > 0.5 ? '#2563eb' : (s.mm > 0 ? '#38bdf8' : (s.prob > 20 ? 'rgba(56,189,248,.35)' : 'rgba(255,255,255,.07)')));
     const topLabel = s.mm > 0 ? `${s.mm}mm` : (s.prob > 0 ? `${s.prob}%` : '0');
 
-    return `<div class="rt-slot" title="${s.time} Uhr: ${s.mm} mm/h (${s.prob}% Regenwahrscheinlichkeit)">
+    return `<div class="rt-slot" title="${s.time}: ${s.mm} mm/h (${s.prob}%)">
       <div class="rt-val">${topLabel}</div>
       <div class="rt-bar-wrap">
         <div class="rt-bar" style="height:${barH}px;background:${barColor}"></div>
@@ -971,12 +981,12 @@ function batteryForecastCard(customTitle, forceShow = false) {
   const bfCfg = CONFIG.batteryForecast || {};
   if (!forceShow && bfCfg.show === false) return '';
   const bf = calcBatteryForecast();
-  if (!bf) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>⚡ ${esc(customTitle || 'Speicher-Prognose')}</b></div><div class="page-note">Keine Batterie- oder SoC-Sensoren hinterlegt. Konfigurator → Energie → Batteriespeicher.</div></section>` : '';
+  if (!bf) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>⚡ ${esc(tDefault(customTitle || t('bat.title')))}</b></div><div class="page-note">${t('bat.empty')}</div></section>` : '';
 
-  const title = customTitle || 'Speicher-Laufzeit & Prognose';
+  const title = tDefault(customTitle || t('bat.title'));
   const isChg = bf.state === 'charging';
   const isDis = bf.state === 'discharging';
-  const stateLabel = isChg ? 'Lädt' : (isDis ? 'Entlädt' : 'Standby');
+  const stLbl = isChg ? tr('Lädt', 'Charging') : (isDis ? tr('Entlädt', 'Discharging') : t('state.standby'));
   const stateColor = isChg ? 'var(--ok)' : (isDis ? 'var(--cool)' : 'var(--mut)');
   const stateIco = isChg ? ic('batteryCharge', 22) : (isDis ? ic('battery', 22) : ic('batteryClock', 22));
 
@@ -986,17 +996,17 @@ function batteryForecastCard(customTitle, forceShow = false) {
         <span style="color:${stateColor}">${stateIco}</span>
         <b>${esc(title)}</b>
       </div>
-      <span class="pill on" style="font-size:11px;padding:3px 9px;border-color:${stateColor};color:#fff">${bf.soc}% · ${stateLabel}</span>
+      <span class="pill on" style="font-size:11px;padding:3px 9px;border-color:${stateColor};color:#fff">${bf.soc}% · ${stLbl}</span>
     </div>
 
     <div class="bf-hero ${bf.state}">
       <div class="bf-hero-left">
-        <div class="bf-hero-headline">${isChg ? 'Voll in ca. ' + bf.durationStr : 'Reicht noch ca. ' + bf.durationStr}</div>
+        <div class="bf-hero-headline">${esc(bf.shortDesc)}</div>
         <div class="bf-hero-sub">${esc(bf.desc)}</div>
       </div>
       <div class="bf-hero-right">
         <div class="bf-hero-eta">${bf.targetTime}</div>
-        <small class="mut">Prognose-Uhrzeit</small>
+        <small class="mut">${isChg ? t('bat.full_at') : t('bat.empty_at')}</small>
       </div>
     </div>
 
@@ -1006,22 +1016,22 @@ function batteryForecastCard(customTitle, forceShow = false) {
       </div>
       <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:4px">
         <span>0%</span>
-        <span>Min-Reserve: ${bfCfg.minSoC || 5}%</span>
+        <span>Min: ${bfCfg.minSoC || 5}%</span>
         <span>100% (${bfCfg.capacityKwh || 10} kWh)</span>
       </div>
     </div>
 
     <div class="bf-stats-row">
       <div class="bf-stat-col">
-        <span class="mut sm">Ladezustand</span>
+        <span class="mut sm">SoC</span>
         <b>${bf.soc}%</b>
       </div>
       <div class="bf-stat-col">
-        <span class="mut sm">Aktuelle Leistung</span>
+        <span class="mut sm">${t('dev.col_power')}</span>
         <b style="color:${stateColor}">${fmt(bf.powerW, 0)} W</b>
       </div>
       <div class="bf-stat-col">
-        <span class="mut sm">${isChg ? 'Voll um' : 'Leer um'}</span>
+        <span class="mut sm">${isChg ? t('bat.full_at') : t('bat.empty_at')}</span>
         <b>${bf.etaStr}</b>
       </div>
     </div>
@@ -1062,19 +1072,19 @@ function systemHealthCard(forceShow = false, customTitle = null) {
         <span style="width:8px;height:8px;border-radius:50%;background:${isUp ? 'var(--ok)' : 'var(--warn)'}"></span>
         <span>${esc(c.name || c.entity)}</span>
       </div>
-      ${c.entity ? `<button class="chip ${isUp ? 'on' : ''}" style="padding:2px 8px;font-size:10px" data-act="callService" data-e="${esc(c.entity)}" data-srv="toggle">${isUp ? 'Online' : 'Starten'}</button>` : ''}
+      ${c.entity ? `<button class="chip ${isUp ? 'on' : ''}" style="padding:2px 8px;font-size:10px" data-act="callService" data-e="${esc(c.entity)}" data-srv="toggle">${isUp ? 'Online' : tr('Starten', 'Start')}</button>` : ''}
     </div>`;
   }).join('');
 
   return `<section class="card">
-    <div class="ch"><b>🖥️ ${esc(customTitle || sh.title || 'System-Health')}</b><span class="mut sm">Server &amp; Docker</span></div>
+    <div class="ch"><b>🖥️ ${esc(tDefault(customTitle || sh.title || t('sys.title')))}</b><span class="mut sm">Server &amp; Docker</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       ${sh.cpu ? gaugeBar('CPU', cpu, '%') : ''}
       ${sh.ram ? gaugeBar('RAM', ram, '%') : ''}
       ${sh.disk ? gaugeBar('Disk', disk, '%') : ''}
       ${sh.temp ? gaugeBar('Temp', temp, '°C', 90, 75) : ''}
     </div>
-    ${containerList ? `<div style="margin-top:8px">${containerList}</div>` : (!hasAny ? '<div class="page-note">Keine Server-Sensoren oder Container hinterlegt. Konfigurator → Geräte → Server & Docker.</div>' : '')}
+    ${containerList ? `<div style="margin-top:8px">${containerList}</div>` : (!hasAny ? `<div class="page-note">${t('sys.empty')}</div>` : '')}
   </section>`;
 }
 
@@ -1127,9 +1137,10 @@ function lightsCard(filterGroup = null, customTitle = null) {
     if (filterGroup && g.name && g.name.toLowerCase() === String(filterGroup).toLowerCase()) return true;
     return isItemVisibleInContext(g, ctx);
   });
+  const titleTxt = tDefault(customTitle || t('lights.title'));
   if (!indexed.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b></div><div class="page-note">Keine Licht-Gruppen für diese Seite (${esc(ctx.explicitFilter || ctx.pageLabel || ctx.roomName)}) zugeordnet.</div></section>`
+      ? `<section class="card"><div class="ch"><b>${esc(titleTxt)}</b></div><div class="page-note">${tr('Keine Licht-Gruppen für diese Seite zugeordnet.', 'No light groups assigned to this page.')}</div></section>`
       : '';
   }
   const mainEnts = (!ctx.isHome || filterGroup)
@@ -1138,35 +1149,35 @@ function lightsCard(filterGroup = null, customTitle = null) {
   const main = groupInfo({ entities: mainEnts });
   const tiles = indexed.map(({ g, idx }) => {
     const gi = groupInfo(g);
-    return `<div class="tile tile-light ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${idx}" title="Klick: Gruppe schalten · Gedrückthalten: Details & Ausnahmen">
+    return `<div class="tile tile-light ${gi.on ? 'on' : ''}" data-act="lgrp" data-i="${idx}" title="${tr('Klick: Gruppe schalten · Gedrückthalten: Details & Ausnahmen', 'Click: Toggle group · Hold: Details & exclusions')}">
       ${ic('bulb', 18)}
       <span class="tile-light-txt">
         <b>${esc(g.name)}</b>
-        <small>${gi.on}/${gi.total} an</small>
+        <small>${t('lights.on_count', { on: gi.on, total: gi.total })}</small>
       </span>
-      <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${idx}" title="Details, Helligkeit & Ausnahmen">⋯</button>
+      <button type="button" class="tile-dots-btn" data-act="lgrpDetail" data-i="${idx}" title="${tr('Details, Helligkeit & Ausnahmen', 'Details, brightness & exclusions')}">⋯</button>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><b>${esc(customTitle || 'Lichter')}</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" data-ents="${esc(mainEnts.join(','))}" title="Hauptschalter"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>${esc(titleTxt)}</b><div class="sw ${main.on ? 'on' : ''}" data-act="lgrpMain" data-ents="${esc(mainEnts.join(','))}" title="${tr('Hauptschalter', 'Master switch')}"><i></i></div></div><div class="tiles">${tiles}</div></section>`;
 }
 
 function getCoreNav() {
   const pages = [
-    { label: 'Dashboard', icon: 'home', view: 'dashboard' },
-    { label: 'Klima', icon: 'thermo', view: 'klima' },
-    { label: 'Kameras', icon: 'camera', view: 'kameras' }
+    { label: t('nav.dashboard'), icon: 'home', view: 'dashboard' },
+    { label: t('nav.klima'), icon: 'thermo', view: 'klima' },
+    { label: t('nav.cameras'), icon: 'camera', view: 'kameras' }
   ];
   (CONFIG.customPages || []).forEach(p => {
-    pages.push({ label: p.label, icon: p.icon || 'chart', view: 'page:' + p.id });
+    pages.push({ label: tDefault(p.label), icon: p.icon || 'chart', view: 'page:' + p.id });
   });
   return pages;
 }
 
 function sidebar() {
-  const hs = getHass(), name = CONFIG.userName || (hs && hs.user && hs.user.name) || 'Gast';
+  const hs = getHass(), name = tDefault(CONFIG.userName) || (hs && hs.user && hs.user.name) || t('hero.guest');
   const mainItems = getCoreNav().map(n => `<button class="nav ${n.view === ui.view ? 'on' : ''}" data-act="nav" data-view="${esc(n.view)}">${ic(n.icon, 18)}${esc(n.label)}</button>`).join('');
   const sysItems = (!CONFIG.hideSystemLinks && CONFIG.systemLinks && CONFIG.systemLinks.length)
-    ? `<div class="nav-sep"></div>` + CONFIG.systemLinks.map(n => `<button class="nav" data-act="sysnav" data-path="${esc(n.path)}">${ic(n.icon, 18)}${esc(n.label)}</button>`).join('')
+    ? `<div class="nav-sep"></div>` + CONFIG.systemLinks.map(n => `<button class="nav" data-act="sysnav" data-path="${esc(n.path)}">${ic(n.icon, 18)}${esc(tDefault(n.label))}</button>`).join('')
     : '';
   const menuOpen = !!ui.profileMenuOpen;
   return `<aside class="side"><div class="logo"><div class="lg">${ic('home', 20)}</div>${esc(CONFIG.title || 'Home')}</div><div class="sub">${esc(CONFIG.subtitle || 'Home Assistant')}</div>
@@ -1175,21 +1186,21 @@ function sidebar() {
       <div class="me-popover ${menuOpen ? 'open' : ''}" role="menu" aria-hidden="${menuOpen ? 'false' : 'true'}">
         <button type="button" class="me-pop-item ${ui.editMode ? 'on' : ''}" data-act="toggleEditMode">
           <span class="me-pop-ico">${ic('edit', 16)}</span>
-          <span class="me-pop-txt"><b>Schnell-Bearbeiten</b><small>${ui.editMode ? 'Aktiv – Antippen zum Beenden' : 'Layout & Spalten direkt anpassen'}</small></span>
+          <span class="me-pop-txt"><b>${tr('Schnell-Bearbeiten', 'Quick-Edit')}</b><small>${ui.editMode ? tr('Aktiv – Antippen zum Beenden', 'Active – Tap to exit') : tr('Layout & Spalten direkt anpassen', 'Customize layout & columns directly')}</small></span>
         </button>
         <button type="button" class="me-pop-item ${CONFIG.kioskMode ? 'on' : ''}" data-act="toggleKiosk">
           <span class="me-pop-ico">${ic('expand', 16)}</span>
-          <span class="me-pop-txt"><b>Vollbild / Kiosk</b><small>${CONFIG.kioskMode ? 'Aktiv – HA-Seitenleiste einblenden' : 'HA-Seitenleiste ausblenden'}</small></span>
+          <span class="me-pop-txt"><b>${tr('Vollbild / Kiosk', 'Fullscreen / Kiosk')}</b><small>${CONFIG.kioskMode ? tr('Aktiv – HA-Seitenleiste einblenden', 'Active – Show HA sidebar') : tr('HA-Seitenleiste ausblenden', 'Hide HA sidebar')}</small></span>
         </button>
         <button type="button" class="me-pop-item" data-act="cfgOpen">
           <span class="me-pop-ico">${ic('settings', 16)}</span>
-          <span class="me-pop-txt"><b>Dashboard-Konfigurator</b><small>Räume, Geräte, Design & Backup</small></span>
+          <span class="me-pop-txt"><b>${t('nav.configurator')}</b><small>${tr('Räume, Geräte, Design & Backup', 'Rooms, devices, theme & backup')}</small></span>
         </button>
       </div>
-      <button type="button" class="me ${menuOpen ? 'open' : ''}" data-act="toggleProfileMenu" aria-expanded="${menuOpen ? 'true' : 'false'}" title="Menü öffnen (Schnell-Bearbeiten, Vollbild, Konfigurator)">
+      <button type="button" class="me ${menuOpen ? 'open' : ''}" data-act="toggleProfileMenu" aria-expanded="${menuOpen ? 'true' : 'false'}" title="${tr('Menü öffnen (Schnell-Bearbeiten, Vollbild, Konfigurator)', 'Open menu (Quick-Edit, Fullscreen, Configurator)')}">
         <div class="me-user">
           <div class="av">${esc(name.charAt(0).toUpperCase())}</div>
-          <div class="me-info"><b>${esc(name)}</b><small>${esc(CONFIG.role || '')}</small></div>
+          <div class="me-info"><b>${esc(name)}</b><small>${esc(tDefault(CONFIG.role || ''))}</small></div>
         </div>
         <span class="me-chev" aria-hidden="true">${ic(menuOpen ? 'down' : 'up', 15)}</span>
       </button>
@@ -1201,25 +1212,25 @@ const mtabs = () => `<div class="mtabs">${getCoreNav().map(n => `<button class="
 /* ---------- Klima-Ansicht ---------- */
 function kDevice(d) {
   const E = esc(d.entity), s = S(d.entity), ico = d.icon || 'thermo';
-  if (!s) return `<div class="kd"><div class="kdl"><div class="kdi">${ic(ico, 17)}</div><div><b>${esc(d.name)}</b><small>Entität nicht gefunden</small></div></div></div>`;
+  if (!s) return `<div class="kd"><div class="kdl"><div class="kdi">${ic(ico, 17)}</div><div><b>${esc(d.name)}</b><small>${tr('Entität nicht gefunden', 'Entity not found')}</small></div></div></div>`;
   const a = s.attributes || {}, off = ['off', 'unavailable', 'unknown'].includes(s.state);
   const act = a.hvac_action, cur = a.current_temperature, tgt = a.temperature;
   let label = HVAC_DE[s.state] || s.state, cls = '';
-  if (off) label = s.state === 'off' ? 'Aus' : 'Nicht verfügbar';
-  else if (act === 'heating') { label = 'Heizt'; cls = 'warn'; }
-  else if (act === 'cooling') { label = 'Kühlt'; cls = 'cool'; }
-  else if (act === 'idle') { label = 'Bereit'; cls = 'on'; }
+  if (off) label = s.state === 'off' ? t('hvac.off') : t('state.unavailable');
+  else if (act === 'heating') { label = t('state.heating'); cls = 'warn'; }
+  else if (act === 'cooling') { label = tr('Kühlt', 'Cooling'); cls = 'cool'; }
+  else if (act === 'idle') { label = t('state.ready'); cls = 'on'; }
   else cls = 'on';
-  const sub = `${label}${cur != null ? ' · ' + fmt(cur, 1) + '° ist' : ''}`;
+  const sub = `${label}${cur != null ? ' · ' + fmt(cur, 1) + tr('° ist', '° now') : ''}`;
   let ctrl = '';
   if (tgt != null && !off) {
-    ctrl += d.readonly ? `<b class="mut">Soll ${fmt(tgt, 1)}°</b>`
+    ctrl += d.readonly ? `<b class="mut">${t('klima.target')} ${fmt(tgt, 1)}°</b>`
       : `<div class="step"><button data-act="kstep" data-e="${E}" data-d="-1">−</button><b>${fmt(tgt, 1)}°</b><button data-act="kstep" data-e="${E}" data-d="1">+</button></div>`;
   }
   if (d.toggle) ctrl += `<div class="sw ${off ? '' : 'on'}" data-act="ktog" data-e="${E}"><i></i></div>`;
   const presets = (d.presets || []).filter(p => !a.preset_modes || a.preset_modes.includes(p));
   const pre = presets.length && !d.readonly ? `<div class="kdp">${presets.map(p => `<button class="pb ${a.preset_mode === p ? 'on' : ''}" data-act="kpre" data-e="${E}" data-p="${esc(p)}">${esc(PRESET_DE[p] || p)}</button>`).join('')}</div>` : '';
-  return `<div class="kd"><div class="kdl dv-clickable" data-act="devDetail" data-e="${E}" data-name="${esc(d.name)}" title="Antippen für Klimadetails"><div class="kdi ${cls}">${ic(ico, 17)}</div><div><b>${esc(d.name)} <span class="dv-hint">⚙</span></b><small>${esc(sub)}</small></div></div><div class="kdr">${ctrl}</div>${pre}</div>`;
+  return `<div class="kd"><div class="kdl dv-clickable" data-act="devDetail" data-e="${E}" data-name="${esc(d.name)}" title="${tr('Antippen für Klimadetails', 'Tap for climate details')}"><div class="kdi ${cls}">${ic(ico, 17)}</div><div><b>${esc(d.name)} <span class="dv-hint">⚙</span></b><small>${esc(sub)}</small></div></div><div class="kdr">${ctrl}</div>${pre}</div>`;
 }
 
 function klimaView() {
@@ -1237,40 +1248,40 @@ function klimaView() {
     }).join('');
     let boost = '';
     if (r.boost && r.boost.entity) { const b = S(r.boost.entity); boost = `<button class="boost ${b && b.state === 'on' ? 'on' : ''}" data-act="kboost" data-e="${esc(r.boost.entity)}">${ic('fire', 14)}${esc(r.boost.name || 'Boost')}</button>`; }
-    const set = r.settings && r.settings.groups && r.settings.groups.length ? `<button class="iconbtn" data-act="smOpen" data-i="${i}">${ic('settings', 14)}Einstellungen</button>` : '';
+    const set = r.settings && r.settings.groups && r.settings.groups.length ? `<button class="iconbtn" data-act="smOpen" data-i="${i}">${ic('settings', 14)}${t('nav.ha_settings')}</button>` : '';
     const devs = (r.devices || []).map(kDevice).join('');
     const charts = (r.charts || []).map(c => {
       const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');
       const s = S(c.entity), a = (s && s.attributes) || {};
       const unit = (c.title || '').includes('Luftfeucht') ? '%' : (a.unit_of_measurement || '°C');
-      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(c.title || '')}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="Antippen für Großansicht">
-        <div class="kct" style="pointer-events:none"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>
+      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(tDefault(c.title || ''))}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="${tr('Antippen für Großansicht', 'Tap for full view')}">
+        <div class="kct" style="pointer-events:none"><span>${esc(tDefault(c.title || ''))}</span><span class="mut sm">24 h</span></div>
         <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals, unit })}</div></div>`;
     }).join('');
     const qeBar = ui.editMode ? `<div class="qe-bar">
       <span class="qe-title">🌡️ ${esc(r.name)}</span>
       <div class="qe-btns">
-        <button class="qe-btn" data-act="qeKlimaMove" data-i="${i}" data-dir="-1" title="Nach oben">↑</button>
-        <button class="qe-btn" data-act="qeKlimaMove" data-i="${i}" data-dir="1" title="Nach unten">↓</button>
-        <button class="qe-btn ${r.show === false ? 'off' : ''}" data-act="qeKlimaVis" data-i="${i}" title="Ein-/Ausblenden">${r.show === false ? '🙈 Ausgeblendet' : '👁️ Sichtbar'}</button>
-        <button class="qe-btn" data-act="cfgOpenTab" data-tab="klima" title="Im Editor öffnen">⚙️</button>
+        <button class="qe-btn" data-act="qeKlimaMove" data-i="${i}" data-dir="-1" title="${t('qe.move_up')}">↑</button>
+        <button class="qe-btn" data-act="qeKlimaMove" data-i="${i}" data-dir="1" title="${t('qe.move_down')}">↓</button>
+        <button class="qe-btn ${r.show === false ? 'off' : ''}" data-act="qeKlimaVis" data-i="${i}" title="${t('qe.hide')}">${r.show === false ? '🙈 ' + t('qe.card_hidden') : '👁️ ' + t('qe.card_visible')}</button>
+        <button class="qe-btn" data-act="cfgOpenTab" data-tab="klima" title="${t('qe.open_config')}">⚙️</button>
       </div>
     </div>` : '';
     return `<div class="qe-wrap ${r.show === false ? 'qe-hidden' : ''}">${qeBar}<section class="card"><div class="kh"><div class="khl"><div class="kic">${ic(r.icon || 'home', 20)}</div><b>${esc(r.name)}</b></div><div class="khr">${boost}${set}</div></div>
       ${sens ? `<div class="chips" style="margin-top:12px">${sens}</div>` : ''}${devs}${charts}</section></div>`;
   }).join('');
   const topToolbar = ui.editMode ? `<div class="qe-page-bar">
-    <span>📐 <b>Klima-Spalten:</b></span>
-    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="auto">Automatisch</button>
-    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="${n}">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
-    <label class="qe-col-custom"><span>Frei:</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeKlimaColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>Sp.</span></label>
+    <span>📐 <b>${tr('Klima-Spalten:', 'Climate Columns:')}</b></span>
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="auto">${tr('Automatisch', 'Automatic')}</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qeSetKlimaCols" data-cols="${n}">${n} ${n === 1 ? tr('Spalte', 'Column') : tr('Spalten', 'Columns')}</button>`).join('')}
+    <label class="qe-col-custom"><span>${tr('Frei:', 'Custom:')}</span><input type="number" min="1" max="12" class="qe-col-input" data-act="qeKlimaColsInput" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12"><span>${tr('Sp.', 'Col.')}</span></label>
   </div>` : '';
-  return `<div class="ktop"><div class="hi">Klima</div><div class="name">Heizung &amp; Klimaanlagen</div><div class="greet">Temperaturen, Heizungen und Klimaanlagen aller Räume – direkt steuerbar.</div></div>${topToolbar}<div class="${gridCls}" ${gridStyle}>${cards || '<div class="mut">Noch keine Klima-Räume angelegt.</div>'}</div>`;
+  return `<div class="ktop"><div class="hi">${t('nav.klima')}</div><div class="name">${tr('Heizung & Klimaanlagen', 'Heating & Air Conditioning')}</div><div class="greet">${tr('Temperaturen, Heizungen und Klimaanlagen aller Räume – direkt steuerbar.', 'Temperatures, heaters, and air conditioners across all rooms – directly controllable.')}</div></div>${topToolbar}<div class="${gridCls}" ${gridStyle}>${cards || `<div class="mut">${tr('Noch keine Klima-Räume angelegt.', 'No climate rooms configured yet.')}</div>`}</div>`;
 }
 
 /* ---------- Baukasten für Eigene Seiten ---------- */
 function pageHeader(eyebrow, title, intro) {
-  return `<div class="page-head"><div class="hi">${esc(eyebrow || '')}</div><div class="name">${esc(title || '')}</div><div class="greet">${esc(intro || '')}</div></div>`;
+  return `<div class="page-head"><div class="hi">${esc(tDefault(eyebrow || ''))}</div><div class="name">${esc(tDefault(title || ''))}</div><div class="greet">${esc(tDefault(intro || ''))}</div></div>`;
 }
 function compactValue(v) {
   if (v == null || v === '') return '—';
@@ -1282,7 +1293,7 @@ function niceKey(k) { return String(k).replace(/_/g, ' ').replace(/\b\w/g, c => 
 function entityInfoCard(entity, title, preferredFields = []) {
   const s = S(entity);
   if (!s || ['unknown', 'unavailable'].includes(s.state)) {
-    return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">${esc(entity)}</span></div><div class="mut sm">Entität derzeit nicht verfügbar.</div></section>`;
+    return `<section class="card"><div class="ch"><b>${esc(tDefault(title))}</b><span class="mut sm">${esc(entity)}</span></div><div class="mut sm">${t('state.unavailable')}</div></section>`;
   }
   const a = s.attributes || {};
   const rows = [];
@@ -1295,8 +1306,8 @@ function entityInfoCard(entity, title, preferredFields = []) {
     Object.entries(a).filter(([k,v]) => !['friendly_name','entity_picture','icon','supported_features','attribution'].includes(k) && v != null && typeof v !== 'function')
       .slice(0, 8).forEach(([k,v]) => rows.push([niceKey(k), compactValue(v)]));
   }
-  return `<section class="card"><div class="ch"><div><b>${esc(title)}</b><div class="mut sm">${esc(entity)}</div></div><span class="iconbtn">${esc(compactValue(s.state))}</span></div>
-    ${rows.length ? `<div class="data-list">${rows.map(([k,v]) => `<div class="data-row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>` : '<div class="mut sm">Keine Zusatzattribute vorhanden.</div>'}</section>`;
+  return `<section class="card"><div class="ch"><div><b>${esc(tDefault(title))}</b><div class="mut sm">${esc(entity)}</div></div><span class="iconbtn">${esc(compactValue(s.state))}</span></div>
+    ${rows.length ? `<div class="data-list">${rows.map(([k,v]) => `<div class="data-row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>` : `<div class="mut sm">${tr('Keine Zusatzattribute vorhanden.', 'No additional attributes available.')}</div>`}</section>`;
 }
 
 function statChartCard(group) {
@@ -1309,10 +1320,10 @@ function statChartCard(group) {
     const key = 'stats:' + item.entity + (item.attr ? ':' + item.attr : '');
     return `<div class="stat-line">
       <div><div class="sm mut">${esc(item.name)}</div><div class="stat-value">${esc(val)}</div></div>
-      <div class="chart clickable" data-act="chartModal" data-type="stat" data-entity="${esc(item.entity)}" data-attr="${esc(item.attr || '')}" data-name="${esc(item.name)}" data-unit="${esc(unit)}" data-dec="${item.decimals ?? 1}" data-mode="${esc(item.mode || 'avg')}" title="Antippen für Großansicht">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color, unit })}</div>
+      <div class="chart clickable" data-act="chartModal" data-type="stat" data-entity="${esc(item.entity)}" data-attr="${esc(item.attr || '')}" data-name="${esc(item.name)}" data-unit="${esc(unit)}" data-dec="${item.decimals ?? 1}" data-mode="${esc(item.mode || 'avg')}" title="${tr('Antippen für Großansicht', 'Tap for full view')}">${spark(series[key], 'stats-' + item.entity + (item.attr || ''), { fit: true, W: 320, H: 65, dec: item.decimals ?? 1, color: item.color, unit })}</div>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic(group.icon || 'chart', 18)}<b>${esc(group.title)}</b></div><span class="mut sm">24 h</span></div>${rows}</section>`;
+  return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic(group.icon || 'chart', 18)}<b>${esc(tDefault(group.title))}</b></div><span class="mut sm">24 h</span></div>${rows}</section>`;
 }
 
 function powerFlowCard(title = 'Power Flow') {
@@ -1371,7 +1382,7 @@ function powerFlowCard(title = 'Power Flow') {
     </circle>` : '';
 
   return `<section class="card">
-    <div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuelle Leistung</span></div>
+    <div class="ch"><b>${esc(tDefault(title))}</b><span class="mut sm">${t('energy.live_flow')}</span></div>
     <div class="pf-wrap">
       <svg viewBox="0 0 400 350" class="pf-svg">
         <path d="${pPvGrid}"   class="pf-line ${fPvGrid ? 'on' : ''}"   stroke="#a855f7"/>
@@ -1402,7 +1413,7 @@ function powerFlowCard(title = 'Power Flow') {
         </g>
         <text x="60" y="176" class="pf-sub" fill="#c084fc">← ${esc(fmtP(gridOut))}</text>
         <text x="60" y="191" class="pf-sub" fill="#38bdf8">→ ${esc(fmtP(gridIn))}</text>
-        <text x="60" y="230" class="pf-lbl">Netz</text>
+        <text x="60" y="230" class="pf-lbl">${t('energy.grid')}</text>
 
         ${homeRingSvg}
         <g transform="translate(330, 148)" fill="#f2f3fa">
@@ -1420,7 +1431,7 @@ function powerFlowCard(title = 'Power Flow') {
         </g>
         <text x="200" y="293" class="pf-sub" fill="#a99bff">↓ ${esc(fmtP(batChg))}</text>
         <text x="200" y="307" class="pf-sub" fill="#34d399">↑ ${esc(fmtP(batDis))}</text>
-        <text x="200" y="335" class="pf-lbl">Batterie</text>
+        <text x="200" y="335" class="pf-lbl">${t('energy.battery')}</text>
       </svg>
     </div>
   </section>`;
@@ -1463,15 +1474,15 @@ function powerFlowTilesCard(title = 'PV Anlage') {
     const v = st && !['unknown', 'unavailable'].includes(st.state) ? parseFloat(st.state) : NaN;
     const unit = p.unit || (st && st.attributes && st.attributes.unit_of_measurement) || '';
     const txt = isNaN(v) ? '—' : `${fmt(v, 0)} ${esc(unit)}`;
-    return `<div class="mini">${ic(p.icon || 'plug', 18)}<span><small>${esc(p.label)}</small>${txt}</span></div>`;
+    return `<div class="mini">${ic(p.icon || 'plug', 18)}<span><small>${esc(tDefault(p.label))}</small>${txt}</span></div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><b>${esc(title)}</b><span class="mut sm">Aktuelle Leistung</span></div><div class="two">${tiles}</div></section>`;
+  return `<section class="card"><div class="ch"><b>${esc(tDefault(title))}</b><span class="mut sm">${t('energy.live_flow')}</span></div><div class="two">${tiles}</div></section>`;
 }
 
 function powerFlowHacsCard(w) {
   const title = w.title || 'Power Flow';
   if (!hasPFCPlus()) {
-    return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">„power-flow-card-plus“ ist in Home Assistant nicht geladen. Über HACS installieren oder die Darstellung auf „Automatisch“ stellen.</div></section>`;
+    return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">${tr('„power-flow-card-plus“ ist in Home Assistant nicht geladen. Über HACS installieren oder die Darstellung auf „Automatisch“ stellen.', '"power-flow-card-plus" is not loaded in Home Assistant. Install via HACS or set display to "Automatic".')}</div></section>`;
   }
   const key = 'pfc:' + title;
   const cfg = w.cardConfig && typeof w.cardConfig === 'object' ? w.cardConfig : pfcDefaultConfig();
@@ -1482,7 +1493,7 @@ function powerFlowHacsCard(w) {
       el.setConfig(cfg);
       pfcCache[key] = { el, sig };
     } catch (e) {
-      return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">Karten-Konfiguration fehlerhaft: ${esc(e.message)}</div></section>`;
+      return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="page-note">${tr('Karten-Konfiguration fehlerhaft:', 'Card configuration error:')} ${esc(e.message)}</div></section>`;
     }
   }
   return `<section class="pfc-card"><div class="pfc-host" data-pfc="${esc(key)}"></div></section>`;
@@ -1535,12 +1546,12 @@ function taskmateChildCard(entity, child) {
   }
   const taskRows = tasks ? tasks.slice(0, 20).map((task, i) => {
     if (typeof task !== 'object' || task == null) return `<div class="match-row"><b>${esc(compactValue(task))}</b></div>`;
-    const title = task.title || task.name || task.task_name || task.task || task.text || task.label || `Aufgabe ${i + 1}`;
+    const title = task.title || task.name || task.task_name || task.task || task.text || task.label || `${tr('Aufgabe', 'Task')} ${i + 1}`;
     const secondary = [task.due || task.due_date || task.date, task.description, task.status || task.state].filter(Boolean).map(compactValue).join(' · ');
     return `<div class="match-row"><b>${esc(title)}</b>${secondary ? `<small>${esc(secondary)}</small>` : ''}</div>`;
   }).join('') : '';
-  return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('tasks',18)}<b>${esc(child.name)}</b></div><span class="mut sm">Aufgaben</span></div>
-    ${taskRows ? `<div class="match-list">${taskRows}</div>` : `<div class="page-note">Keine offenen Aufgaben gefunden.</div>`}</section>`;
+  return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('tasks',18)}<b>${esc(child.name)}</b></div><span class="mut sm">${tDefault('Aufgaben')}</span></div>
+    ${taskRows ? `<div class="match-list">${taskRows}</div>` : `<div class="page-note">${t('task.all_done')}</div>`}</section>`;
 }
 
 function klimaRoomSingleCard(filterRoom = '', customTitle = null) {
@@ -1549,7 +1560,7 @@ function klimaRoomSingleCard(filterRoom = '', customTitle = null) {
     ? allRooms.filter(({ r }) => r && r.name && r.name.toLowerCase() === String(filterRoom).toLowerCase())
     : allRooms.filter(({ r }) => r && r.show !== false);
   if (!matches.length) {
-    return `<section class="card"><div class="ch"><b>🌡️ ${esc(customTitle || filterRoom || 'Klima-Raum')}</b></div><div class="page-note">Kein passender Klima-Raum im Klima-Baukasten gefunden.</div></section>`;
+    return `<section class="card"><div class="ch"><b>🌡️ ${esc(customTitle || filterRoom || t('nav.klima'))}</b></div><div class="page-note">${tr('Kein passender Klima-Raum im Klima-Baukasten gefunden.', 'No matching climate room found.')}</div></section>`;
   }
   return matches.map(({ r, i }) => {
     const sens = (r.sensors || []).map(x => {
@@ -1560,14 +1571,14 @@ function klimaRoomSingleCard(filterRoom = '', customTitle = null) {
     }).join('');
     let boost = '';
     if (r.boost && r.boost.entity) { const b = S(r.boost.entity); boost = `<button class="boost ${b && b.state === 'on' ? 'on' : ''}" data-act="kboost" data-e="${esc(r.boost.entity)}">${ic('fire', 14)}${esc(r.boost.name || 'Boost')}</button>`; }
-    const set = r.settings && r.settings.groups && r.settings.groups.length ? `<button class="iconbtn" data-act="smOpen" data-i="${i}">${ic('settings', 14)}Einstellungen</button>` : '';
+    const set = r.settings && r.settings.groups && r.settings.groups.length ? `<button class="iconbtn" data-act="smOpen" data-i="${i}">${ic('settings', 14)}${t('nav.ha_settings')}</button>` : '';
     const devs = (r.devices || []).map(kDevice).join('');
     const charts = (r.charts || []).map(c => {
       const key = '24:' + c.entity + (c.attr ? ':' + c.attr : '');
       const s = S(c.entity), a = (s && s.attributes) || {};
       const unit = (c.title || '').includes('Luftfeucht') ? '%' : (a.unit_of_measurement || '°C');
-      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(c.title || '')}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="Antippen für Großansicht">
-        <div class="kct" style="pointer-events:none"><span>${esc(c.title || '')}</span><span class="mut sm">24 h</span></div>
+      return `<div class="kc" style="cursor:pointer;border-radius:10px;padding:6px;margin:6px -6px 0;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'" data-act="chartModal" data-type="klima" data-entity="${esc(c.entity)}" data-attr="${esc(c.attr || '')}" data-name="${esc(tDefault(c.title || ''))}" data-unit="${esc(unit)}" data-dec="${c.decimals ?? 1}" title="${tr('Antippen für Großansicht', 'Tap for full view')}">
+        <div class="kct" style="pointer-events:none"><span>${esc(tDefault(c.title || ''))}</span><span class="mut sm">24 h</span></div>
         <div style="pointer-events:none">${spark(series[key], 'k' + c.entity + (c.attr || ''), { fit: true, min: c.min, max: c.max, W: 320, H: 90, dec: c.decimals, unit })}</div></div>`;
     }).join('');
     return `<section class="card"><div class="kh"><div class="khl"><div class="kic">${ic(r.icon || 'home', 20)}</div><b>${esc(customTitle || r.name)}</b></div><div class="khr">${boost}${set}</div></div>
@@ -1595,10 +1606,10 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
   if (w.type === 'energy_prices') return energyPricesCard(w.title, true);
   if (w.type === 'wallbox') return wallboxCard(w.title, true);
   if (w.type === 'appliances') return appliancesCard(w.title, true);
-  if (w.type === 'devices') return devicesCard(w.room || w.entity || '', w.title || 'Geräte', w.tab || '');
-  if (w.type === 'lights') return lightsCard(w.room || w.entity || '', w.title || 'Lichter');
-  if (w.type === 'covers') return coversCard(w.room || w.entity || '', w.title || 'Rolläden');
-  if (w.type === 'favorites') return favoritesCard(w.room || w.entity || '', w.title || 'Schnellauswahl');
+  if (w.type === 'devices') return devicesCard(w.room || w.entity || '', w.title || tDefault('Geräte'), w.tab || '');
+  if (w.type === 'lights') return lightsCard(w.room || w.entity || '', w.title || t('lights.title'));
+  if (w.type === 'covers') return coversCard(w.room || w.entity || '', w.title || t('dev.covers_title'));
+  if (w.type === 'favorites') return favoritesCard(w.room || w.entity || '', w.title || t('fav.title'));
   if (w.type === 'quick_routines' || w.type === 'routines') return routinesCard(w.title);
   if (w.type === 'presence') return presenceCard(true, w.title);
   if (w.type === 'ventilation') return ventilationCard(true, w.room || w.entity || '', w.title);
@@ -1613,17 +1624,17 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return (mList.length ? mList : (CONFIG.metrics || [])).map(metricCard).join('');
   }
   if (w.type === 'calendar') return homeCalendarCard(w.daysCount || w.days || 14, w.title, 'page', w.style || null);
-  if (w.type === 'trash') return homeTrashCard(w.maxDays || w.days || 30, w.maxItems || 25, w.subtitle || 'Nächste 30 Tage');
+  if (w.type === 'trash') return homeTrashCard(w.maxDays || w.days || 30, w.maxItems || 25, tDefault(w.subtitle || t('trash.sub_30d')));
   if (w.type === 'todo') {
     if (w.mode === 'taskmate') {
       return (w.children || []).map(c => taskmateChildCard(w.entity, c)).join('');
     }
-    return entityInfoCard(w.entity, w.title || 'To-Do Liste');
+    return entityInfoCard(w.entity, w.title || 'To-Do');
   }
   if (w.type === 'iframe') {
     const rawUrl = String(w.url || w.entity || '').trim();
     const safeUrl = (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('/')) ? rawUrl : '';
-    return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div>${safeUrl ? `<iframe class="iframe-widget" src="${esc(safeUrl)}" allow="autoplay; fullscreen" allowfullscreen></iframe>` : '<div class="page-note">Ungültige oder unsichere Einbettungs-URL (nur http/https erlaubt).</div>'}</section>`;
+    return `<section class="card"><div class="ch"><b>${esc(w.title || tr('Einbettung', 'Embed'))}</b></div>${safeUrl ? `<iframe class="iframe-widget" src="${esc(safeUrl)}" allow="autoplay; fullscreen" allowfullscreen></iframe>` : `<div class="page-note">${tr('Ungültige oder unsichere Einbettungs-URL (nur http/https erlaubt).', 'Invalid or unsafe embed URL (only http/https allowed).')}</div>`}</section>`;
   }
   if (w.type === 'camera') {
     const rawEnt = String(w.entity || '').trim();
@@ -1634,15 +1645,16 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     const resolvedEnt = resolveCamEntity(resolvedStream || streamHint, entityHint);
     const useGo2 = canUseGo2rtc() && !!resolvedStream;
     const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
+    const camTitle = w.title || tr('Kamera', 'Camera');
     const mediaHtml = useGo2
       ? `<iframe src="${esc(`${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`
       : (resolvedEnt && camUrl(resolvedEnt, true)
-        ? `<img src="${esc(camUrl(resolvedEnt, true))}" alt="${esc(w.title || 'Kamera')}">`
-        : `<div class="cam-placeholder">${ic('camera', 26)}<span>Kamera nicht erreichbar</span></div>`);
-    return `<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(w.title || 'Kamera')}">
+        ? `<img src="${esc(camUrl(resolvedEnt, true))}" alt="${esc(camTitle)}">`
+        : `<div class="cam-placeholder">${ic('camera', 26)}<span>${t('cam.unavailable')}</span></div>`);
+    return `<section class="cam-card" style="cursor:pointer" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(camTitle)}">
       <div class="cam-hdr">
-        <span>${esc(w.title || 'Kamera')}</span>
-        <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(w.title || 'Kamera')}">${ic('expand', 14)} Vollbild</button>
+        <span>${esc(camTitle)}</span>
+        <button type="button" class="expand" data-act="camCardBig" data-webrtc="${esc(resolvedStream)}" data-cam="${esc(resolvedEnt)}" data-title="${esc(camTitle)}">${ic('expand', 14)} ${t('cam.fullscreen')}</button>
       </div>
       <div class="cam-wrap">${mediaHtml}</div>
     </section>`;
@@ -1658,14 +1670,15 @@ function energyPricesCard(customTitle, forceShow = false) {
   const cfg = CONFIG.energyPrices || {};
   if (!forceShow && cfg.show === false) return '';
   const s = S(cfg.entity);
-  if (!s || !s.attributes) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>💶 ${esc(customTitle || cfg.title || 'Strompreise')}</b></div><div class="page-note">Strompreis-Entität fehlt (z.B. sensor.tibber_prices).</div></section>` : '';
+  const titleTxt = tDefault(customTitle || cfg.title || t('energy.prices_title'));
+  if (!s || !s.attributes) return (ui.editMode || forceShow) ? `<section class="card"><div class="ch"><b>💶 ${esc(titleTxt)}</b></div><div class="page-note">${t('energy.prices_empty')}</div></section>` : '';
   
   const attr = s.attributes;
   const today = attr.today || attr.prices_today || [];
   const tmr = attr.tomorrow || attr.prices_tomorrow || [];
   const allPrices = [...today, ...tmr].slice(0, 48); // max 48h
   
-  if (!allPrices.length) return `<section class="card"><div class="ch"><b>💶 ${esc(cfg.title || 'Strompreise')}</b></div><div class="page-note">Keine Preisdaten im Sensor-Attribut gefunden.</div></section>`;
+  if (!allPrices.length) return `<section class="card"><div class="ch"><b>💶 ${esc(titleTxt)}</b></div><div class="page-note">${t('energy.prices_empty')}</div></section>`;
 
   const now = new Date();
   const curHourIso = now.toISOString().slice(0, 13);
@@ -1701,7 +1714,7 @@ function energyPricesCard(customTitle, forceShow = false) {
     <div class="ch">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">💶</span>
-        <b>${esc(customTitle || cfg.title || 'Dynamische Strompreise')}</b>
+        <b>${esc(titleTxt)}</b>
       </div>
       <span class="pill" style="font-size:11px;padding:3px 9px;background:rgba(255,255,255,.05);color:${getCol(curPriceCent)};border-color:${getCol(curPriceCent)}">${fmt(curPriceCent, 1)} Cent/kWh</span>
     </div>
@@ -1709,8 +1722,8 @@ function energyPricesCard(customTitle, forceShow = false) {
       ${bars}
     </div>
     <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:6px">
-      <span>Jetzt</span>
-      <span>Nächste 24 Stunden</span>
+      <span>${t('rain.now')}</span>
+      <span>${tr('Nächste 24 Stunden', 'Next 24 hours')}</span>
       <span>+24h</span>
     </div>
   </section>`;
@@ -1731,7 +1744,7 @@ function wallboxCard(customTitle, forceShow = false) {
   const isCharging = pwr > 50 || (statusS && (statusS.state === 'charging' || statusS.state === 'Läd'));
   const isConnected = isCharging || (statusS && ['connected', 'verbunden', 'steckend'].includes((statusS.state||'').toLowerCase()));
   
-  const stateLabel = isCharging ? `Lädt (${fmt(pwr, 0)} W)` : (isConnected ? 'Verbunden' : 'Nicht verbunden');
+  const stLbl = isCharging ? t('bat.charging', { w: fmt(pwr, 0) }) : (isConnected ? t('energy.connected') : t('energy.not_connected'));
   const stateCol = isCharging ? 'var(--ok)' : (isConnected ? 'var(--acc2)' : 'var(--mut)');
   
   // Modus Toggle (wenn input_select oder switch)
@@ -1739,15 +1752,14 @@ function wallboxCard(customTitle, forceShow = false) {
   if (modeS) {
     const modes = modeS.attributes.options || ['PV', 'Schnell'];
     const curM = modeS.state;
-    const nextM = modes[(modes.indexOf(curM) + 1) % modes.length] || curM;
-    modeBtn = `<button class="pill" style="font-size:10px;padding:3px 8px;border-color:var(--line)" data-act="callService" data-e="${esc(cfg.modeEntity)}" data-srv="toggle" title="Modus wechseln (aktuell: ${esc(curM)})">🔄 ${esc(curM)}</button>`;
+    modeBtn = `<button class="pill" style="font-size:10px;padding:3px 8px;border-color:var(--line)" data-act="callService" data-e="${esc(cfg.modeEntity)}" data-srv="toggle" title="${t('energy.charge_mode')}: ${esc(curM)}">🔄 ${esc(curM)}</button>`;
   }
 
   return `<section class="card wallbox-card">
     <div class="ch">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px;color:${stateCol}">🚗</span>
-        <b>${esc(customTitle || cfg.title || 'Wallbox & E-Auto')}</b>
+        <b>${esc(tDefault(customTitle || cfg.title || t('energy.wallbox_title')))}</b>
       </div>
       ${modeBtn}
     </div>
@@ -1757,10 +1769,10 @@ function wallboxCard(customTitle, forceShow = false) {
         ${isCharging ? `<div style="position:absolute;bottom:-6px;background:var(--bg);padding:0 4px;color:var(--ok);font-size:14px">⚡</div>` : ''}
       </div>
       <div style="flex:1">
-        <div style="font-weight:600;font-size:14px;color:var(--txt)">${stateLabel}</div>
-        <div class="mut sm" style="margin-top:2px">Status</div>
+        <div style="font-weight:600;font-size:14px;color:var(--txt)">${stLbl}</div>
+        <div class="mut sm" style="margin-top:2px">${t('dev.col_status')}</div>
       </div>
-      ${isConnected ? `<button class="iconbtn" style="width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.05);color:var(--txt)" data-act="callService" data-e="${esc(cfg.statusEntity)}" data-srv="toggle" title="Laden starten/stoppen">${isCharging ? '⏸' : '▶'}</button>` : ''}
+      ${isConnected ? `<button class="iconbtn" style="width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.05);color:var(--txt)" data-act="callService" data-e="${esc(cfg.statusEntity)}" data-srv="toggle" title="${isCharging ? t('energy.stop') : t('energy.start')}">${isCharging ? '⏸' : '▶'}</button>` : ''}
     </div>
   </section>`;
 }
@@ -1770,9 +1782,10 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
   const cfg = CONFIG.appliances || {};
   const ctx = getCurrentViewContext(filterRoom, false);
   const visibleItems = (cfg.items || []).filter(a => isItemVisibleInContext(a, ctx));
+  const titleTxt = tDefault(customTitle || cfg.title || t('app.title'));
   if ((!forceShow && customTitle == null && cfg.show === false) || !visibleItems.length) {
     return (ui.editMode || forceShow) && !visibleItems.length
-      ? `<section class="card"><div class="ch"><b>🧺 ${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b></div><div class="page-note">Keine Haushaltsgeräte für diese Seite zugeordnet.</div></section>`
+      ? `<section class="card"><div class="ch"><b>🧺 ${esc(titleTxt)}</b></div><div class="page-note">${t('app.empty')}</div></section>`
       : '';
   }
   
@@ -1802,13 +1815,13 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
     const runningKeywords = ['on', 'run', 'running', 'active', 'in_progress', 'wash', 'washing', 'rinse', 'rinsing', 'spin', 'spinning', 'drying', 'clean', 'cleaning', 'in betrieb', 'betrieb', 'läuft', 'aktiv', 'waschen', 'spülen', 'schleudern', 'trocknen'];
     const isRunningKeyword = runningKeywords.some(k => stateStr.includes(k));
     const isProgRunning = !isNaN(pVal) && pVal > 0 && pVal < 100;
-    const isRemActive = cdRem && cdRem !== 'Jetzt';
+    const isRemActive = cdRem && cdRem !== t('rain.now');
 
     const isRunning = isRunningKeyword || (pwr != null && pwr > 5) || isStateFuture || isRemActive || isProgRunning;
 
     const doneKeywords = ['done', 'finished', 'complete', 'completed', 'fertig', 'ausräumen', 'bereit zum ausräumen', 'ende'];
     const isDoneKeyword = doneKeywords.some(k => stateStr.includes(k));
-    const isDone = !isRunning && (isDoneKeyword || (!isNaN(pVal) && pVal >= 100) || cdRem === 'Jetzt' || isStateRecentPast);
+    const isDone = !isRunning && (isDoneKeyword || (!isNaN(pVal) && pVal >= 100) || cdRem === t('rain.now') || isStateRecentPast);
 
     let progStr = '';
     if (sProg && stateIsUsable(sProg)) {
@@ -1821,27 +1834,28 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
     }
 
     let remStr = '';
+    const remPrefix = tr('Noch', 'Left:');
     if (sRem && stateIsUsable(sRem)) {
       if (/^\d{4}-\d{2}-\d{2}/.test(sRem.state) || sRem.attributes?.device_class === 'timestamp') {
         const cd = formatCountdown(a.remainEntity);
-        remStr = cd === 'Jetzt' ? 'Fertig' : (cd ? `Noch ${cd}` : '');
+        remStr = cd === t('rain.now') ? tr('Fertig', 'Done') : (cd ? `${remPrefix} ${cd}` : '');
       } else if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(sRem.state).trim())) {
-        remStr = `Noch ${String(sRem.state).trim().replace(/:00$/, '')}`;
+        remStr = `${remPrefix} ${String(sRem.state).trim().replace(/:00$/, '')}`;
       } else {
         const u = sRem.attributes?.unit_of_measurement || '';
-        remStr = `Noch ${sRem.state}${u ? ' ' + u : ''}`;
+        remStr = `${remPrefix} ${sRem.state}${u ? ' ' + u : ''}`;
       }
     }
 
     let subTxt = '';
     if (isDone) {
-      subTxt = 'Bereit zum Ausräumen';
+      subTxt = tr('Bereit zum Ausräumen', 'Ready to unload');
     } else if (isRunning) {
-      subTxt = [progStr, remStr].filter(Boolean).join(' · ') || 'Läuft';
+      subTxt = [progStr, remStr].filter(Boolean).join(' · ') || t('app.running');
     } else if (stateStr === 'standby' || stateStr === 'idle') {
-      subTxt = 'Standby / Bereit';
+      subTxt = `${t('state.standby')} / ${t('state.ready')}`;
     } else {
-      subTxt = 'Ausgeschaltet';
+      subTxt = t('state.off');
     }
 
     const rowCls = isDone ? 'done' : (isRunning ? 'running' : 'off');
@@ -1853,7 +1867,7 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
     return `<div class="appliance-row ${rowCls}">
       <div class="appliance-ico ${isRunning ? 'pulse' : ''}" style="color:${iconCol}">${ic(a.icon || 'washing', 24)}</div>
       <div style="flex:1;min-width:0">
-        <b style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.name)}</b>
+        <b style="font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(tDefault(a.name))}</b>
         <div class="mut sm" style="margin-top:2px;color:${subCol}">${esc(subTxt)}</div>
         ${progBarHtml}
       </div>
@@ -1865,7 +1879,7 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
     <div class="ch">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🧺</span>
-        <b>${esc(customTitle || cfg.title || 'Haushaltsgeräte')}</b>
+        <b>${esc(titleTxt)}</b>
       </div>
     </div>
     ${rows}
@@ -1874,10 +1888,10 @@ function appliancesCard(customTitle, forceShow = false, filterRoom = null) {
 
 function buliTeamCard(w) {
   const entities = String(w.entity || 'sensor.sc_freiburg').split(',').map(e => e.trim()).filter(Boolean);
-  const title = w.title || 'Mein Verein';
+  const title = w.title || tr('Mein Verein', 'My Club');
 
   if (!entities.length) {
-    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">Keine Entitäten angegeben.</div></section>`;
+    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div><div class="mut sm" style="padding:8px 0">${tr('Keine Entitäten angegeben.', 'No entities configured.')}</div></section>`;
   }
 
   const teamData = entities.map(e => {
@@ -1900,7 +1914,7 @@ function buliTeamCard(w) {
 
   const cards = teamData.map((item, idx) => {
     if (!item.valid) {
-      return `<div class="mut sm" style="padding:16px">Warte auf Daten von ${esc(item.entity)}...</div>`;
+      return `<div class="mut sm" style="padding:16px">${tr('Warte auf Daten von', 'Waiting for data from')} ${esc(item.entity)}...</div>`;
     }
 
     const a = item.a;
@@ -1908,29 +1922,29 @@ function buliTeamCard(w) {
     const isLive = status === 'IN';
     const isPost = status === 'POST';
 
-    const home = a.team_name || 'Heim';
-    const away = a.opponent_name || 'Gast';
+    const home = a.team_name || tr('Heim', 'Home');
+    const away = a.opponent_name || tr('Gast', 'Away');
     const hScore = a.team_score !== null ? a.team_score : '-';
     const aScore = a.opponent_score !== null ? a.opponent_score : '-';
 
-    const dateStr = a.date ? new Date(a.date).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '';
-    const timeStr = a.date ? new Date(a.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+    const dateStr = a.date ? new Date(a.date).toLocaleDateString(getLocale(), { day: '2-digit', month: 'short' }) : '';
+    const timeStr = a.date ? new Date(a.date).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) : '';
 
-    let statusText = 'Nächstes Spiel in Vorbereitung';
+    let statusText = t('sports.upcoming');
     let statusIcon = 'check';
     let statusColor = 'var(--ok)';
-    let subText = `Letzter Gegner: ${a.opponent_long_name || away}`;
+    let subText = `${tr('Letzter Gegner:', 'Last opponent:')} ${a.opponent_long_name || away}`;
 
     if (isLive) {
       statusText = 'LIVE Ticker';
       statusIcon = 'race';
       statusColor = 'var(--warn)';
-      subText = `Aktueller Gegner: ${a.opponent_long_name || away}`;
+      subText = `${tr('Aktueller Gegner:', 'Current opponent:')} ${a.opponent_long_name || away}`;
     } else if (isPost) {
-      statusText = 'Spiel beendet (FT)';
+      statusText = `${t('sports.finished')} (FT)`;
     } else {
       statusIcon = 'calendar';
-      subText = `Nächster Gegner: ${a.opponent_long_name || away} (${timeStr} Uhr)`;
+      subText = `${tr('Nächster Gegner:', 'Next opponent:')} ${a.opponent_long_name || away} (${timeStr}${t('cal.clock_suffix')})`;
     }
 
     const borderBottom = idx === teamData.length - 1 ? 'none' : '1px solid var(--line)';
@@ -1968,10 +1982,10 @@ function buliTeamCard(w) {
 }
 
 function buliMatchdayCard(w) {
-  const title = w.title || 'Spieltag Übersicht';
+  const title = w.title || t('sports.matchday');
   const h = getHass();
 
-  if (!h || !h.states) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut sm">Keine Daten...</div></section>`;
+  if (!h || !h.states) return `<section class="card"><div class="ch"><b>${esc(title)}</b></div><div class="mut sm">${t('weather.no_data')}</div></section>`;
 
   const matches = Object.values(h.states).filter(s =>
     s && s.entity_id && s.entity_id.startsWith('sensor.') &&
@@ -1987,17 +2001,17 @@ function buliMatchdayCard(w) {
   const rows = matches.map(s => {
     const a = s.attributes;
     const status = s.state;
-    const home = a.team_name || 'Heim';
-    const away = a.opponent_name || 'Gast';
+    const home = a.team_name || tr('Heim', 'Home');
+    const away = a.opponent_name || tr('Gast', 'Away');
     const hScore = a.team_score !== null ? a.team_score : 0;
     const aScore = a.opponent_score !== null ? a.opponent_score : 0;
 
     let timeStr = '';
     if (status === 'IN' || status === 'POST') {
-      timeStr = `Ergebnis: ${hScore} : ${aScore}`;
+      timeStr = `${tr('Ergebnis', 'Score')}: ${hScore} : ${aScore}`;
     } else if (a.date) {
       const d = new Date(a.date);
-      timeStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + '. • ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+      timeStr = d.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit' }) + ' • ' + d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) + t('cal.clock_suffix');
     }
 
     let color = 'var(--mut)';
@@ -2015,17 +2029,17 @@ function buliMatchdayCard(w) {
 
   return `<section class="card">
     <div class="ch" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(title)}</b></div></div>
-    <div style="display:flex;flex-direction:column">${rows || '<div class="mut sm" style="padding:8px 0">Keine Spiele gefunden. (Teamtracker Integration prüfen)</div>'}</div>
+    <div style="display:flex;flex-direction:column">${rows || `<div class="mut sm" style="padding:8px 0">${tr('Keine Spiele gefunden.', 'No matches found.')}</div>`}</div>
   </section>`;
 }
 
 function buliTableCard(w) {
   const e = w.entity || 'sensor.bund_scoreboard2';
-  const t = w.title || 'Bundesliga';
+  const titleTxt = w.title || 'Bundesliga';
   const s = S(e);
 
   if (!s || !s.attributes || !s.attributes.entries) {
-    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(t)}</b></div></div><div class="mut sm" style="padding:8px 0">Warte auf Daten von ${esc(e)}...</div></section>`;
+    return `<section class="card"><div class="ch"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(titleTxt)}</b></div></div><div class="mut sm" style="padding:8px 0">${tr('Warte auf Daten von', 'Waiting for data from')} ${esc(e)}...</div></section>`;
   }
 
   const clean = n => ({"Bayern Munich":"FC Bayern","Borussia Dortmund":"BVB","Bayer Leverkusen":"Leverkusen","Hamburg SV":"HSV","FC Cologne":"Köln","Werder Bremen":"Bremen","VfL Wolfsburg":"Wolfsburg","1. FC Heidenheim 1846":"Heidenheim","Borussia Moenchengladbach":"Gladbach","Borussia Mönchengladbach":"Gladbach","Eintracht Frankfurt":"Frankfurt","TSG Hoffenheim":"Hoffenheim","VfB Stuttgart":"Stuttgart","RB Leipzig":"RB Leipzig","FC Augsburg":"Augsburg","1. FC Union Berlin":"Union Berlin","St. Pauli":"St. Pauli"}[n] || n);
@@ -2055,18 +2069,18 @@ function buliTableCard(w) {
   }).join('');
 
   return `<section class="card">
-    <div class="ch" style="margin-bottom:12px"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(t)}</b></div></div>
+    <div class="ch" style="margin-bottom:12px"><div style="display:flex;align-items:center;gap:9px">${ic('soccer',18)}<b>${esc(titleTxt)}</b></div></div>
     <div class="buli-row h">
       <div class="buli-c" style="background:transparent"></div>
-      <div class="text-center" style="width:20px">Pl</div>
-      <div style="flex:1">Verein</div>
-      <div class="text-center" style="width:18px" title="Spiele">Sp</div>
-      <div class="text-center" style="width:18px" title="Siege">S</div>
-      <div class="text-center" style="width:18px" title="Unentschieden">U</div>
-      <div class="text-center" style="width:18px" title="Niederlagen">N</div>
-      <div class="text-center" style="width:34px">Tore</div>
-      <div class="text-center" style="width:28px" title="Tordifferenz">Dif</div>
-      <div class="text-center" style="width:26px">Pkt</div>
+      <div class="text-center" style="width:20px">#</div>
+      <div style="flex:1">${tr('Verein', 'Club')}</div>
+      <div class="text-center" style="width:18px">${tr('Sp', 'P')}</div>
+      <div class="text-center" style="width:18px">${tr('S', 'W')}</div>
+      <div class="text-center" style="width:18px">${tr('U', 'D')}</div>
+      <div class="text-center" style="width:18px">${tr('N', 'L')}</div>
+      <div class="text-center" style="width:34px">${tr('Tore', 'Goals')}</div>
+      <div class="text-center" style="width:28px">Dif</div>
+      <div class="text-center" style="width:26px">${tr('Pkt', 'Pts')}</div>
     </div>
     <div style="display:flex;flex-direction:column">${rows}</div>
   </section>`;
@@ -2094,7 +2108,7 @@ function f1NextRaceCard(w) {
   const e = w.entity || 'sensor.f1_next_race';
   const s = S(e) || S('sensor.f1_race_f1_next_race');
   if (!s || ['unknown', 'unavailable'].includes(s.state)) {
-    return `<section class="f1-card"><div class="ch"><b>Nächstes Rennen</b></div><div class="mut sm">Warte auf Daten von ${esc(e)}...</div></section>`;
+    return `<section class="f1-card"><div class="ch"><b>${t('sports.next_race')}</b></div><div class="mut sm">${tr('Warte auf Daten von', 'Waiting for data from')} ${esc(e)}...</div></section>`;
   }
 
   const a = s.attributes || {};
@@ -2127,8 +2141,8 @@ function f1NextRaceCard(w) {
     const isNext = !isPast && !nextFound;
     if (isNext) nextFound = true;
 
-    const dFmt = isNaN(dObj) ? ses.iso : dObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
-    const tFmt = isNaN(dObj) ? '' : dObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+    const dFmt = isNaN(dObj) ? ses.iso : dObj.toLocaleDateString(getLocale(), { weekday: 'short', day: '2-digit', month: 'short' });
+    const tFmt = isNaN(dObj) ? '' : dObj.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) + t('cal.clock_suffix');
 
     return `<div class="f1-sched-row ${isPast ? 'mut' : ''}" style="${isPast ? 'opacity:0.45' : ''}">
        <div>
@@ -2152,7 +2166,7 @@ function f1NextRaceCard(w) {
 
     ${targetMs ? `<div class="f1-timer-wrap">
       <div class="mut sm" style="letter-spacing:1px">COUNTDOWN</div>
-      <div class="f1-timer" data-target="${targetMs}">Berechne...</div>
+      <div class="f1-timer" data-target="${targetMs}">...</div>
       <div class="mut sm">to lights out</div>
     </div>` : ''}
 
@@ -2173,14 +2187,14 @@ function f1StandingsCard(w) {
   const e = w.entity || 'sensor.f1_driver_standings';
   const s = S(e) || S('sensor.f1_championship_f1_driver_standings');
   if (!s || !s.attributes) {
-    return `<section class="f1-card"><div class="ch"><b>WM-Stand (Fahrer)</b></div><div class="mut sm">Warte auf Daten von ${esc(e)}...</div></section>`;
+    return `<section class="f1-card"><div class="ch"><b>${t('sports.standings')}</b></div><div class="mut sm">${tr('Warte auf Daten von', 'Waiting for data from')} ${esc(e)}...</div></section>`;
   }
 
   const a = s.attributes;
   const list = a.driver_standings || a.standings || a.drivers || [];
 
   if (!list.length) {
-    return `<section class="f1-card"><div class="ch"><b>WM-Stand (Fahrer)</b></div><div class="mut sm">Keine Tabellendaten gefunden.</div></section>`;
+    return `<section class="f1-card"><div class="ch"><b>${t('sports.standings')}</b></div><div class="mut sm">${t('weather.no_data')}</div></section>`;
   }
 
   const rows = list.map((d, idx) => {
@@ -2205,7 +2219,7 @@ function f1StandingsCard(w) {
 
   return `<section class="f1-card" style="padding:0">
     <div style="padding:16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--line);text-align:center">
-      <div style="font-size:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase">WM-Stand (Fahrer)</div>
+      <div style="font-size:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase">${t('sports.standings')}</div>
       <div class="mut sm" style="letter-spacing:2px;margin-top:2px">SEASON ${esc(a.season || '2026')}</div>
     </div>
     <div style="display:flex;flex-direction:column;padding:8px 16px 16px">${rows}</div>
@@ -2215,7 +2229,7 @@ function f1StandingsCard(w) {
 function customPageView(pageId) {
   const pIdx = (CONFIG.customPages || []).findIndex(p => p.id === pageId);
   const page = (CONFIG.customPages || [])[pIdx];
-  if (!page) return `<div class="mut">Seite nicht gefunden.</div>`;
+  if (!page) return `<div class="mut">${tr('Seite nicht gefunden.', 'Page not found.')}</div>`;
 
   const layout = String(page.layout || 'grid');
   const parsed = parseColsMode(layout, 'auto', 2);
@@ -2235,28 +2249,28 @@ function customPageView(pageId) {
     if (!inner && !ui.editMode) return '';
     const colVal = String(w.col || 'auto');
     const qeBar = ui.editMode ? `<div class="qe-bar">
-      <span class="qe-title">🧩 ${esc(w.title || w.type)}</span>
+      <span class="qe-title">🧩 ${esc(tDefault(w.title || w.type))}</span>
       <div class="qe-btns">
-        <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="-1" title="Nach oben / links">↑</button>
-        <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="1" title="Nach unten / rechts">↓</button>
-        ${colChoices.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeWidgetCol" data-pi="${pIdx}" data-wi="${wi}" data-col="${c}" title="Spalte zuweisen">${c === 'auto' ? 'Auto' : c === 'full' ? 'Voll' : 'Sp.' + c}</button>`).join('')}
-        <button class="qe-btn ${w.show === false ? 'off' : ''}" data-act="qeWidgetVis" data-pi="${pIdx}" data-wi="${wi}" title="Ein-/Ausblenden">${w.show === false ? '🙈' : '👁️'}</button>
-        <button class="qe-btn" data-act="cfgOpenTab" data-tab="pages" title="Im Editor bearbeiten">⚙️</button>
+        <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="-1" title="${t('qe.move_up')}">↑</button>
+        <button class="qe-btn" data-act="qeWidgetMove" data-pi="${pIdx}" data-wi="${wi}" data-dir="1" title="${t('qe.move_down')}">↓</button>
+        ${colChoices.map(c => `<button class="qe-btn ${colVal === c ? 'on' : ''}" data-act="qeWidgetCol" data-pi="${pIdx}" data-wi="${wi}" data-col="${c}">${c === 'auto' ? 'Auto' : c === 'full' ? tr('Voll', 'Full') : tr('Sp.', 'Col.') + c}</button>`).join('')}
+        <button class="qe-btn ${w.show === false ? 'off' : ''}" data-act="qeWidgetVis" data-pi="${pIdx}" data-wi="${wi}">${w.show === false ? '🙈' : '👁️'}</button>
+        <button class="qe-btn" data-act="cfgOpenTab" data-tab="pages" title="${t('qe.open_config')}">⚙️</button>
       </div>
     </div>` : '';
     const spanFull = colVal === 'full' ? 'grid-column: 1 / -1;' : '';
-    return `<div class="qe-wrap ${w.show === false ? 'qe-hidden' : ''}" style="${spanFull}">${qeBar}${inner || `<section class="card"><div class="mut">Leeres Widget (${esc(w.type)})</div></section>`}</div>`;
+    return `<div class="qe-wrap ${w.show === false ? 'qe-hidden' : ''}" style="${spanFull}">${qeBar}${inner || `<section class="card"><div class="mut">${tr('Leeres Widget', 'Empty widget')} (${esc(w.type)})</div></section>`}</div>`;
   };
 
   const pageToolbar = ui.editMode ? `<div class="qe-page-bar">
-    <span>📐 <b>Seiten-Layout:</b></span>
-    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="grid">Auto-Raster</button>
-    <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="2col-asym">2 Spalten (Links breit / Rechts schmal)</button>
-    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="${n}col">${n} ${n === 1 ? 'Spalte' : 'Spalten'}</button>`).join('')}
-    <label class="qe-col-custom" title="Beliebige Spaltenanzahl eingeben (z. B. 5 oder 6)">
-      <span>Frei:</span>
+    <span>📐 <b>${tr('Seiten-Layout:', 'Page Layout:')}</b></span>
+    <button class="chip ${parsed.mode === 'auto' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="grid">${tr('Auto-Raster', 'Auto Grid')}</button>
+    <button class="chip ${parsed.mode === 'asym' ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="2col-asym">${tr('2 Spalten (Links breit / Rechts schmal)', '2 Columns (Wide left / Narrow right)')}</button>
+    ${[1, 2, 3, 4].map(n => `<button class="chip ${parsed.mode === 'cols' && parsed.cols === n ? 'on' : ''}" data-act="qePageLayout" data-pi="${pIdx}" data-layout="${n}col">${n} ${n === 1 ? tr('Spalte', 'Column') : tr('Spalten', 'Columns')}</button>`).join('')}
+    <label class="qe-col-custom">
+      <span>${tr('Frei:', 'Custom:')}</span>
       <input type="number" min="1" max="12" class="qe-col-input" data-act="qePageColsInput" data-pi="${pIdx}" value="${parsed.mode === 'cols' ? parsed.cols : ''}" placeholder="1-12">
-      <span>Sp.</span>
+      <span>${tr('Sp.', 'Col.')}</span>
     </label>
   </div>` : '';
 
@@ -2264,7 +2278,7 @@ function customPageView(pageId) {
   const isMultiColMode = parsed.mode === 'cols' || parsed.mode === 'asym' || hasExplicitCols;
 
   if (!allWidgets.length) {
-    return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}${pageToolbar}<div class="mut">Noch keine Widgets auf dieser Seite.</div>`;
+    return `${pageHeader(page.eyebrow, page.title || page.label, page.intro)}${pageToolbar}<div class="mut">${tr('Noch keine Widgets auf dieser Seite.', 'No widgets on this page yet.')}</div>`;
   }
 
   if (parsed.mode === 'cols' && parsed.cols === 1) {
@@ -2322,20 +2336,20 @@ function formatCountdown(entity, fallback = '') {
   const ms = Date.parse(String(s.state || '').trim());
   if (!Number.isFinite(ms)) return fallback;
   const diff = ms - Date.now();
-  if (diff <= 0) return 'Jetzt';
+  if (diff <= 0) return t('rain.now');
   const mins = Math.floor(diff / 60000), hours = Math.floor(mins / 60), rest = mins % 60;
   return `${hours > 0 ? `${hours}h ` : ''}${rest}m`;
 }
 function wasteType(summary) {
   const value = String(summary || '').trim();
-  if (/strauch|astwerk|grüngut|gruengut|gartenabfall/i.test(value)) return { label: 'Grüngut', icon: 'leaf', color: '#84cc16' };
-  if (/bio|braune tonne|kompost/i.test(value)) return { label: 'Biotonne', icon: 'leaf', color: '#a16207' };
-  if (/gelbe tonne|gelber sack|wertstoff|recycling|dual/i.test(value)) return { label: 'Gelber Sack', icon: 'trash', color: '#fbbf24' };
-  if (/glas|altglas/i.test(value)) return { label: 'Altglas', icon: 'trash', color: '#2dd4bf' };
-  if (/grüne tonne|blaue tonne|papier|pappe/i.test(value)) return { label: 'Papier', icon: 'cal', color: '#60a5fa' };
-  if (/graue tonne|schwarze tonne|restmüll|restmuell/i.test(value)) return { label: 'Restmüll', icon: 'trash', color: '#9ca3af' };
-  if (/sperrmüll|sperrmuell/i.test(value)) return { label: 'Sperrmüll', icon: 'trash', color: '#c084fc' };
-  return { label: 'Abfall', icon: 'trash', color: '#9ca3af' };
+  if (/strauch|astwerk|grüngut|gruengut|gartenabfall/i.test(value)) return { label: t('trash.green'), icon: 'leaf', color: '#84cc16' };
+  if (/bio|braune tonne|kompost/i.test(value)) return { label: t('trash.bio'), icon: 'leaf', color: '#a16207' };
+  if (/gelbe tonne|gelber sack|wertstoff|recycling|dual/i.test(value)) return { label: t('trash.yellow'), icon: 'trash', color: '#fbbf24' };
+  if (/glas|altglas/i.test(value)) return { label: t('trash.glass'), icon: 'trash', color: '#2dd4bf' };
+  if (/grüne tonne|blaue tonne|papier|pappe/i.test(value)) return { label: t('trash.paper'), icon: 'cal', color: '#60a5fa' };
+  if (/graue tonne|schwarze tonne|restmüll|restmuell/i.test(value)) return { label: t('trash.residual'), icon: 'trash', color: '#9ca3af' };
+  if (/sperrmüll|sperrmuell/i.test(value)) return { label: t('trash.bulky'), icon: 'trash', color: '#c084fc' };
+  return { label: t('trash.general'), icon: 'trash', color: '#9ca3af' };
 }
 function getUpcomingTrashItems(maxDays = 2) {
   const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -2349,7 +2363,7 @@ function getUpcomingTrashItems(maxDays = 2) {
   }).map(ev => {
     const day = new Date(ev.startMs); day.setHours(0, 0, 0, 0);
     const days = Math.round((day.getTime() - today) / 86400000);
-    const when = days === 0 ? 'Heute' : days === 1 ? 'Morgen' : `in ${days} Tagen`;
+    const when = days === 0 ? t('cal.today') : days === 1 ? t('cal.tomorrow') : t('trash.in_days', { n: days });
     return { ...ev, days, when, type: wasteType(ev.summary) };
   });
 }
@@ -2414,10 +2428,10 @@ function homeHeaderBadges() {
     if (b.entity1 && !w1Raw) return;
 
     let text = (b.format || '[W1]').replace('[W1]', w1Raw).replace('[W2]', w2Raw);
-    if (text.includes('Jetzt')) text = 'Fertig';
+    if (text.includes('Jetzt') || text.includes('Now')) text = tr('Fertig', 'Done');
 
     const colorCls = parseBadgeColor(b.colorLogic, w1Raw, w2Raw);
-    badges.push({ icon: b.icon || 'plug', cls: colorCls, title: b.title, value: text });
+    badges.push({ icon: b.icon || 'plug', cls: colorCls, title: tDefault(b.title), value: text });
   });
 
   if (!badges.length) return '';
@@ -2447,7 +2461,7 @@ function getCalendarMonthRange(offset = 0, refDate = new Date()) {
   const totalDays = startWeekday + lastDay.getDate();
   const cellCount = totalDays > 35 ? 42 : 35;
   const gridEnd = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + cellCount, 0, 0, 0, 0);
-  const label = firstDay.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const label = firstDay.toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
   return {
     year,
     month,
@@ -2497,7 +2511,7 @@ function normalizeCalendarEvent(event, entity) {
   const startMs = parseCalendarDate(startRaw);
   const startString = typeof startRaw === 'object' ? (startRaw.dateTime || startRaw.date || '') : String(startRaw);
   return {
-    entity, summary: event.summary || event.message || event.title || 'Termin',
+    entity, summary: event.summary || event.message || event.title || tr('Termin', 'Event'),
     description: event.description || '', location: event.location || '',
     startRaw: startString, startMs,
     endMs: parseCalendarDate(event.end ?? event.end_time ?? event.endTime ?? ''),
@@ -2650,35 +2664,35 @@ async function refreshHomeCalendars(force = false) {
   }
 }
 function formatCalEventTime(ev) {
-  if (ev.allDay) return 'Ganztags';
-  const t1 = new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (ev.allDay) return t('cal.all_day');
+  const t1 = new Date(ev.startMs).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
   if (Number.isFinite(ev.endMs) && ev.endMs > ev.startMs) {
-    const t2 = new Date(ev.endMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    return `${t1} – ${t2} Uhr`;
+    const t2 = new Date(ev.endMs).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
+    return `${t1} – ${t2}${t('cal.clock_suffix')}`;
   }
-  return `${t1} Uhr`;
+  return `${t1}${t('cal.clock_suffix')}`;
 }
 function buildCalendarViewSwitcherHtml(activeStyle, ctxType = 'home') {
   const styles = (typeof CALENDAR_STYLES !== 'undefined' && Array.isArray(CALENDAR_STYLES)) ? CALENDAR_STYLES : [
-    ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
-    ['agenda', '⚡ Kompakt-Agenda (Nur Termine)', 'Agenda'],
-    ['google', '🟦 Google-Kalender-Stil',        'Google'],
-    ['apple',  '🍎 Apple-Kalender-Stil (Split)', 'Apple'],
-    ['board',  '🗂️ Wochen-Board (7 Spalten)',    'Board'],
-    ['month',  '📅 Monats-Kalender (Raster)',    'Monat']
+    ['list',   t('cal.style.list'),   t('cal.short.list')],
+    ['agenda', t('cal.style.agenda'), t('cal.short.agenda')],
+    ['google', t('cal.style.google'), t('cal.short.google')],
+    ['apple',  t('cal.style.apple'),  t('cal.short.apple')],
+    ['board',  t('cal.style.board'),  t('cal.short.board')],
+    ['month',  t('cal.style.month'),  t('cal.short.month')]
   ];
   const btns = styles.map(([id, fullLabel, shortLabel]) =>
     `<button type="button" class="cal-sw-btn ${activeStyle === id ? 'on' : ''}" data-act="calQuickStyle" data-ctx="${esc(ctxType)}" data-style="${esc(id)}" title="${esc(fullLabel)}">${esc(shortLabel || id)}</button>`
   ).join('');
-  return `<div class="cal-switcher" role="group" aria-label="Kalender-Ansicht wählen">${btns}</div>`;
+  return `<div class="cal-switcher" role="group" aria-label="${esc(t('cal.switch_style'))}">${btns}</div>`;
 }
 function buildMonthNavHtml(mRange) {
   const isCurrentMonth = (Number(homeCalendarState.monthOffset) || 0) === 0;
   return `<div class="cal-month-nav">
-    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="-1" title="Vorheriger Monat">‹</button>
+    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="-1" title="${esc(t('cal.prev_month'))}">‹</button>
     <b class="cal-month-lbl">${esc(mRange.label)}</b>
-    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="1" title="Nächster Monat">›</button>
-    <button type="button" class="cal-today-btn ${isCurrentMonth ? 'on' : ''}" data-act="calMonthToday" title="Zum aktuellen Monat & Heute springen">Heute</button>
+    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="1" title="${esc(t('cal.next_month'))}">›</button>
+    <button type="button" class="cal-today-btn ${isCurrentMonth ? 'on' : ''}" data-act="calMonthToday" title="${esc(t('cal.today'))}">${t('cal.today')}</button>
   </div>`;
 }
 function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', overrideStyle = null) {
@@ -2694,9 +2708,9 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
 
   const effDays = Math.max(1, parseInt(daysCount, 10) || 7);
   const defaultTitle = (style === 'month' || style === 'apple')
-    ? 'Familienkalender'
-    : `Familienkalender · ${effDays} Tage`;
-  const title = customTitle || defaultTitle;
+    ? t('cal.page_title')
+    : t('cal.sub_days', { n: effDays });
+  const title = tDefault(customTitle) || defaultTitle;
   const switcherHtml = buildCalendarViewSwitcherHtml(style, ctxType);
 
   // Für Apple & Monat: Monatsdaten aus Cache holen (oder asynchron nachladen)
@@ -2708,7 +2722,7 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
     }
     const monthEvents = cached ? cached.events : (DEMO ? getDemoCalendarEvents(mRange.gridStart.getTime(), mRange.gridEnd.getTime()) : homeCalendarState.family);
     const selKey = homeCalendarState.selectedDateKey || todayKey;
-    const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const weekdays = [t('cal.wd_mon'), t('cal.wd_tue'), t('cal.wd_wed'), t('cal.wd_thu'), t('cal.wd_fri'), t('cal.wd_sat'), t('cal.wd_sun')];
     const wdHeader = weekdays.map(w => `<div class="cal-wd">${w}</div>`).join('');
 
     const cells = [];
@@ -2723,13 +2737,12 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
       const dayEvents = monthEvents.filter(ev => isEventOnDay(ev, cellDate));
       cells.push({ cellDate, key, inMonth, isToday, isSel, dayEvents });
     }
-    // Falls ausgewähltes Datum nicht im sichtbaren Raster liegt, auf 1. des Monats (oder Heute) setzen
     if (!cells.some(c => c.key === selKey)) {
       const fallbackCell = cells.find(c => c.isToday) || cells.find(c => c.inMonth) || cells[0];
       if (fallbackCell) selectedDayObj = fallbackCell.cellDate;
     }
     const selEvents = monthEvents.filter(ev => isEventOnDay(ev, selectedDayObj));
-    const selDateTitle = selectedDayObj.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const selDateTitle = selectedDayObj.toLocaleDateString(getLocale(), { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     const selDetailListHtml = selEvents.length
       ? selEvents.map(ev => `<div class="cal-detail-item" style="--ev-c:${esc(ev.color || 'var(--acc2)')}">
           <div class="cal-detail-time">${esc(formatCalEventTime(ev))}</div>
@@ -2739,7 +2752,9 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
             ${ev.description ? `<small>${esc(ev.description)}</small>` : ''}
           </div>
         </div>`).join('')
-      : `<div class="home-agenda-empty">Keine Termine an diesem Tag.</div>`;
+      : `<div class="home-agenda-empty">${t('cal.no_events_day')}</div>`;
+
+    const countLabel = selEvents.length === 1 ? t('cal.single_event') : t('cal.events_count', { n: selEvents.length });
 
     if (style === 'apple') {
       const miniCellsHtml = cells.map(c => {
@@ -2763,7 +2778,7 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
           <div class="cal-apple-right">
             <div class="cal-detail-hdr">
               <b>${esc(selDateTitle)}</b>
-              <span class="mut sm">${selEvents.length} ${selEvents.length === 1 ? 'Termin' : 'Termine'}</span>
+              <span class="mut sm">${esc(countLabel)}</span>
             </div>
             <div class="cal-detail-list">${selDetailListHtml}</div>
           </div>
@@ -2774,10 +2789,10 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
     // 6. month (Großes Monats-Raster mit Termin-Vorschau in den Tageszellen + Klick-Detailansicht)
     const monthCellsHtml = cells.map(c => {
       const previews = c.dayEvents.slice(0, 3).map(ev => {
-        const tShort = ev.allDay ? '' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' ';
+        const tShort = ev.allDay ? '' : new Date(ev.startMs).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) + ' ';
         return `<div class="cal-month-pill" style="--ev-c:${esc(ev.color || 'var(--acc2)')}" title="${esc(ev.summary)} (${esc(formatCalEventTime(ev))})">${esc(tShort + ev.summary)}</div>`;
       }).join('');
-      const more = c.dayEvents.length > 3 ? `<div class="cal-month-more">+${c.dayEvents.length - 3} weitere</div>` : '';
+      const more = c.dayEvents.length > 3 ? `<div class="cal-month-more">${t('cal.more_events', { n: c.dayEvents.length - 3 })}</div>` : '';
       return `<button type="button" class="cal-month-cell ${c.inMonth ? '' : 'outside'} ${c.isToday ? 'today' : ''} ${c.key === toLocalDateKey(selectedDayObj) ? 'selected' : ''}" data-act="calSelectDay" data-date="${esc(c.key)}">
         <div class="cal-month-cell-top"><span class="cal-month-num">${c.cellDate.getDate()}</span></div>
         <div class="cal-month-events">${previews}${more}</div>
@@ -2794,7 +2809,7 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
       <div class="cal-month-detail">
         <div class="cal-detail-hdr">
           <b>📌 ${esc(selDateTitle)}</b>
-          <span class="mut sm">${selEvents.length} ${selEvents.length === 1 ? 'Termin' : 'Termine'}</span>
+          <span class="mut sm">${esc(countLabel)}</span>
         </div>
         <div class="cal-detail-list">${selDetailListHtml}</div>
       </div>
@@ -2818,8 +2833,8 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
     day.setDate(day.getDate() + i);
     const key = toLocalDateKey(day);
     const events = upcoming.filter(ev => isEventOnDay(ev, day));
-    const dayLabel = i === 0 ? 'Heute' : i === 1 ? 'Morgen' : day.toLocaleDateString('de-DE', { weekday: 'short' });
-    const dateLabel = day.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    const dayLabel = i === 0 ? t('cal.today') : i === 1 ? t('cal.tomorrow') : day.toLocaleDateString(getLocale(), { weekday: 'short' });
+    const dateLabel = day.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit' });
     return { i, day, key, isToday: i === 0, dayLabel, dateLabel, events };
   });
 
@@ -2831,21 +2846,21 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
           const eventHtml = d.events.map(ev => `<div class="home-agenda-event"><b>${esc(ev.summary)}</b><small>${esc(formatCalEventTime(ev))}</small></div>`).join('');
           return `<div class="home-agenda-row ${d.isToday ? 'is-today' : ''}" style="--agenda-accent:${esc(d.events[0]?.color || '#34d399')}"><div class="home-agenda-date">${esc(d.dayLabel)}<br>${esc(d.dateLabel)}</div><div class="home-agenda-main">${eventHtml}</div></div>`;
         }).join('')
-      : `<div class="home-agenda-empty">Keine anstehenden Termine in den nächsten ${effDays} Tagen.</div>`;
+      : `<div class="home-agenda-empty">${t('cal.no_events_next_days', { n: effDays })}</div>`;
     return `<section class="card home-agenda cal-card cal-style-agenda" data-cal-style="agenda"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="home-agenda-list">${rows}</div></section>`;
   }
 
   // 3. google (Google-Kalender-Stil: Farbige abgerundete Termin-Pillen, Rasterlinien, rote aktuelle Tages-/Zeitlinie)
   if (style === 'google') {
-    const nowTimeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const nowTimeStr = now.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
     const gRows = daysList.map(d => {
-      const wdShort = d.day.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
+      const wdShort = d.day.toLocaleDateString(getLocale(), { weekday: 'short' }).replace('.', '');
       const pills = d.events.map(ev => `<div class="cal-google-pill" style="--ev-c:${esc(ev.color || '#38bdf8')}">
-        <span class="cal-google-pill-time">${esc(ev.allDay ? 'Ganztags' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))}</span>
+        <span class="cal-google-pill-time">${esc(ev.allDay ? t('cal.all_day') : new Date(ev.startMs).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }))}</span>
         <b class="cal-google-pill-title">${esc(ev.summary)}</b>
         ${ev.location ? `<small class="cal-google-pill-loc">· ${esc(ev.location)}</small>` : ''}
       </div>`).join('');
-      const nowLine = d.isToday ? `<div class="cal-google-nowline" title="Aktuelle Uhrzeit: ${esc(nowTimeStr)} Uhr"><span>${esc(nowTimeStr)}</span><i></i></div>` : '';
+      const nowLine = d.isToday ? `<div class="cal-google-nowline" title="${esc(nowTimeStr)}"><span>${esc(nowTimeStr)}</span><i></i></div>` : '';
       return `<div class="cal-google-day ${d.isToday ? 'today' : ''}">
         <div class="cal-google-datecol">
           <span class="cal-google-wd">${esc(wdShort)}</span>
@@ -2853,7 +2868,7 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
         </div>
         <div class="cal-google-slot">
           ${nowLine}
-          ${pills || `<div class="cal-google-empty">Keine Termine</div>`}
+          ${pills || `<div class="cal-google-empty">${t('cal.no_events')}</div>`}
         </div>
       </div>`;
     }).join('');
@@ -2863,16 +2878,16 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
   // 5. board (Wochen-Board / 7 gleichmäßige Karten-Spalten Mo-So bzw. 7 Tage nebeneinander)
   if (style === 'board') {
     const boardCols = daysList.slice(0, 7).map(d => {
-      const wdName = d.day.toLocaleDateString('de-DE', { weekday: 'short' });
+      const wdName = d.day.toLocaleDateString(getLocale(), { weekday: 'short' });
       const cards = d.events.length
         ? d.events.map(ev => `<div class="cal-board-ev" style="--ev-c:${esc(ev.color || 'var(--acc2)')}">
-            <small>${esc(ev.allDay ? 'Ganztags' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr')}</small>
+            <small>${esc(ev.allDay ? t('cal.all_day') : new Date(ev.startMs).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) + t('cal.clock_suffix'))}</small>
             <b>${esc(ev.summary)}</b>
           </div>`).join('')
-        : `<div class="cal-board-empty">Frei</div>`;
+        : `<div class="cal-board-empty">${t('cal.free')}</div>`;
       return `<div class="cal-board-col ${d.isToday ? 'today' : ''}">
         <div class="cal-board-col-hdr">
-          <span class="cal-board-wd">${esc(d.isToday ? 'Heute' : wdName)}</span>
+          <span class="cal-board-wd">${esc(d.isToday ? t('cal.today') : wdName)}</span>
           <b class="cal-board-dt">${esc(d.dateLabel)}</b>
         </div>
         <div class="cal-board-col-body">${cards}</div>
@@ -2885,7 +2900,7 @@ function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', o
   const dayRows = daysList.map(d => {
     const eventHtml = d.events.length
       ? d.events.map(ev => `<div class="home-agenda-event"><b>${esc(ev.summary)}</b><small>${esc(formatCalEventTime(ev))}</small></div>`).join('')
-      : '<small>Keine Termine</small>';
+      : `<small>${t('cal.no_events')}</small>`;
     return `<div class="home-agenda-row ${d.isToday ? 'is-today' : ''}" style="--agenda-accent:#F1C40F"><div class="home-agenda-date">${esc(d.dayLabel)}<br>${esc(d.dateLabel)}</div><div class="home-agenda-main">${eventHtml}</div></div>`;
   }).join('');
   return `<section class="card home-agenda cal-card cal-style-list" data-cal-style="list"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="home-agenda-list">${dayRows}</div></section>`;
@@ -2894,7 +2909,7 @@ function homeTrashCard(maxDays = 2, maxItems = 6, subtitle = null) {
   const calCfg = CONFIG.calendars || {};
   if (!(calCfg.trashEntities && calCfg.trashEntities.length)) return '';
   const items = getUpcomingTrashItems(maxDays).slice(0, maxItems);
-  const effSubtitle = subtitle || (maxDays === 2 ? 'Nächste 3 Tage' : `Nächste ${maxDays + 1} Tage`);
+  const effSubtitle = tDefault(subtitle) || t('trash.next_days', { n: maxDays + 1 });
   const rows = items.map(ev => `<div class="home-agenda-row" style="--agenda-accent:${ev.type.color}"><div class="home-agenda-date">${esc(ev.when)}</div><div class="home-agenda-main"><span class="home-trash-type">${ic(ev.type.icon, 13)} ${esc(ev.type.label)}</span><b>${esc(ev.summary)}</b></div></div>`).join('');
-  return `<section class="card home-agenda"><div class="ch"><b>Abfallkalender</b><span class="mut sm">${esc(effSubtitle)}</span></div><div class="home-agenda-list">${rows || `<div class="home-agenda-empty">Keine Abholung (${esc(effSubtitle)}).</div>`}</div></section>`;
+  return `<section class="card home-agenda"><div class="ch"><b>${t('trash.title')}</b><span class="mut sm">${esc(effSubtitle)}</span></div><div class="home-agenda-list">${rows || `<div class="home-agenda-empty">${t('trash.no_pickup', { sub: effSubtitle })}</div>`}</div></section>`;
 }
