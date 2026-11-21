@@ -2,37 +2,29 @@
 
 Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Home Assistant im edlen Dark-Design. 
 
-<img width="1904" height="1080" alt="image" src="https://github.com/user-attachments/assets/7b1eb930-f27f-4f8b-a44e-33729f46738a" />
+<img width="1904" height="919" alt="image" src="https://github.com/user-attachments/assets/8abafa1d-00f6-407a-9819-97320b0304fd" />
 
 ---
 
 ## ✨ Features
 
-### 🎨 Oberfläche, Layout & Bedienung
-- **Moderne Benutzeroberfläche:** Übersichtlich strukturierte Startseite (Dashboard) mit integriertem Raum-Banner, Live-Kamera, dynamischen Header-Badges und Schnellstart-Pillen.
-- **Flexibles Raster & Quick-Edit:** Wähle zwischen asymmetrischen Spalten-Layouts (z. B. 70/30, 65/35, 50/50) oder einem freien 12-Spalten-Grid und verschiebe Kacheln direkt über den Quick-Edit-Modus.
-- **Modernes Profil-Popover-Menü:** Floating-Glassmorphism-Menü unten in der Seitenleiste für Schnell-Bearbeitung, Vollbild/Kiosk und den Konfigurator.
-- **12 Design-Presets & Anpassung:** Umschaltbare Farb- und Theme-Vorlagen (z. B. *Midnight Purple*, *OLED Pure Black*, *Nordic Frost*, *Cyber Neon*) sowie individuelle Rundungen, Dichte-Stufen und Banner-Textfarben.
-- **Lokale Endgeräte-Profile & OLED-Screensaver:** Gerätespezifische Startansichten (z. B. für Wandtablet Flur, Tablet Büro oder PC), automatische Rückkehr nach Inaktivität und ein minimalistischer Uhren-/Wetter-Screensaver als Burn-In-Schutz.
-
-### 🛠️ Visueller No-Code-Konfigurator
-- **100 % In-App-Konfiguration:** Alle Räume, Geräte, Lichtgruppen, Metriken und eigenen Seiten lassen sich direkt im Browser über einen grafischen Editor anpassen – ganz ohne YAML-Dateien.
-- **Intelligente Live-Suche & Seiten-Steuerung:** Durchsucht alle Tabs, Labels und Entitäts-IDs in Echtzeit (mit automatischem Aufklappen, Treffer-Hervorhebung und Zähler), erlaubt 1-Klick-Raum-Unterseiten und bietet einen gesicherten Datei-Upload für eigene Raum-Hintergründe.
-
-### 📅 Familienkalender & Zusatzseiten
-- **6 wählbare Kalender-Optiken + Live-Umschalter:** Getrennt konfigurierbar für das Home-Widget und die Kalender-Seite sowie direkt im Header umschaltbar zwischen **7-Tage-Liste**, **Kompakt-Agenda**, **Google-Kalender-Stil**, **Apple-Kalender-Stil (Split)**, **Wochen-Board (7 Spalten)** und **Monats-Kalender** (inkl. dynamischem Monats-Abruf).
-- **Modulare Zusatz-Widgets:** Vorabend-Müllerinnerung (ab 17:00 Uhr), Universal Sport-Center (Fußball, NFL, NBA, NHL, Tennis, Formel 1 inkl. Live-Suche ohne API-Key), 7-Tage-Wettervorhersage und TaskMate/To-Do-Listen.
-
-### 📷 Kameras, Sicherheit & PIN-Schutz
-- **Hybride Live-Kameras:** Nahtlose Integration von `go2rtc` (mit automatischem Pausieren außerhalb des Sichtfelds) sowie automatischer Umschaltung auf Home-Assistant-Stream und Live-Snapshot-Polling für unterwegs/Companion App.
-- **Intelligentes Event-Kamera-Popup:** Öffnet bei Türklingel oder Bewegungserkennung (z. B. Frigate/AI) automatisch das Live-Kamerabild im Vollbild-Popup – inklusive wählbarem Trigger-Verhalten, Seiten-Filter (überall oder nur ausgewählte Seiten) und einstellbarer Nachlaufzeit (Hold-Time).
-- **Kiosk-Modus & Serverseitiger PIN-Schutz:** Blende die Home Assistant Seitenleiste aus und schütze Editor, Systemlinks, Kiosk-Exit oder Türschlösser (inkl. Akku-Anzeige) mit einer PIN, die im Backend per SHA-256-Hash geprüft wird.
-- **Fenster- & Tür-Offen-Timer:** Live-Timer geöffneter Fenster/Türen mit automatischer Auskühlungswarnung bei kalter Außenluft.
-
-### ⚡ Energie, Klima & Smart-Home-Steuerung
-- **Interaktive Verlaufs-Popups:** Jedes Diagramm (Metriken, Raumklima, benutzerdefinierte Statistiken) lässt sich antippen und bietet eine detaillierte 24h- sowie 7-Tage-Großansicht mit Höchst-, Tiefst- und Durchschnittswerten sowie Vergleichslinien zum Vortag/Vorwoche.
-- **Energie-Suite & Haushalt:** Speicher-Restlaufzeit- & Ladeprognose, Autarkiegrad-Anzeige, dynamische Strompreise (Tibber / EPEX Spot), Wallbox/E-Auto-Kachel, Haushaltsgeräte-Monitor (Waschmaschine, Trockner, Spülmaschine) und 60-Minuten-Regenradar.
-- **Detail-Popups & Konfigurierbare Klima-Kacheln:** Feinsteuerung für Lichter (Helligkeit, Farbtemperatur, RGB, Effekte, Gruppenschalter-Ausnahmen), Medienplayer, Rolläden und Klimaanlagen.
+- **Moderne Benutzeroberfläche:** Übersichtlich strukturierte Startseite (Dashboard) mit integriertem Hero-Hintergrund, Live-Kamera und Schnellstart-Pillen.
+- **Visueller In-App-Konfigurator:** Alle Räume, Entitäten, Metriken und Design-Farben lassen sich direkt im Browser über einen grafischen Editor anpassen – ganz ohne mühsames Bearbeiten von YAML-Dateien.
+- **Interaktive Verlaufs-Popups:** Jedes Diagramm (Metriken, Raumklima, benutzerdefinierte Statistiken) lässt sich antippen und bietet eine detaillierte 24h- sowie 7-Tage-Großansicht mit automatischen Höchst-, Tiefst- und Durchschnittswerten sowie Vergleichslinien zum Vortag/Vorwoche.
+- **Speicher-Restlaufzeit & Ladeprognose:** Automatische Berechnung der verbleibenden Akkulaufzeit (aktuelle Last / Grundlast) sowie der voraussichtlichen Vollladungs-Uhrzeit bei PV-Überschuss.
+- **Dynamische Strompreise (Tibber / EPEX Spot):** 24h-Balkendiagramm stündlicher Strompreise mit Ampelfarben (Grün/Günstig bis Rot/Teuer).
+- **Wallbox & E-Auto Kachel:** Übersicht von Fahrzeug-SoC (%), Ladeleistung (W/kW), Stecker-Status und Schnell-Umschaltung des Lademodus.
+- **Haushaltsgeräte-Monitor:** Zentrale Statuskachel für Waschmaschine, Spülmaschine oder Trockner mit Restlaufzeit, Programmfortschritt und Fertig-Hinweis.
+- **Regenradar (60-Minuten-Vorschau):** Visuelle Niederschlagsvorschau mit smartem Ratschlag fürs Gassigehen und Stoßlüften.
+- **Fenster- & Tür-Offen-Timer:** Live-Timer geöffneter Fenster/Türen mit Auskühlungswarnung bei kalter Außenluft.
+- **Vorabend-Müllerinnerung:** Automatische Erinnerungs-Karte am Vorabend ab 17:00 Uhr, wenn morgen eine Mülltonne geleert wird.
+- **OLED Ambient-Screensaver:** Minimalistischer Uhren- und Status-Screen bei Inaktivität als Burn-In-Schutz für Wandtablets.
+- **Event-Kamera-Popup:** Öffnet automatisch die Eingangskamera im Großbild-Popup, wenn die Türklingel oder ein Bewegungssensor auslöst.
+- **Konfigurierbare Klima-Kacheln:** Frei belegbare Kacheln für Betriebsmodus, Lüfterstufen oder eigene Helfer (z. B. `climate.*`, `fan.*`, `switch.*`, `select.*`) – global oder individuell pro Raum einstellbar.
+- **In-App Datei-Upload:** Lade eigene Hintergrundbilder für deine Räume direkt hoch; sie werden automatisch im Home-Assistant-Dateisystem gespeichert.
+- **Kiosk-Modus & PIN-Schutz:** Blende die originale Home Assistant Seitenleiste aus (Vollbild) und schütze den Editor, Systemlinks oder das Entriegeln von Haustüren mit einer PIN.
+- **WebRTC & Live-Kameras:** Nahtlose Integration von `go2rtc` (mit ressourcensparendem automatischem Pausieren außerhalb des Sichtfelds) sowie native HA-Kamerastreams und Lightbox-Großansicht.
+- **Modulare Zusatzseiten:** Integrierte Widgets für Universal-Sport-Center (Fußball, NFL, Tennis etc.), Wettervorhersage, Familienkalender, Abfallkalender, TaskMate/To-Do-Listen und Statistiken.
 
 ---
 
@@ -53,55 +45,27 @@ Ein modernes, modulares und hochgradig anpassbares Smart-Home-Dashboard für Hom
 1. Gehe nach dem Neustart auf **Einstellungen** → **Geräte & Dienste** → **Integration hinzufügen**.
 2. Suche nach **Smart Home Hub** und füge die Integration hinzu.
 3. In deiner linken Home Assistant Seitenleiste taucht nun der neue Menüpunkt auf.
-4. Klicke im Dashboard unten links auf deine **Profil-Kachel** (bzw. das Popover-Menü), um den **Dashboard-Konfigurator** zu öffnen.
-5. Nutze im Tab *System & Backup* entweder den **Auto-Discovery-Button**, um deine HA-Räume automatisch einzulesen, oder lade das mitgelieferte **Timo-Preset** als Startvorlage.
-
----
-
-## 🏠 Als Standard-Dashboard festlegen (Browser & Companion App)
-
-Damit der **Smart Home Hub** beim Öffnen von Home Assistant (und in der Companion App auf dem Wand-Tablet/Smartphone) direkt als Standard-Startseite geladen wird, lege ein neues Lovelace-Dashboard an und binde das Panel im **Raw-Konfigurationseditor** ein:
-
-1. Gehe in Home Assistant auf **Einstellungen** → **Dashboards** → **Dashboard hinzufügen** (unten rechts) → **Neues Dashboard von Grund auf**.
-2. Vergib einen Namen (z. B. *Smart Home Hub*) und klicke auf **Erstellen**.
-3. Öffne das neu erstellte Dashboard in der Seitenleiste, klicke oben rechts auf das **Stift-Symbol** (Dashboard bearbeiten) → **drei Punkte `⋮`** → **Raw-Konfigurationseditor**.
-4. Ersetze den vorhandenen Inhalt komplett durch folgende Konfiguration und klicke auf **Speichern**:
-
-```yaml
-views:
-  - title: Home
-    path: hub
-    panel: true
-    cards:
-      - type: iframe
-        url: /smarthome_hub_static/index.html
-        aspect_ratio: 100%
-```
-
-5. Gehe anschließend zurück zu **Einstellungen** → **Dashboards**, wähle das neue Dashboard aus und klicke auf **Als Standard festlegen** (bzw. wähle es in der Home Assistant Companion App unter *Einstellungen → Companion App → Standard-Dashboard* aus).
+4. Klicke im Dashboard unten links auf das **Zahnrad-Symbol**, um den Konfigurator zu öffnen.
+5. Nutze im Tab *Import / Backup* entweder den **Auto-Discovery-Button**, um deine HA-Räume automatisch einzulesen, oder lade das mitgelieferte **Timo-Preset** als Startvorlage.
 
 ---
 
 ## 📸 Screenshots
 
 ### 1. Das Haupt-Dashboard
-<img width="1902" height="916" alt="image" src="https://github.com/user-attachments/assets/83f6a311-c3b4-4c76-82cc-54570f1def57" />
+<img width="1903" height="918" alt="image" src="https://github.com/user-attachments/assets/99688995-4f24-4773-b818-350483a084ec" />
 
 *Haupt-Dashboard mit Hero-Banner, Raumauswahl, Live-Badges, Gerätesteuerung und Metrik-Kacheln.*
 
 ### 2. Der visuelle In-App-Konfigurator
-<img width="1651" height="197" alt="image" src="https://github.com/user-attachments/assets/270c21ac-e5bd-436f-9f85-d06247c69cca" />
+<img width="1066" height="815" alt="image" src="https://github.com/user-attachments/assets/0c82926c-6c1f-4780-a8f2-ff3bf0a43012" />
+<img width="1686" height="806" alt="image" src="https://github.com/user-attachments/assets/a3ea1157-2f8a-4d7e-ae3c-88b4a78934e6" />
 
-<img width="1094" height="873" alt="image" src="https://github.com/user-attachments/assets/ec5d5524-1e55-4c2a-85eb-2a06f4f39bf2" />
 
-*Grafischer No-Code-Editor mit Live-Suche für Räume, Geräte, Kalender-Optiken, Kamera-Popups, Metrik-Kacheln und Design-Presets.*
+*Grafischer Editor für Räume, Geräte, Wetter-Details, Metrik-Kacheln und Themes.*
 
 ### 3. Das interaktive Wetter-Popup
-<img width="769" height="480" alt="image" src="https://github.com/user-attachments/assets/936a94ad-a466-42c4-ac95-0e52c7248444" />
-<img width="773" height="479" alt="image" src="https://github.com/user-attachments/assets/6a9bb0de-e150-4c50-8f06-666bcb926781" />
-<img width="779" height="437" alt="image" src="https://github.com/user-attachments/assets/895a221a-45d1-496f-b139-79166a8e308c" />
-<img width="354" height="336" alt="image" src="https://github.com/user-attachments/assets/051f5149-3de1-4317-b472-bfc8ad122a24" />
-<img width="351" height="460" alt="image" src="https://github.com/user-attachments/assets/6051db07-abd1-47db-bbb5-eea885c90c82" />
+<img width="897" height="584" alt="image" src="https://github.com/user-attachments/assets/43348db7-1ba6-4c5c-812a-e4719b6e3072" />
 
 *7-Tage-Vorhersage mit 3-Stunden-Intervallen für Temperatur, Niederschlag und Windrichtung.*
 
@@ -114,7 +78,7 @@ views:
 
 ## 🙏 Danksagung & Inspiration
 
-- **Familie & Freunde:** Ein großes Dankeschön an meine Familie und Freunde für die vielen Ideen, Inspirationen und das geduldige Testen im Alltag.
+- **UI/UX Design:** Dieses Dashboard ist visuell inspiriert und abgewandelt von dem Konzept ["Smart Home Dashboard UI/UX IoT Control Panel" auf Dribbble](https://dribbble.com/shots/27413660-Smart-Home-Dashboard-UI-UX-IoT-Control-Panel).
 - **Entwicklung:** Erstellt und maßgeschneidert für Home Assistant mit Unterstützung von KI.
 
 ---
