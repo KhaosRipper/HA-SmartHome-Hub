@@ -1365,7 +1365,8 @@ function renderCfgModal(preserveScroll = true) {
     </div>` : ''}
     <div class="cfg-row">
       ${fld('Auslöser (binary_sensor.*, z.B. Türklingel / Bewegung)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc(bp.triggerEntity || '')}"`)}
-      ${fld('Kamera-Stream (camera.* Entität oder go2rtc Stream-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc(bp.cameraEntity || '')}"`)}
+      ${fld('Kamera (HA camera.* für App & Fernzugriff)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc(bp.cameraEntity || '')}"`)}
+      ${fld('go2rtc Stream-Name (für lokales LAN, z.B. Eingang-sub)', `data-cpath="bellPopup.webrtc" value="${esc(bp.webrtc || '')}"`)}
     </div>
     <div class="cfg-row" style="margin-top:6px">
       ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc(bp.title || 'Türklingel')}"`)}

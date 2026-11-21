@@ -1626,8 +1626,12 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     return `<section class="card"><div class="ch"><b>${esc(w.title || 'Einbettung')}</b></div>${safeUrl ? `<iframe class="iframe-widget" src="${esc(safeUrl)}" allow="autoplay; fullscreen" allowfullscreen></iframe>` : '<div class="page-note">Ungültige oder unsichere Einbettungs-URL (nur http/https erlaubt).</div>'}</section>`;
   }
   if (w.type === 'camera') {
-    const resolvedStream = resolveGo2rtcStream(w.stream, w.entity);
-    const resolvedEnt = resolveCamEntity(resolvedStream || w.stream, w.entity);
+    const rawEnt = String(w.entity || '').trim();
+    const isRawStream = rawEnt && !rawEnt.toLowerCase().startsWith('camera.');
+    const streamHint = String(w.stream || (isRawStream ? rawEnt : '')).trim();
+    const entityHint = isRawStream ? '' : rawEnt;
+    const resolvedStream = resolveGo2rtcStream(streamHint, entityHint || rawEnt);
+    const resolvedEnt = resolveCamEntity(resolvedStream || streamHint, entityHint);
     const useGo2 = canUseGo2rtc() && !!resolvedStream;
     const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
     const mediaHtml = useGo2

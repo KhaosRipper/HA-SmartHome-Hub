@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.5.0';
+const VERSION = '3.5.1';
 
 const CALENDAR_STYLES = [
   ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
@@ -693,6 +693,7 @@ function ensureConfigDefaults(cfg) {
       triggerHoldSeconds: 10,
       triggerEntity: '',
       cameraEntity: '',
+      webrtc: '',
       title: 'Türklingel',
       durationSec: 30
     };
@@ -708,6 +709,7 @@ function ensureConfigDefaults(cfg) {
     } else {
       cfg.bellPopup.triggerHoldSeconds = Math.max(0, Number(cfg.bellPopup.triggerHoldSeconds));
     }
+    if (cfg.bellPopup.webrtc === undefined) cfg.bellPopup.webrtc = '';
     if (cfg.bellPopup.durationSec === undefined) cfg.bellPopup.durationSec = 30;
   }
 

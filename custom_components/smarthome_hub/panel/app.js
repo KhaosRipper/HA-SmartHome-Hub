@@ -2321,7 +2321,7 @@ function scheduleBellHoldClose(holdSec) {
 function checkBellPopupTrigger() {
   const cfg = CONFIG.bellPopup || {};
   const behavior = cfg.behavior !== undefined ? cfg.behavior : (cfg.show === false ? 'none' : 'popup');
-  if (behavior === 'none' || cfg.show === false || !cfg.triggerEntity || !cfg.cameraEntity) {
+  if (behavior === 'none' || cfg.show === false || !cfg.triggerEntity || (!cfg.cameraEntity && !cfg.webrtc)) {
     lastBellTriggerState = null;
     clearBellHoldTimer();
     return;
@@ -2341,7 +2341,7 @@ function checkBellPopupTrigger() {
     }
     if (becameOn && !ui.editMode && !isScreensaverActive && !activeBellPopup) {
       if (isBellPopupAllowedOnCurrentPage(cfg)) {
-        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
+        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung', cfg.webrtc || '');
       }
     }
   } else if (becameOff && activeBellPopup) {
@@ -2351,10 +2351,12 @@ function checkBellPopupTrigger() {
   }
 }
 
-function showBellPopup(cameraEntity, title) {
+let bellSnapshotTimer = null;
+function showBellPopup(cameraEntity, title, explicitStream = '') {
   if (activeBellPopup) return;
   activeBellPopup = true;
   clearBellHoldTimer();
+  if (bellSnapshotTimer) { clearInterval(bellSnapshotTimer); bellSnapshotTimer = null; }
   
   let pEl = document.getElementById('bell-popup');
   if (!pEl) {
@@ -2364,15 +2366,22 @@ function showBellPopup(cameraEntity, title) {
     document.body.appendChild(pEl);
   }
   
-  const resolvedStream = resolveGo2rtcStream('', cameraEntity);
-  const resolvedEnt = resolveCamEntity(resolvedStream, cameraEntity);
+  const rawCam = String(cameraEntity || '').trim();
+  const isRawStream = rawCam && !rawCam.toLowerCase().startsWith('camera.');
+  const streamHint = String(explicitStream || (isRawStream ? rawCam : '')).trim();
+  const entityHint = isRawStream ? '' : rawCam;
+
+  const resolvedStream = resolveGo2rtcStream(streamHint, entityHint || rawCam);
+  const resolvedEnt = resolveCamEntity(resolvedStream || streamHint, entityHint);
   const useGo2 = canUseGo2rtc() && !!resolvedStream;
   const host = String(CONFIG.go2rtcHost || '').trim().replace(/\/+$/, '');
+  const streamUrl = resolvedEnt ? camUrl(resolvedEnt, true) : null;
+  const snapUrl = resolvedEnt ? camUrl(resolvedEnt, false) : null;
   
   const mediaHtml = useGo2
     ? `<iframe src="${esc(`${host}/stream.html?src=${encodeURIComponent(resolvedStream)}&mode=webrtc`)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`
-    : (resolvedEnt && camUrl(resolvedEnt, true)
-      ? `<img src="${esc(camUrl(resolvedEnt, true))}" alt="Kamera">`
+    : ((streamUrl || snapUrl)
+      ? `<img id="bell-popup-img" src="${esc(streamUrl || snapUrl)}" alt="Kamera">`
       : `<div class="cam-placeholder">${ic('camera', 40)}<span>Kamera nicht erreichbar</span></div>`);
       
   pEl.innerHTML = `
@@ -2386,6 +2395,21 @@ function showBellPopup(cameraEntity, title) {
       </div>
     </div>
   `;
+
+  if (!useGo2 && resolvedEnt && typeof startSnapshotPolling === 'function') {
+    const imgEl = pEl.querySelector('#bell-popup-img');
+    if (imgEl) {
+      if (streamUrl) {
+        imgEl.onerror = () => {
+          imgEl.onerror = null;
+          clearInterval(bellSnapshotTimer);
+          bellSnapshotTimer = startSnapshotPolling(imgEl, resolvedEnt, 1500);
+        };
+      } else {
+        bellSnapshotTimer = startSnapshotPolling(imgEl, resolvedEnt, 1500);
+      }
+    }
+  }
   
   pEl.style.display = 'flex';
   setTimeout(() => {
@@ -2406,6 +2430,7 @@ window.closeBellPopup = function() {
   if (!activeBellPopup) return;
   activeBellPopup = false;
   if (bellPopupTimeout) { clearTimeout(bellPopupTimeout); bellPopupTimeout = null; }
+  if (bellSnapshotTimer) { clearInterval(bellSnapshotTimer); bellSnapshotTimer = null; }
   clearBellHoldTimer();
   const pEl = document.getElementById('bell-popup');
   if (pEl) {

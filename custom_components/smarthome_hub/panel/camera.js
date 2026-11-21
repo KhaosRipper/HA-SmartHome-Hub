@@ -196,10 +196,38 @@ function resolveGo2rtcStream(streamName, entityId = '') {
     return raw;
   }
 
-  // Falls kein Stream-Name übergeben wurde, über die Kamera-Entität in webrtcCameras suchen
+  // Falls kein Stream-Name übergeben wurde, über die Kamera-Entität in webrtcCameras oder rooms suchen
   if (entityId) {
-    const byEnt = cams.find(c => c.entity && c.entity === entityId && c.stream);
+    const entRaw = String(entityId).trim();
+    const entLow = entRaw.toLowerCase();
+    // Falls direkt ein go2rtc Stream-Name (z. B. "Eingang-sub") als entityId übergeben wurde:
+    if (!entLow.startsWith('camera.')) {
+      return resolveGo2rtcStream(entRaw, '');
+    }
+    const byEnt = cams.find(c => c.entity && String(c.entity).trim().toLowerCase() === entLow && c.stream);
     if (byEnt) return String(byEnt.stream).trim();
+    const byRoom = rooms.find(r => r.camera && String(r.camera).trim().toLowerCase() === entLow && r.webrtc);
+    if (byRoom) return String(byRoom.webrtc).trim();
+
+    // Fuzzy-Abgleich über den Basis-Namen (z. B. camera.eingang <-> camera.eingang_standardauflosung -> Eingang-sub)
+    const baseKey = entLow
+      .replace(/^camera\./i, '')
+      .replace(/_(standardauflosung|sub|main|hd|stream|fluent|clear)$/i, '');
+    if (baseKey) {
+      const fuzzyCam = cams.find(c => {
+        const cs = String(c.stream || '').trim().replace(/-sub$/i, '').toLowerCase();
+        const cn = String(c.name || '').trim().toLowerCase();
+        const ce = String(c.entity || '').trim().toLowerCase().replace(/^camera\./i, '').replace(/_(standardauflosung|sub|main|hd|stream|fluent|clear)$/i, '');
+        return (cs === baseKey || cn === baseKey || (ce && ce === baseKey)) && c.stream;
+      });
+      if (fuzzyCam) return String(fuzzyCam.stream).trim();
+      const fuzzyRoom = rooms.find(r => {
+        const rs = String(r.webrtc || '').trim().replace(/-sub$/i, '').toLowerCase();
+        const re = String(r.camera || '').trim().toLowerCase().replace(/^camera\./i, '').replace(/_(standardauflosung|sub|main|hd|stream|fluent|clear)$/i, '');
+        return (rs === baseKey || (re && re === baseKey)) && r.webrtc;
+      });
+      if (fuzzyRoom) return String(fuzzyRoom.webrtc).trim();
+    }
   }
   return '';
 }
