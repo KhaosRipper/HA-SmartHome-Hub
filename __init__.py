@@ -1,0 +1,307 @@
+# Datei: custom_components/smarthome_hub/__init__.py
+from __future__ import annotations
+
+import base64
+import binascii
+import hashlib
+import hmac
+import os
+import re
+import time
+from typing import Any
+import uuid
+import voluptuous as vol
+
+from homeassistant.components import frontend, websocket_api
+try:
+    from homeassistant.components.http import StaticPathConfig
+    HAS_STATIC_PATH_CONFIG = True
+except ImportError:
+    HAS_STATIC_PATH_CONFIG = False
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.storage import Store
+
+DOMAIN = "smarthome_hub"
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+VERSION = "3.6.0"
+PANEL_URL_PATH = "smarthome-hub"
+STORAGE_KEY = f"{DOMAIN}_config"
+STORAGE_VERSION = 1
+STATIC_URL = f"/{DOMAIN}_static"
+UPLOAD_SUBDIR = "smarthome_hub_uploads"
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB max. Bildgröße
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def _get_assets_hash() -> str:
+    """Berechnet einen kurzen Hash über die Panel-Dateien für zuverlässiges Cache-Busting."""
+    panel_dir = os.path.join(os.path.dirname(__file__), "panel")
+    h = hashlib.md5()
+    try:
+        for fname in sorted(os.listdir(panel_dir)):
+            if fname.endswith((".js", ".css", ".html")):
+                fpath = os.path.join(panel_dir, fname)
+                st = os.stat(fpath)
+                h.update(f"{fname}:{int(st.st_mtime)}:{st.st_size};".encode())
+        return h.hexdigest()[:10]
+    except OSError:
+        return VERSION
+
+
+def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
+    """Registriert oder aktualisiert das Seitenleisten-Panel via update=True."""
+    asset_hash = _get_assets_hash()
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="iframe",
+        sidebar_title=title or "Smart Home Hub",
+        sidebar_icon=icon or "mdi:home-automation",
+        frontend_url_path=PANEL_URL_PATH,
+        config={"url": f"{STATIC_URL}/index.html?v={VERSION}&b={asset_hash}"},
+        require_admin=False,
+        update=True,
+    )
+
+
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Initialisiert die Komponente."""
+    hass.data.setdefault(DOMAIN, {})
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Richtet das Seitenleisten-Panel, den Bildupload-Ordner und die WebSocket-API ein."""
+    hass.data.setdefault(DOMAIN, {})
+    store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    hass.data[DOMAIN]["store"] = store
+
+    panel_dir = os.path.join(os.path.dirname(__file__), "panel")
+    if not hass.data[DOMAIN].get("static_paths_registered"):
+        if HAS_STATIC_PATH_CONFIG:
+            await hass.http.async_register_static_paths(
+                [StaticPathConfig(STATIC_URL, panel_dir, cache_headers=False)]
+            )
+        else:
+            hass.http.register_static_path(STATIC_URL, panel_dir, cache_headers=False)
+        hass.data[DOMAIN]["static_paths_registered"] = True
+
+    upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
+    await hass.async_add_executor_job(
+        lambda: os.makedirs(upload_dir, exist_ok=True)
+    )
+
+    saved = await store.async_load() or {}
+    sidebar_title = saved.get("sidebarTitle", entry.title or "Smart Home Hub")
+    sidebar_icon = saved.get("sidebarIcon", "mdi:home-automation")
+    _register_panel(hass, sidebar_title, sidebar_icon)
+
+    if not hass.data[DOMAIN].get("commands_registered"):
+        websocket_api.async_register_command(hass, ws_get_config)
+        websocket_api.async_register_command(hass, ws_save_config)
+        websocket_api.async_register_command(hass, ws_verify_pin)
+        websocket_api.async_register_command(hass, ws_upload_image)
+        hass.data[DOMAIN]["commands_registered"] = True
+
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Entfernt das Panel beim Deinstallieren der Integration."""
+    frontend.async_remove_panel(hass, PANEL_URL_PATH)
+    return True
+
+
+def _hash_pin(pin: str) -> str:
+    """Erzeugt einen SHA-256-Hash für die Dashboard-PIN."""
+    return hashlib.sha256(f"{DOMAIN}_pin:{pin}".encode("utf-8")).hexdigest()
+
+
+def _sanitize_config_for_client(data: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Entfernt Klartext-PIN und PIN-Hash aus der Client-Antwort (sendet nur Maske in PIN-Länge)."""
+    if not data or not isinstance(data, dict):
+        return data
+    clean = dict(data)
+    raw_pin = str(clean.pop("pinCode", "") or "").strip()
+    pin_hash = clean.pop("_pinHash", None)
+    pin_len = int(clean.pop("_pinLen", 0) or len(raw_pin) or 4)
+    clean["pinCode"] = ("*" * pin_len) if (pin_hash or raw_pin) else ""
+    return clean
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_config"})
+@websocket_api.async_response
+async def ws_get_config(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Lädt die gespeicherte Dashboard-Konfiguration aus .storage."""
+    store: Store = hass.data[DOMAIN]["store"]
+    data = await store.async_load()
+    connection.send_result(
+        msg["id"],
+        {
+            "config": _sanitize_config_for_client(data),
+            "version": VERSION,
+            "asset_hash": _get_assets_hash(),
+        },
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/save_config",
+        vol.Required("config"): dict,
+    }
+)
+@websocket_api.async_response
+async def ws_save_config(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Speichert die Konfiguration, aktualisiert die HA-Seitenleiste und benachrichtigt alle Clients live."""
+    store: Store = hass.data[DOMAIN]["store"]
+    old = await store.async_load() or {}
+    cfg = dict(msg["config"])
+    raw_pin = str(cfg.pop("pinCode", "") or "").strip()
+    if not raw_pin:
+        cfg.pop("_pinHash", None)
+        cfg.pop("_pinLen", None)
+    elif set(raw_pin) == {"*"} and (old.get("_pinHash") or old.get("pinCode")):
+        old_raw = str(old.get("pinCode") or "").strip()
+        cfg["_pinHash"] = old.get("_pinHash") or _hash_pin(old_raw)
+        cfg["_pinLen"] = int(old.get("_pinLen") or len(old_raw) or len(raw_pin))
+    else:
+        cfg["_pinHash"] = _hash_pin(raw_pin)
+        cfg["_pinLen"] = len(raw_pin)
+
+    updated_at = int(time.time() * 1000)
+    cfg["_updatedAt"] = updated_at
+    await store.async_save(cfg)
+
+    _register_panel(
+        hass,
+        cfg.get("sidebarTitle", "Smart Home Hub"),
+        cfg.get("sidebarIcon", "mdi:home-automation"),
+    )
+    hass.bus.async_fire(
+        f"{DOMAIN}_config_updated",
+        {
+            "updated_at": updated_at,
+            "sidebar_title": cfg.get("sidebarTitle", "Smart Home Hub"),
+            "sidebar_icon": cfg.get("sidebarIcon", "mdi:home-automation"),
+        },
+    )
+    connection.send_result(msg["id"], {"status": "ok", "updated_at": updated_at})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/verify_pin",
+        vol.Required("pin"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_verify_pin(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Prüft eine eingegebene PIN gegen den gespeicherten Hash im Backend."""
+    store: Store = hass.data[DOMAIN]["store"]
+    data = await store.async_load() or {}
+    candidate = str(msg.get("pin") or "").strip()
+    expected_hash = data.get("_pinHash")
+    if not expected_hash:
+        legacy_pin = str(data.get("pinCode") or "").strip()
+        expected_hash = _hash_pin(legacy_pin) if legacy_pin else ""
+    valid = bool(expected_hash) and hmac.compare_digest(_hash_pin(candidate), expected_hash)
+    connection.send_result(msg["id"], {"valid": valid})
+
+
+def _validate_image_magic(data: bytes, ext: str) -> bool:
+    """Überprüft die Magic Bytes der Datei gegen die erlaubte Bild-Erweiterung."""
+    if ext in {".jpg", ".jpeg"}:
+        return data.startswith(b"\xff\xd8\xff")
+    if ext == ".png":
+        return data.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext == ".gif":
+        return data.startswith(b"GIF87a") or data.startswith(b"GIF89a")
+    if ext == ".webp":
+        return len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP"
+    return False
+
+
+def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
+    """Speichert ein validiertes Bild unter /config/www/smarthome_hub_uploads/."""
+    # Dateiendung prüfen
+    _, raw_ext = os.path.splitext(filename)
+    ext = raw_ext.lower().strip()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise ValueError(
+            f"Ungültiges Dateiformat '{ext}'. Erlaubt sind nur: {', '.join(sorted(ALLOWED_IMAGE_EXTENSIONS))}"
+        )
+
+    # Base64 bereinigen und dekodieren
+    if "," in b64_data:
+        b64_data = b64_data.split(",", 1)[1]
+    b64_data = b64_data.strip()
+
+    try:
+        raw = base64.b64decode(b64_data, validate=True)
+    except (binascii.Error, ValueError) as err:
+        raise ValueError("Base64-Dekodierung fehlgeschlagen") from err
+
+    # Größenbegrenzung
+    if len(raw) > MAX_UPLOAD_SIZE:
+        raise ValueError(f"Datei ist zu groß (max. {MAX_UPLOAD_SIZE // (1024 * 1024)} MB erlaubt)")
+
+    # Magic Bytes Verifikation
+    if not _validate_image_magic(raw, ext):
+        raise ValueError(f"Dateiinhalt stimmt nicht mit Dateiendung '{ext}' überein")
+
+    # Sicheren Dateinamen erzeugen (UUID-Präfix + bereinigter Basisname)
+    base_name = re.sub(r"[^a-zA-Z0-9_-]", "_", os.path.splitext(os.path.basename(filename))[0])[:32]
+    safe_name = f"{uuid.uuid4().hex[:12]}_{base_name}{ext}"
+
+    # Path-Traversal-Schutz & Zielordner sicherstellen
+    abs_upload_dir = os.path.abspath(upload_dir)
+    os.makedirs(abs_upload_dir, exist_ok=True)
+    target_path = os.path.abspath(os.path.join(abs_upload_dir, safe_name))
+    if not target_path.startswith(abs_upload_dir + os.sep):
+        raise ValueError("Ungültiger Zielpfad für Bildupload")
+
+    with open(target_path, "wb") as f:
+        f.write(raw)
+
+    return f"/local/{UPLOAD_SUBDIR}/{safe_name}"
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/upload_image",
+        vol.Required("filename"): str,
+        vol.Required("data"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_upload_image(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Nimmt einen Base64-Bildupload entgegen, validiert ihn und gibt die URL zurück."""
+    upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
+    try:
+        url_path = await hass.async_add_executor_job(
+            _save_uploaded_file, upload_dir, msg["filename"], msg["data"]
+        )
+        connection.send_result(msg["id"], {"url": url_path})
+    except Exception as err:
+        connection.send_error(msg["id"], "upload_error", str(err))

@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Home Hub",
+        "description": "Möchtest du das Smart Home Hub Dashboard einrichten?"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Es ist bereits eine Instanz von Smart Home Hub konfiguriert."
+    }
+  }
+}
