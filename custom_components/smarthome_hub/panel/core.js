@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.4.0';
+const VERSION = '3.5.0';
 
 const CALENDAR_STYLES = [
   ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
@@ -685,9 +685,29 @@ function ensureConfigDefaults(cfg) {
   }
 
   if (!cfg.bellPopup || typeof cfg.bellPopup !== 'object') {
-    cfg.bellPopup = { show: false, triggerEntity: '', cameraEntity: '', title: 'Türklingel', durationSec: 30 };
+    cfg.bellPopup = {
+      show: false,
+      behavior: 'none',
+      pageFilter: 'all',
+      allowedPages: ['dashboard', 'kameras'],
+      triggerHoldSeconds: 10,
+      triggerEntity: '',
+      cameraEntity: '',
+      title: 'Türklingel',
+      durationSec: 30
+    };
   } else {
-    if (cfg.bellPopup.show === undefined) cfg.bellPopup.show = false;
+    if (cfg.bellPopup.behavior === undefined) {
+      cfg.bellPopup.behavior = cfg.bellPopup.show ? 'popup' : 'none';
+    }
+    cfg.bellPopup.show = cfg.bellPopup.behavior === 'popup';
+    if (!cfg.bellPopup.pageFilter) cfg.bellPopup.pageFilter = 'all';
+    if (!Array.isArray(cfg.bellPopup.allowedPages)) cfg.bellPopup.allowedPages = ['dashboard', 'kameras'];
+    if (cfg.bellPopup.triggerHoldSeconds === undefined || isNaN(Number(cfg.bellPopup.triggerHoldSeconds))) {
+      cfg.bellPopup.triggerHoldSeconds = 10;
+    } else {
+      cfg.bellPopup.triggerHoldSeconds = Math.max(0, Number(cfg.bellPopup.triggerHoldSeconds));
+    }
     if (cfg.bellPopup.durationSec === undefined) cfg.bellPopup.durationSec = 30;
   }
 
@@ -1405,6 +1425,7 @@ const ui = {
   view: localStorage.getItem('hub_view') || 'dashboard',
   showAll: false,
   editMode: false,
+  profileMenuOpen: false,
   unlockArmedEntity: null,
   unlockArmedUntil: 0,
   seriesVer: 0

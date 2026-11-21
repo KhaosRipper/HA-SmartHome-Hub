@@ -81,7 +81,7 @@ const EMPTY_CONFIG = {
   wallbox: { show: false, title: "Wallbox", socEntity: "", powerEntity: "", statusEntity: "", modeEntity: "" },
   appliances: { show: false, title: "Haushaltsgeräte", items: [] },
   screensaver: { show: true, timeoutMins: 3 },
-  bellPopup: { show: false, triggerEntity: "", cameraEntity: "", title: "Türklingel", durationSec: 30 },
+  bellPopup: { show: false, behavior: "popup", pageFilter: "all", allowedPages: ["dashboard", "kameras"], triggerHoldSeconds: 10, triggerEntity: "", cameraEntity: "", title: "Türklingel", durationSec: 30 },
   systemHealth: { show: false, title: "Server & Docker", cpu: "", ram: "", disk: "", temp: "", containers: [] },
 
   powerFlow: [],
@@ -309,6 +309,10 @@ const TIMO_PRESET_CONFIG = {
   },
   bellPopup: {
     show: false,
+    behavior: "popup",
+    pageFilter: "all",
+    allowedPages: ["dashboard", "kameras"],
+    triggerHoldSeconds: 10,
     triggerEntity: "",
     cameraEntity: "camera.eingang",
     title: "Türklingel",

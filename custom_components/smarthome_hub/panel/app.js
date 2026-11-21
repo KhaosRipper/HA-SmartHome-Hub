@@ -656,7 +656,7 @@ function tick(force) {
   }
   if (coverDrag.active) return;
   const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level, a.battery_level, a.battery].join('|'); }).join(';')
-    + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
+    + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.profileMenuOpen}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
 }
 
@@ -874,9 +874,28 @@ document.addEventListener('contextmenu', ev => {
 });
 
 /* ---------- Klick-Steuerung ---------- */
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && ui.profileMenuOpen) {
+    ui.profileMenuOpen = false;
+    tick(true);
+  }
+});
+
 document.addEventListener('click', ev => {
+  if (ui.profileMenuOpen && !ev.target.closest('.me-wrap')) {
+    ui.profileMenuOpen = false;
+    tick(true);
+  }
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, c = activeClimate(), cs = S(c.entity);
+  if (act === 'toggleProfileMenu') {
+    ui.profileMenuOpen = !ui.profileMenuOpen;
+    tick(true);
+    return;
+  }
+  if (ui.profileMenuOpen && el.closest('.me-popover')) {
+    ui.profileMenuOpen = false;
+  }
   if (act === 'lgrp' && el.classList.contains('tile-light') && lgrpLongPressed) {
     lgrpLongPressed = false;
     return;
@@ -990,6 +1009,20 @@ document.addEventListener('click', ev => {
       if (idx >= 0) item.scopeRooms.splice(idx, 1);
       else item.scopeRooms.push(roomName);
       item.scope = 'custom';
+      renderCfgModal(true);
+    }
+    return;
+  }
+  if (act === 'cfgBellPageToggle') {
+    if (!cfgDraft) return;
+    if (!cfgDraft.bellPopup) cfgDraft.bellPopup = { show: true, behavior: 'popup', pageFilter: 'selected', allowedPages: [] };
+    if (!Array.isArray(cfgDraft.bellPopup.allowedPages)) cfgDraft.bellPopup.allowedPages = [];
+    const pgKey = el.dataset.page;
+    if (pgKey) {
+      const idx = cfgDraft.bellPopup.allowedPages.indexOf(pgKey);
+      if (idx >= 0) cfgDraft.bellPopup.allowedPages.splice(idx, 1);
+      else cfgDraft.bellPopup.allowedPages.push(pgKey);
+      cfgDraft.bellPopup.pageFilter = 'selected';
       renderCfgModal(true);
     }
     return;
@@ -2237,28 +2270,91 @@ document.addEventListener('click', ev => {
   tick(true);
 });
 
-/* ---------- Event-gesteuertes Kamera-Popup (Klingel / Bewegung) ---------- */
+/* ---------- Event-gesteuertes Kamera-Popup (Klingel / Bewegung, Seiten-Filter & Nachlaufzeit) ---------- */
 let activeBellPopup = null;
 let bellPopupTimeout = null;
+let bellHoldTimeout = null;
 let lastBellTriggerState = null;
+
+function isBellPopupAllowedOnCurrentPage(cfg = CONFIG.bellPopup || {}) {
+  const filter = cfg.pageFilter || 'all';
+  if (filter === 'all') return true;
+  const allowed = Array.isArray(cfg.allowedPages) ? cfg.allowedPages : [];
+  if (!allowed.length) return false;
+  const curView = (typeof ui !== 'undefined' && ui.view) || 'dashboard';
+  if (allowed.includes(curView)) return true;
+  if (curView === 'dashboard') {
+    const rooms = (CONFIG && CONFIG.rooms && CONFIG.rooms.length) ? CONFIG.rooms : [{ name: 'Home' }];
+    const curRoom = rooms[ui.room] || rooms[0];
+    const rName = (curRoom && curRoom.name) || 'Home';
+    if (allowed.includes(`room:${rName}`) || allowed.includes(rName)) return true;
+    if (ui.room === 0 && allowed.includes('home')) return true;
+  }
+  return false;
+}
+
+function clearBellHoldTimer() {
+  if (bellHoldTimeout) {
+    clearTimeout(bellHoldTimeout);
+    bellHoldTimeout = null;
+  }
+}
+
+function scheduleBellHoldClose(holdSec) {
+  clearBellHoldTimer();
+  const ms = Math.max(0, Number(holdSec ?? 10)) * 1000;
+  const cdEl = document.getElementById('bell-hold-badge');
+  if (cdEl) {
+    cdEl.style.display = 'inline-flex';
+    cdEl.textContent = ms > 0 ? `Nachlauf: ${Math.round(ms / 1000)}s` : 'Schließt…';
+  }
+  if (ms <= 0) {
+    window.closeBellPopup();
+  } else {
+    bellHoldTimeout = setTimeout(() => {
+      bellHoldTimeout = null;
+      window.closeBellPopup();
+    }, ms);
+  }
+}
 
 function checkBellPopupTrigger() {
   const cfg = CONFIG.bellPopup || {};
-  if (cfg.show === false || !cfg.triggerEntity || !cfg.cameraEntity) {
+  const behavior = cfg.behavior !== undefined ? cfg.behavior : (cfg.show === false ? 'none' : 'popup');
+  if (behavior === 'none' || cfg.show === false || !cfg.triggerEntity || !cfg.cameraEntity) {
     lastBellTriggerState = null;
+    clearBellHoldTimer();
     return;
   }
   const curState = (S(cfg.triggerEntity) || {}).state || null;
-  const becameOn = curState === 'on' && lastBellTriggerState !== 'on';
+  const prevState = lastBellTriggerState;
+  const becameOn = curState === 'on' && prevState !== 'on';
+  const becameOff = curState !== 'on' && prevState === 'on';
   lastBellTriggerState = curState;
-  if (becameOn && !ui.editMode && !isScreensaverActive && !activeBellPopup) {
-    showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
+
+  if (curState === 'on') {
+    // Falls während der Nachlaufzeit erneut 'on' gemeldet wird -> Nachlauf-Timer sofort abbrechen, Popup offen halten!
+    if (bellHoldTimeout) {
+      clearBellHoldTimer();
+      const cdEl = document.getElementById('bell-hold-badge');
+      if (cdEl) cdEl.style.display = 'none';
+    }
+    if (becameOn && !ui.editMode && !isScreensaverActive && !activeBellPopup) {
+      if (isBellPopupAllowedOnCurrentPage(cfg)) {
+        showBellPopup(cfg.cameraEntity, cfg.title || 'Klingel / Bewegung');
+      }
+    }
+  } else if (becameOff && activeBellPopup) {
+    // Wechsel von 'on' auf 'off' -> Nachlaufzeit (triggerHoldSeconds) starten
+    const holdSec = cfg.triggerHoldSeconds != null ? Number(cfg.triggerHoldSeconds) : 10;
+    scheduleBellHoldClose(holdSec);
   }
 }
 
 function showBellPopup(cameraEntity, title) {
   if (activeBellPopup) return;
   activeBellPopup = true;
+  clearBellHoldTimer();
   
   let pEl = document.getElementById('bell-popup');
   if (!pEl) {
@@ -2282,7 +2378,7 @@ function showBellPopup(cameraEntity, title) {
   pEl.innerHTML = `
     <div class="bell-popup-content">
       <div class="bell-popup-hdr">
-        <h2><span>${ic('bell', 24)}</span> ${esc(title)}</h2>
+        <h2><span>${ic('bell', 24)}</span> ${esc(title)} <small id="bell-hold-badge" class="pill" style="display:none;font-size:11px;margin-left:8px"></small></h2>
         <button class="bell-popup-close" onclick="closeBellPopup()">✕</button>
       </div>
       <div class="bell-popup-cam">
@@ -2294,25 +2390,33 @@ function showBellPopup(cameraEntity, title) {
   pEl.style.display = 'flex';
   setTimeout(() => {
     pEl.style.opacity = '1';
-    pEl.querySelector('.bell-popup-content').style.transform = 'scale(1)';
+    const contentEl = pEl.querySelector('.bell-popup-content');
+    if (contentEl) contentEl.style.transform = 'scale(1)';
   }, 10);
   
-  const duration = (CONFIG.bellPopup?.durationSec || 30) * 1000;
-  if (bellPopupTimeout) clearTimeout(bellPopupTimeout);
-  bellPopupTimeout = setTimeout(closeBellPopup, duration);
+  if (bellPopupTimeout) { clearTimeout(bellPopupTimeout); bellPopupTimeout = null; }
+  const curTriggerState = (S(CONFIG.bellPopup?.triggerEntity) || {}).state || null;
+  if (curTriggerState !== 'on') {
+    const holdSec = CONFIG.bellPopup?.triggerHoldSeconds != null ? Number(CONFIG.bellPopup.triggerHoldSeconds) : 10;
+    scheduleBellHoldClose(holdSec);
+  }
 }
 
 window.closeBellPopup = function() {
   if (!activeBellPopup) return;
   activeBellPopup = false;
-  if (bellPopupTimeout) clearTimeout(bellPopupTimeout);
+  if (bellPopupTimeout) { clearTimeout(bellPopupTimeout); bellPopupTimeout = null; }
+  clearBellHoldTimer();
   const pEl = document.getElementById('bell-popup');
   if (pEl) {
     pEl.style.opacity = '0';
-    pEl.querySelector('.bell-popup-content').style.transform = 'scale(0.95)';
+    const contentEl = pEl.querySelector('.bell-popup-content');
+    if (contentEl) contentEl.style.transform = 'scale(0.95)';
     setTimeout(() => {
-      pEl.style.display = 'none';
-      pEl.innerHTML = ''; // iframe stoppen
+      if (!activeBellPopup) {
+        pEl.style.display = 'none';
+        pEl.innerHTML = ''; // iframe stoppen
+      }
     }, 300);
   }
 };

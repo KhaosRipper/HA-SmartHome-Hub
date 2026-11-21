@@ -3253,6 +3253,166 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   border: 1px solid var(--line);
 }
 
+/* ==========================================================================
+   v3.5.0: Modernes Profil-Popover-Menü (Glassmorphism)
+   ========================================================================== */
+.me-wrap {
+  margin-top: auto;
+  position: relative;
+  width: 100%;
+}
+.me {
+  margin-top: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.me:hover,
+.me.open {
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(124, 108, 240, 0.45);
+}
+.me.open {
+  box-shadow: 0 0 0 1px rgba(124, 108, 240, 0.25), 0 8px 20px -6px rgba(0, 0, 0, 0.45);
+}
+.me-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.me-info {
+  min-width: 0;
+  flex: 1;
+}
+.me-info b {
+  display: block;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.me-info small {
+  display: block;
+  color: var(--mut);
+  font-size: 11px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.me-chev {
+  color: var(--mut);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+  flex: none;
+}
+.me:hover .me-chev,
+.me.open .me-chev {
+  color: var(--acc2);
+  background: rgba(124, 108, 240, 0.16);
+}
+.me-popover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px;
+  border-radius: 16px;
+  background: rgba(16, 18, 36, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px) scale(0.96);
+  transform-origin: bottom center;
+  transition: opacity .18s cubic-bezier(.16, 1, .3, 1), transform .18s cubic-bezier(.16, 1, .3, 1), visibility .18s;
+}
+.me-popover.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.me-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  text-align: left;
+  width: 100%;
+  transition: background .15s ease, color .15s ease;
+}
+.me-pop-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.me-pop-item.on {
+  background: rgba(124, 108, 240, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(124, 108, 240, 0.38);
+}
+.me-pop-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--acc2);
+  flex: none;
+}
+.me-pop-item.on .me-pop-ico {
+  background: var(--acc);
+  color: #fff;
+  border-color: transparent;
+}
+.me-pop-txt {
+  min-width: 0;
+  flex: 1;
+}
+.me-pop-txt b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--txt);
+  line-height: 1.25;
+}
+.me-pop-txt small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--mut);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
 
 
 

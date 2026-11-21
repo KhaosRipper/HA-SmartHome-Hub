@@ -1327,19 +1327,52 @@ function renderCfgModal(preserveScroll = true) {
       <div class="order-btns"><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMoveCam" data-i="${i}" data-dir="1" ${i === cfgDraft.webrtcCameras.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgDelCam" data-i="${i}">✕</button></div>
     </div>`).join('')}
     <button class="iconbtn" data-act="cfgAddCam" style="margin-top:6px">+ Kamera hinzufügen</button>`, true, `<span class="cfg-badge-info">${(cfgDraft.webrtcCameras || []).length} Kameras</span>`, 'security_cams') +
-  box('🛎️ Event-Popup (Türklingel / Bewegung)', 'Zeigt sofort ein großes Vollbild-Popup der Kamera, sobald der Auslöser auf "on" springt.', `
+  box('🛎️ Event-Popup (Türklingel / Bewegung)', 'Zeigt automatisch ein großes Vollbild-Popup der Kamera, sobald der Auslöser auf „on“ springt – inkl. Seiten-Filter und Nachlaufzeit.', (() => {
+    const bp = cfgDraft.bellPopup || {};
+    const curBehavior = bp.behavior !== undefined ? bp.behavior : (bp.show ? 'popup' : 'none');
+    const curFilter = bp.pageFilter || 'all';
+    const allowed = Array.isArray(bp.allowedPages) ? bp.allowedPages : ['dashboard', 'kameras'];
+    const holdSec = bp.triggerHoldSeconds != null ? bp.triggerHoldSeconds : 10;
+    const pageChoices = [
+      ['dashboard', '🏠 Startseite (Alle Raum-Tabs)'],
+      ['room:Home', '🏠 Nur Raum-Tab: Home'],
+      ...(cfgDraft.rooms || []).slice(1).filter(r => r && r.name).map(r => [`room:${r.name}`, `📍 Raum-Tab: ${r.name}`]),
+      ['kameras', '📷 Kameras-Seite'],
+      ['klima', '🌡️ Klima-Seite'],
+      ...(cfgDraft.customPages || []).filter(p => p && p.id).map(p => [`page:${p.id}`, `📄 Unterseite: ${p.label || p.id}`])
+    ];
+    const pagePills = pageChoices.map(([key, lbl]) => {
+      const on = allowed.includes(key);
+      return `<button type="button" class="chip ${on ? 'on' : ''}" data-act="cfgBellPageToggle" data-page="${esc(key)}" style="font-size:11px;padding:4px 10px">${on ? '✓ ' : '+ '}${esc(lbl)}</button>`;
+    }).join('');
+
+    return `
     <div class="cfg-row" style="margin-bottom:10px">
-      <label><input type="checkbox" data-cbool="bellPopup.show" ${(cfgDraft.bellPopup || {}).show !== false ? 'checked' : ''}> Event-Popup aktivieren</label>
+      ${sel('Trigger-Verhalten bei Erkennung (on)', [
+        ['popup', '📹 Kamera-Popup automatisch öffnen'],
+        ['none', '🚫 Kein Popup öffnen (Deaktiviert)']
+      ].map(([v, l]) => `<option value="${v}" ${curBehavior === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="bellPopup.behavior"`)}
+      ${sel('Seiten-Filter (Wo soll das Popup erscheinen?)', [
+        ['all', '🌐 Auf allen Seiten anzeigen (Standard)'],
+        ['selected', '🎯 Nur auf ausgewählten Seiten anzeigen…']
+      ].map(([v, l]) => `<option value="${v}" ${curFilter === v ? 'selected' : ''}>${l}</option>`).join(''), `data-cpath="bellPopup.pageFilter"`)}
+      ${fld('Nachlaufzeit nach „off“ (Hold-Time in Sek.)', `type="number" min="0" max="600" data-cpath="bellPopup.triggerHoldSeconds" value="${holdSec}"`)}
     </div>
+    ${curFilter === 'selected' ? `
+    <div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(124,108,240,.07);border:1px solid rgba(124,108,240,.25)">
+      <span class="cfg-desc" style="font-weight:600;margin-bottom:6px">📍 Auf diesen Seiten darf das Kamera-Popup aufpoppen:</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${pagePills}</div>
+    </div>` : ''}
     <div class="cfg-row">
-      ${fld('Auslöser (binary_sensor.*, z.B. Türklingel)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc((cfgDraft.bellPopup || {}).triggerEntity || '')}"`)}
-      ${fld('Kamera-Stream (Entität oder WebRTC-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc((cfgDraft.bellPopup || {}).cameraEntity || '')}"`)}
+      ${fld('Auslöser (binary_sensor.*, z.B. Türklingel / Bewegung)', `list="ha-entities-list" data-cpath="bellPopup.triggerEntity" value="${esc(bp.triggerEntity || '')}"`)}
+      ${fld('Kamera-Stream (camera.* Entität oder go2rtc Stream-Name)', `list="ha-entities-list" data-cpath="bellPopup.cameraEntity" value="${esc(bp.cameraEntity || '')}"`)}
     </div>
     <div class="cfg-row" style="margin-top:6px">
-      ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc((cfgDraft.bellPopup || {}).title || 'Türklingel')}"`)}
-      ${fld('Anzeigedauer (Sekunden)', `type="number" min="5" max="300" data-cpath="bellPopup.durationSec" value="${(cfgDraft.bellPopup || {}).durationSec || 30}"`)}
+      ${fld('Popup Titel', `data-cpath="bellPopup.title" value="${esc(bp.title || 'Türklingel')}"`)}
+      ${fld('Sicherheits-Timeout / Max. Dauer (Sek., 0 = unbegrenzt solange on)', `type="number" min="0" max="3600" data-cpath="bellPopup.durationSec" value="${bp.durationSec != null ? bp.durationSec : 30}"`)}
     </div>
-  `, false, `<span class="cfg-badge-${(cfgDraft.bellPopup || {}).show ? 'on' : 'off'}">${(cfgDraft.bellPopup || {}).show ? '🟢 Aktiv' : '⚪ Aus'}</span>`, 'sec_bell') +
+    <span class="cfg-desc" style="margin-top:6px">Hinweis: Solange der Sensor auf „on“ steht, bleibt das Popup geöffnet. Erst beim Wechsel von „on“ auf „off“ läuft die Nachlaufzeit (${holdSec}s) herunter. Ein erneutes „on“ während der Nachlaufzeit setzt den Timer zurück.</span>`;
+  })(), false, `<span class="cfg-badge-${((cfgDraft.bellPopup || {}).behavior ? (cfgDraft.bellPopup.behavior === 'popup') : (cfgDraft.bellPopup || {}).show) ? 'on' : 'off'}">${((cfgDraft.bellPopup || {}).behavior ? (cfgDraft.bellPopup.behavior === 'popup') : (cfgDraft.bellPopup || {}).show) ? '🟢 Aktiv' : '⚪ Aus'}</span>`, 'sec_bell') +
   box('🚨 Bedingte Warn-Karten (Alerts)', 'Karten, die im Normalzustand unsichtbar sind und nur aufpoppen, wenn ein kritischer Zustand eintritt (z.B. Wassermelder, Rauchmelder, Akku < 15%).', `
     ${placementBarHtml('alerts', 'alerts', 'Warnungen')}
     ${(cfgDraft.alerts || []).map((al, ai) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
@@ -1788,7 +1821,19 @@ document.addEventListener('input', e => {
   }
   if (!cfgDraft) return;
   if (t.dataset.cpath) {
-    setByPath(cfgDraft, t.dataset.cpath, t.value);
+    let val = t.value;
+    if (t.dataset.cpath === 'bellPopup.triggerHoldSeconds' || t.dataset.cpath === 'bellPopup.durationSec') {
+      val = Math.max(0, parseInt(t.value, 10) || 0);
+    }
+    setByPath(cfgDraft, t.dataset.cpath, val);
+    if (t.dataset.cpath === 'bellPopup.behavior') {
+      if (!cfgDraft.bellPopup) cfgDraft.bellPopup = {};
+      cfgDraft.bellPopup.show = val === 'popup';
+      renderCfgModal(true);
+    }
+    if (t.dataset.cpath === 'bellPopup.pageFilter') {
+      renderCfgModal(true);
+    }
     if (t.dataset.cpath === 'calendarHomeStyle' || t.dataset.cpath === 'calendarPageStyle') {
       if (!cfgDraft.calendars) cfgDraft.calendars = {};
       cfgDraft.calendars[t.dataset.cpath] = t.value;

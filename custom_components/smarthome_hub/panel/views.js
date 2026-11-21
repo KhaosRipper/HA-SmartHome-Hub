@@ -1168,15 +1168,31 @@ function sidebar() {
   const sysItems = (!CONFIG.hideSystemLinks && CONFIG.systemLinks && CONFIG.systemLinks.length)
     ? `<div class="nav-sep"></div>` + CONFIG.systemLinks.map(n => `<button class="nav" data-act="sysnav" data-path="${esc(n.path)}">${ic(n.icon, 18)}${esc(n.label)}</button>`).join('')
     : '';
+  const menuOpen = !!ui.profileMenuOpen;
   return `<aside class="side"><div class="logo"><div class="lg">${ic('home', 20)}</div>${esc(CONFIG.title || 'Home')}</div><div class="sub">${esc(CONFIG.subtitle || 'Home Assistant')}</div>
     ${mainItems}${sysItems}
-    <div class="me">
-      <div class="me-user"><div class="av">${esc(name.charAt(0).toUpperCase())}</div><div style="min-width:0"><b>${esc(name)}</b><small>${esc(CONFIG.role || '')}</small></div></div>
-      <div class="me-actions">
-        <button class="me-btn ${ui.editMode ? 'on' : ''}" data-act="toggleEditMode" title="Quick-Edit Modus (Layout direkt auf der Seite anpassen)">${ic('edit', 14)}</button>
-        <button class="me-btn" data-act="toggleKiosk" title="Vollbild / HA-Seitenleiste umschalten">${ic('expand', 14)}</button>
-        <button class="me-btn" data-act="cfgOpen" title="Dashboard konfigurieren">${ic('settings', 15)}</button>
+    <div class="me-wrap">
+      <div class="me-popover ${menuOpen ? 'open' : ''}" role="menu" aria-hidden="${menuOpen ? 'false' : 'true'}">
+        <button type="button" class="me-pop-item ${ui.editMode ? 'on' : ''}" data-act="toggleEditMode">
+          <span class="me-pop-ico">${ic('edit', 16)}</span>
+          <span class="me-pop-txt"><b>Schnell-Bearbeiten</b><small>${ui.editMode ? 'Aktiv – Antippen zum Beenden' : 'Layout & Spalten direkt anpassen'}</small></span>
+        </button>
+        <button type="button" class="me-pop-item ${CONFIG.kioskMode ? 'on' : ''}" data-act="toggleKiosk">
+          <span class="me-pop-ico">${ic('expand', 16)}</span>
+          <span class="me-pop-txt"><b>Vollbild / Kiosk</b><small>${CONFIG.kioskMode ? 'Aktiv – HA-Seitenleiste einblenden' : 'HA-Seitenleiste ausblenden'}</small></span>
+        </button>
+        <button type="button" class="me-pop-item" data-act="cfgOpen">
+          <span class="me-pop-ico">${ic('settings', 16)}</span>
+          <span class="me-pop-txt"><b>Dashboard-Konfigurator</b><small>Räume, Geräte, Design & Backup</small></span>
+        </button>
       </div>
+      <button type="button" class="me ${menuOpen ? 'open' : ''}" data-act="toggleProfileMenu" aria-expanded="${menuOpen ? 'true' : 'false'}" title="Menü öffnen (Schnell-Bearbeiten, Vollbild, Konfigurator)">
+        <div class="me-user">
+          <div class="av">${esc(name.charAt(0).toUpperCase())}</div>
+          <div class="me-info"><b>${esc(name)}</b><small>${esc(CONFIG.role || '')}</small></div>
+        </div>
+        <span class="me-chev" aria-hidden="true">${ic(menuOpen ? 'down' : 'up', 15)}</span>
+      </button>
     </div></aside>`;
 }
 
