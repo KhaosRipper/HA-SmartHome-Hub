@@ -1378,10 +1378,25 @@ function renderCfgModal(preserveScroll = true) {
     return `<button type="button" class="chip ${hasPage ? 'on' : ''}" data-act="cfgGenRoomPage" data-room="${esc(rm.name)}" style="font-size:11.5px;padding:5px 11px" title="Komplette Raum-Unterseite für „${esc(rm.name)}“ mit Geräten, Lichtern, Rolläden & Klima erstellen/öffnen">${hasPage ? '✓ ' : '+ '}🏠 ${esc(rm.name)}</button>`;
   }).join('');
 
-  let tKalender = box('📅 Familienkalender & Abfallkalender (Entitäten & Platzierung)', 'Wähle deine Home Assistant Kalender-Entitäten aus und lege fest, wo die Kalender- und Müll-Kacheln angezeigt werden.', `
+  const calStylesList = (typeof CALENDAR_STYLES !== 'undefined' && Array.isArray(CALENDAR_STYLES)) ? CALENDAR_STYLES : [
+    ['list',   '📋 7-Tage-Liste (Classic)'],
+    ['agenda', '⚡ Kompakt-Agenda (Nur Termine)'],
+    ['google', '🟦 Google-Kalender-Stil'],
+    ['apple',  '🍎 Apple-Kalender-Stil (Split)'],
+    ['board',  '🗂️ Wochen-Board (7 Spalten)'],
+    ['month',  '📅 Monats-Kalender (Raster)']
+  ];
+  const curHomeCalStyle = cfgDraft.calendarHomeStyle || (cfgDraft.calendars && cfgDraft.calendars.calendarHomeStyle) || 'agenda';
+  const curPageCalStyle = cfgDraft.calendarPageStyle || (cfgDraft.calendars && cfgDraft.calendars.calendarPageStyle) || 'apple';
+
+  let tKalender = box('📅 Familienkalender & Abfallkalender (Entitäten, Optik & Platzierung)', 'Wähle deine Home Assistant Kalender-Entitäten aus und lege die Darstellung für das Home-Widget sowie die dedizierte Kalender-Seite getrennt fest.', `
     <div style="margin-bottom:14px">
       <span class="cfg-desc" style="font-weight:600;display:block;margin-bottom:4px">📅 Familienkalender (calendar.*):</span>
       ${placementBarHtml('calendar', 'calendar', 'Familienkalender')}
+      <div class="cfg-row" style="margin-bottom:10px">
+        ${sel('Optik für Home-Widget (Startseite)', calStylesList.map(([v, l]) => `<option value="${esc(v)}" ${curHomeCalStyle === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="calendarHomeStyle"`)}
+        ${sel('Optik für Kalender-Seite (Unterseite)', calStylesList.map(([v, l]) => `<option value="${esc(v)}" ${curPageCalStyle === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="calendarPageStyle"`)}
+      </div>
       ${entityChipsHtml((cfgDraft.calendars || {}).familyEntities || [], 'calFam', '', 'calendar.* auswählen…')}
     </div>
     <div style="padding-top:12px;border-top:1px dashed var(--line)">
@@ -1478,6 +1493,7 @@ function renderCfgModal(preserveScroll = true) {
             </div>`;
           } else if (w.type === 'calendar') {
             extraWidgetCfg = `<div class="cfg-row" style="margin-top:6px">
+              ${sel('Kalender-Optik (leer = Standard der Kalender-Seite)', `<option value="">Standard der Kalender-Seite nutzen</option>` + calStylesList.map(([v, l]) => `<option value="${esc(v)}" ${(w.style || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-pg-i="${pi}" data-w-i="${wi}" data-w-k="style"`)}
               ${fld('Zeitraum in Tagen (z.B. 7 oder 14)', `type="number" data-pg-i="${pi}" data-w-i="${wi}" data-w-k="daysCount" value="${w.daysCount || w.days || 14}"`)}
             </div>`;
           } else if (w.type === 'entity_info') {
@@ -1773,6 +1789,10 @@ document.addEventListener('input', e => {
   if (!cfgDraft) return;
   if (t.dataset.cpath) {
     setByPath(cfgDraft, t.dataset.cpath, t.value);
+    if (t.dataset.cpath === 'calendarHomeStyle' || t.dataset.cpath === 'calendarPageStyle') {
+      if (!cfgDraft.calendars) cfgDraft.calendars = {};
+      cfgDraft.calendars[t.dataset.cpath] = t.value;
+    }
     if (t.dataset.cpath === 'dashboardLayoutMode') renderCfgModal(true);
     if (t.dataset.cpath.startsWith('theme.')) {
       const prop = t.dataset.cpath.slice(6);

@@ -3,6 +3,22 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
+const VERSION = '3.4.0';
+
+const CALENDAR_STYLES = [
+  ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
+  ['agenda', '⚡ Kompakt-Agenda (Nur Termine)', 'Agenda'],
+  ['google', '🟦 Google-Kalender-Stil',        'Google'],
+  ['apple',  '🍎 Apple-Kalender-Stil (Split)', 'Apple'],
+  ['board',  '🗂️ Wochen-Board (7 Spalten)',    'Board'],
+  ['month',  '📅 Monats-Kalender (Raster)',    'Monat']
+];
+const VALID_CALENDAR_STYLES = new Set(CALENDAR_STYLES.map(x => x[0]));
+function normalizeCalendarStyle(val, fallback = 'agenda') {
+  const s = String(val || '').trim().toLowerCase();
+  return VALID_CALENDAR_STYLES.has(s) ? s : fallback;
+}
+
 const ICONS = {
   check:'<path d="M20 6L9 17l-5-5"/>',
   home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
@@ -772,6 +788,11 @@ function ensureConfigDefaults(cfg) {
   if (!cfg.calendars) cfg.calendars = { weatherEntity: '', familyEntities: [], trashEntities: [] };
   if (!Array.isArray(cfg.calendars.familyEntities)) cfg.calendars.familyEntities = [];
   if (!Array.isArray(cfg.calendars.trashEntities)) cfg.calendars.trashEntities = [];
+  const legacyCalStyle = cfg.calendarStyle || cfg.calendars.style || '';
+  cfg.calendarHomeStyle = normalizeCalendarStyle(cfg.calendarHomeStyle || cfg.calendars.calendarHomeStyle || cfg.calendars.homeStyle || legacyCalStyle, 'agenda');
+  cfg.calendarPageStyle = normalizeCalendarStyle(cfg.calendarPageStyle || cfg.calendars.calendarPageStyle || cfg.calendars.pageStyle || legacyCalStyle, 'apple');
+  cfg.calendars.calendarHomeStyle = cfg.calendarHomeStyle;
+  cfg.calendars.calendarPageStyle = cfg.calendarPageStyle;
 
   if (!Array.isArray(cfg.customPages)) cfg.customPages = [];
   cfg.customPages.forEach(p => {

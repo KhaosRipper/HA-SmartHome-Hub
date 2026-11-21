@@ -656,7 +656,7 @@ function tick(force) {
   }
   if (coverDrag.active) return;
   const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level, a.battery_level, a.battery].join('|'); }).join(';')
-    + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.seriesVer}${homeCalendarState.loadedAt}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
+    + `#${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
 }
 
@@ -2016,6 +2016,58 @@ document.addEventListener('click', ev => {
   }
 
   if (act === 'wfcOpen') { openWeatherModal(); return; }
+  if (act === 'calQuickStyle') {
+    const ctx = el.dataset.ctx === 'page' ? 'page' : 'home';
+    const nextStyle = normalizeCalendarStyle(el.dataset.style, ctx === 'page' ? 'apple' : 'agenda');
+    if (!CONFIG.calendars) CONFIG.calendars = { familyEntities: [], trashEntities: [] };
+    if (ctx === 'page') {
+      CONFIG.calendarPageStyle = nextStyle;
+      CONFIG.calendars.calendarPageStyle = nextStyle;
+      // Falls das aktuelle Unterseiten-Widget ein explizites style-Attribut hat, synchronisieren
+      if (ui.view && ui.view.startsWith('page:')) {
+        const pg = (CONFIG.customPages || []).find(p => p && p.id === ui.view.slice(5));
+        if (pg && Array.isArray(pg.widgets)) {
+          pg.widgets.forEach(w => { if (w && w.type === 'calendar' && w.style) w.style = nextStyle; });
+        }
+      }
+    } else {
+      CONFIG.calendarHomeStyle = nextStyle;
+      CONFIG.calendars.calendarHomeStyle = nextStyle;
+    }
+    homeCalendarState.rev++;
+    if (nextStyle === 'apple' || nextStyle === 'month') {
+      ensureCalendarMonthLoaded(homeCalendarState.monthOffset, false);
+    }
+    saveConfigToServer(CONFIG);
+    tick(true);
+    return;
+  }
+  if (act === 'calMonthNav') {
+    const dir = parseInt(el.dataset.dir, 10) || 0;
+    homeCalendarState.monthOffset = (Number(homeCalendarState.monthOffset) || 0) + dir;
+    const mRange = getCalendarMonthRange(homeCalendarState.monthOffset);
+    homeCalendarState.selectedDateKey = toLocalDateKey(mRange.firstDay);
+    homeCalendarState.rev++;
+    ensureCalendarMonthLoaded(homeCalendarState.monthOffset, false);
+    tick(true);
+    return;
+  }
+  if (act === 'calMonthToday') {
+    homeCalendarState.monthOffset = 0;
+    homeCalendarState.selectedDateKey = toLocalDateKey(new Date());
+    homeCalendarState.rev++;
+    ensureCalendarMonthLoaded(0, false);
+    tick(true);
+    return;
+  }
+  if (act === 'calSelectDay') {
+    if (el.dataset.date) {
+      homeCalendarState.selectedDateKey = el.dataset.date;
+      homeCalendarState.rev++;
+      tick(true);
+    }
+    return;
+  }
   if (act === 'wfcOpenDay') { weatherForecastState.selectedDay = +el.dataset.i; openWeatherModal(); return; }
   if (act === 'wfcTab') { weatherForecastState.tab = el.dataset.tab; renderWeatherModal(); return; }
   if (act === 'wfcDay') { weatherForecastState.selectedDay = +el.dataset.i; renderWeatherModal(); return; }

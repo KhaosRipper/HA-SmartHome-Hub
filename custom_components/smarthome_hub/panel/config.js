@@ -65,8 +65,12 @@ const EMPTY_CONFIG = {
   calendars: {
     weatherEntity: "",
     familyEntities: [],
-    trashEntities: []
+    trashEntities: [],
+    calendarHomeStyle: "agenda",
+    calendarPageStyle: "apple"
   },
+  calendarHomeStyle: "agenda",
+  calendarPageStyle: "apple",
 
   alerts: [],
   routines: [],
@@ -226,8 +230,12 @@ const TIMO_PRESET_CONFIG = {
   calendars: {
     weatherEntity: "weather.aussen_wetter_urloffen",
     familyEntities: ["calendar.familie", "calendar.familie_2"],
-    trashEntities: ["calendar.abfallkalender2025", "calendar.abfallkalender2026"]
+    trashEntities: ["calendar.abfallkalender2025", "calendar.abfallkalender2026"],
+    calendarHomeStyle: "agenda",
+    calendarPageStyle: "apple"
   },
+  calendarHomeStyle: "agenda",
+  calendarPageStyle: "apple",
 
   alerts: [
     { title: "Wassermelder aktiv!", message: "Feuchtigkeit am Boden erkannt", entity: "binary_sensor.wassermelder", op: "==", val: "on", icon: "drop", color: "danger", show: false },

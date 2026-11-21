@@ -1596,7 +1596,7 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
     const mList = (CONFIG.metrics || []).filter(m => !w.entity || m.id === w.entity || m.title === w.entity);
     return (mList.length ? mList : (CONFIG.metrics || [])).map(metricCard).join('');
   }
-  if (w.type === 'calendar') return homeCalendarCard(w.daysCount || w.days || 14, w.title);
+  if (w.type === 'calendar') return homeCalendarCard(w.daysCount || w.days || 14, w.title, 'page', w.style || null);
   if (w.type === 'trash') return homeTrashCard(w.maxDays || w.days || 30, w.maxItems || 25, w.subtitle || 'Nächste 30 Tage');
   if (w.type === 'todo') {
     if (w.mode === 'taskmate') {
@@ -2283,7 +2283,17 @@ function customPageView(pageId) {
 }
 
 /* ---------- Header-Badges & Kalender ---------- */
-const homeCalendarState = { loading: false, loadedAt: 0, family: [], trash: [], error: false };
+const homeCalendarState = {
+  loading: false,
+  loadedAt: 0,
+  family: [],
+  trash: [],
+  error: false,
+  monthOffset: 0,
+  selectedDateKey: '',
+  monthCache: {},
+  rev: 0
+};
 function stateIsUsable(s) { return !!s && !['unknown', 'unavailable', 'none', 'None', ''].includes(String(s.state)); }
 function formatCountdown(entity, fallback = '') {
   if (!entity) return fallback;
@@ -2399,6 +2409,69 @@ function parseCalendarDate(value) {
   const raw = String(value || '');
   return raw ? Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw) : NaN;
 }
+function toLocalDateKey(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+function getCalendarMonthRange(offset = 0, refDate = new Date()) {
+  const base = new Date(refDate.getFullYear(), refDate.getMonth() + (Number(offset) || 0), 1);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const monthKey = `${year}-${pad(month + 1)}`;
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  // Mo=0 .. So=6
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - startWeekday, 0, 0, 0, 0);
+  const totalDays = startWeekday + lastDay.getDate();
+  const cellCount = totalDays > 35 ? 42 : 35;
+  const gridEnd = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + cellCount, 0, 0, 0, 0);
+  const label = firstDay.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return {
+    year,
+    month,
+    monthKey,
+    label,
+    firstDay,
+    lastDay,
+    startWeekday,
+    cellCount,
+    gridStart,
+    gridEnd,
+    fetchStartIso: gridStart.toISOString(),
+    fetchEndIso: gridEnd.toISOString()
+  };
+}
+function getEffectiveCalendarStyle(ctxType = 'home', overrideStyle = null) {
+  if (overrideStyle) return normalizeCalendarStyle(overrideStyle, ctxType === 'page' ? 'apple' : 'agenda');
+  const calCfg = (CONFIG && CONFIG.calendars) || {};
+  if (ctxType === 'page') {
+    return normalizeCalendarStyle(CONFIG?.calendarPageStyle || calCfg.calendarPageStyle || 'apple', 'apple');
+  }
+  return normalizeCalendarStyle(CONFIG?.calendarHomeStyle || calCfg.calendarHomeStyle || 'agenda', 'agenda');
+}
+function isMonthBasedCalendarActive() {
+  const hStyle = getEffectiveCalendarStyle('home');
+  const pStyle = getEffectiveCalendarStyle('page');
+  if (hStyle === 'apple' || hStyle === 'month' || pStyle === 'apple' || pStyle === 'month') return true;
+  return (CONFIG?.customPages || []).some(p => (p.widgets || []).some(w => w && w.type === 'calendar' && (w.style === 'apple' || w.style === 'month')));
+}
+const CAL_PALETTE = ['#38bdf8', '#a99bff', '#34d399', '#f59e0b', '#f472b6', '#60a5fa'];
+function getCalendarEntityColor(entity) {
+  const fam = (CONFIG?.calendars?.familyEntities) || [];
+  const idx = fam.indexOf(entity);
+  if (idx >= 0) return CAL_PALETTE[idx % CAL_PALETTE.length];
+  const hash = [...String(entity || '')].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return CAL_PALETTE[hash % CAL_PALETTE.length];
+}
+function isEventOnDay(ev, dayDate) {
+  const dayStart = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), 0, 0, 0, 0).getTime();
+  const dayEnd = dayStart + 86400000;
+  const evStart = ev.startMs;
+  const evEnd = (Number.isFinite(ev.endMs) && ev.endMs > evStart) ? ev.endMs : (ev.allDay ? evStart + 86400000 : evStart + 3600000);
+  return evStart < dayEnd && evEnd > dayStart;
+}
 function normalizeCalendarEvent(event, entity) {
   const startRaw = event.start ?? event.start_time ?? event.startTime ?? '';
   const startMs = parseCalendarDate(startRaw);
@@ -2408,13 +2481,125 @@ function normalizeCalendarEvent(event, entity) {
     description: event.description || '', location: event.location || '',
     startRaw: startString, startMs,
     endMs: parseCalendarDate(event.end ?? event.end_time ?? event.endTime ?? ''),
-    allDay: /^\d{4}-\d{2}-\d{2}$/.test(startString)
+    allDay: /^\d{4}-\d{2}-\d{2}$/.test(startString),
+    color: getCalendarEntityColor(entity)
   };
 }
+function getDemoCalendarEvents(rangeStartMs, rangeEndMs) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const baseYear = new Date((rangeStartMs + rangeEndMs) / 2).getFullYear();
+  const baseMonth = new Date((rangeStartMs + rangeEndMs) / 2).getMonth();
+  const mk = (dayOffset, h, m, durH, summary, allDay = false, entIdx = 0, useMonthDay = false) => {
+    const d = useMonthDay
+      ? new Date(baseYear, baseMonth, dayOffset, allDay ? 0 : h, allDay ? 0 : m, 0)
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset, allDay ? 0 : h, allDay ? 0 : m, 0);
+    const startMs = d.getTime();
+    const endMs = allDay ? startMs + 86400000 : startMs + durH * 3600000;
+    const entity = `calendar.demo_${entIdx + 1}`;
+    return {
+      entity,
+      summary,
+      description: '',
+      location: '',
+      startRaw: allDay ? toLocalDateKey(d) : d.toISOString(),
+      startMs,
+      endMs,
+      allDay,
+      color: CAL_PALETTE[entIdx % CAL_PALETTE.length]
+    };
+  };
+  return [
+    mk(0, 9, 30, 1, 'Team-Standup & Planung', false, 0),
+    mk(0, 15, 0, 1.5, 'Kinderarzt Termin', false, 1),
+    mk(1, 0, 0, 24, 'Home-Office Tag', true, 0),
+    mk(1, 18, 30, 2, 'Sport / Fußballtraining', false, 2),
+    mk(3, 14, 0, 2, 'Einkauf & Wochenmarkt', false, 1),
+    mk(5, 19, 0, 3, 'Familienabend & Pizza', false, 0),
+    mk(12, 10, 0, 2, 'Handwerker / Wartung', false, 2, true),
+    mk(20, 0, 0, 24, 'Geburtstag Oma 🎂', true, 1, true)
+  ].filter(ev => ev.endMs >= rangeStartMs && ev.startMs <= rangeEndMs).sort((a, b) => a.startMs - b.startMs);
+}
+async function fetchHaCalendarEvents(ha, entity, startIso, endIso) {
+  if (typeof ha.callWS === 'function') {
+    try {
+      const wsRes = await ha.callWS({
+        type: 'calendar/event/list',
+        entity_id: entity,
+        start_time: startIso,
+        end_time: endIso
+      });
+      if (wsRes && Array.isArray(wsRes.events)) return wsRes.events;
+      if (Array.isArray(wsRes)) return wsRes;
+    } catch (_) {}
+  }
+  if (typeof ha.callApi === 'function') {
+    const res = await ha.callApi('GET', `calendars/${entity}?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`);
+    return Array.isArray(res) ? res : (res && Array.isArray(res.events) ? res.events : []);
+  }
+  return [];
+}
+function dedupeCalendarEvents(list) {
+  const seen = new Set();
+  return list.filter(ev => {
+    const k = `${ev.summary}|${ev.startRaw}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).sort((a, b) => a.startMs - b.startMs);
+}
+async function ensureCalendarMonthLoaded(offset = homeCalendarState.monthOffset, force = false) {
+  const mRange = getCalendarMonthRange(offset);
+  const famEnts = (CONFIG?.calendars?.familyEntities || []).filter(Boolean);
+  const entSig = famEnts.join(',');
+  const cacheEntry = homeCalendarState.monthCache[mRange.monthKey];
+  if (!force && cacheEntry && cacheEntry.entSig === entSig && Date.now() - cacheEntry.loadedAt < 5 * 60 * 1000) {
+    return cacheEntry.events;
+  }
+  if (DEMO) {
+    const demoEvs = getDemoCalendarEvents(mRange.gridStart.getTime(), mRange.gridEnd.getTime());
+    homeCalendarState.monthCache[mRange.monthKey] = { events: demoEvs, loadedAt: Date.now(), entSig };
+    homeCalendarState.rev++;
+    return demoEvs;
+  }
+  const ha = getHass();
+  if (!ha || !famEnts.length) return [];
+  if (homeCalendarState._loadingMonth === mRange.monthKey && !force) return (cacheEntry && cacheEntry.events) || [];
+  homeCalendarState._loadingMonth = mRange.monthKey;
+  try {
+    const results = await Promise.all(famEnts.map(async entity => {
+      try {
+        const arr = await fetchHaCalendarEvents(ha, entity, mRange.fetchStartIso, mRange.fetchEndIso);
+        return arr.map(ev => normalizeCalendarEvent(ev, entity)).filter(ev => Number.isFinite(ev.startMs));
+      } catch (e) { return []; }
+    }));
+    const events = dedupeCalendarEvents(results.flat());
+    homeCalendarState.monthCache[mRange.monthKey] = { events, loadedAt: Date.now(), entSig };
+    homeCalendarState.loadedAt = Date.now();
+    homeCalendarState.rev++;
+    return events;
+  } finally {
+    if (homeCalendarState._loadingMonth === mRange.monthKey) homeCalendarState._loadingMonth = null;
+    if (typeof tick === 'function') tick(true);
+  }
+}
 async function refreshHomeCalendars(force = false) {
-  if (DEMO || homeCalendarState.loading) return;
-  if (!force && homeCalendarState.loadedAt && Date.now() - homeCalendarState.loadedAt < 5 * 60 * 1000) return;
-  const ha = getHass(); if (!ha || typeof ha.callApi !== 'function') return;
+  if (homeCalendarState.loading) return;
+  if (force) homeCalendarState.monthCache = {};
+  if (DEMO) {
+    const now = new Date(), start = new Date(now); start.setHours(0, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 24 * 3600 * 1000);
+    homeCalendarState.family = getDemoCalendarEvents(start.getTime(), end.getTime());
+    homeCalendarState.loadedAt = Date.now();
+    homeCalendarState.rev++;
+    if (isMonthBasedCalendarActive()) await ensureCalendarMonthLoaded(homeCalendarState.monthOffset, force);
+    return;
+  }
+  if (!force && homeCalendarState.loadedAt && Date.now() - homeCalendarState.loadedAt < 5 * 60 * 1000) {
+    if (isMonthBasedCalendarActive()) ensureCalendarMonthLoaded(homeCalendarState.monthOffset, false);
+    return;
+  }
+  const ha = getHass(); if (!ha || (typeof ha.callApi !== 'function' && typeof ha.callWS !== 'function')) return;
   const calCfg = CONFIG.calendars || {};
   const entities = [
     ...(calCfg.familyEntities || []).map(e => ({ entity: e, group: 'family' })),
@@ -2424,41 +2609,266 @@ async function refreshHomeCalendars(force = false) {
   homeCalendarState.loading = true;
   const now = new Date(), start = new Date(now); start.setHours(0, 0, 0, 0);
   const end = new Date(start.getTime() + 30 * 24 * 3600 * 1000);
+  const startIso = start.toISOString(), endIso = end.toISOString();
   try {
     const results = await Promise.all(entities.map(async ({ entity, group }) => {
       try {
-        const res = await ha.callApi('GET', `calendars/${entity}?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`);
-        const arr = Array.isArray(res) ? res : (res && Array.isArray(res.events) ? res.events : []);
+        const arr = await fetchHaCalendarEvents(ha, entity, startIso, endIso);
         return { group, ok: true, events: arr.map(ev => normalizeCalendarEvent(ev, entity)).filter(ev => Number.isFinite(ev.startMs)) };
       } catch (e) { return { group, ok: false, events: [] }; }
     }));
-    const dedupe = list => {
-      const seen = new Set();
-      return list.filter(ev => { const k = `${ev.summary}|${ev.startRaw}`; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.startMs - b.startMs);
-    };
-    homeCalendarState.family = dedupe(results.filter(x => x.group === 'family').flatMap(x => x.events));
-    homeCalendarState.trash = dedupe(results.filter(x => x.group === 'trash').flatMap(x => x.events));
+    homeCalendarState.family = dedupeCalendarEvents(results.filter(x => x.group === 'family').flatMap(x => x.events));
+    homeCalendarState.trash = dedupeCalendarEvents(results.filter(x => x.group === 'trash').flatMap(x => x.events));
     homeCalendarState.loadedAt = Date.now();
+    homeCalendarState.rev++;
+    if (isMonthBasedCalendarActive()) {
+      await ensureCalendarMonthLoaded(homeCalendarState.monthOffset, force);
+    }
   } finally {
     homeCalendarState.loading = false;
-    tick(true);
+    if (typeof tick === 'function') tick(true);
   }
 }
-function homeCalendarCard(daysCount = 7, customTitle = null) {
+function formatCalEventTime(ev) {
+  if (ev.allDay) return 'Ganztags';
+  const t1 = new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (Number.isFinite(ev.endMs) && ev.endMs > ev.startMs) {
+    const t2 = new Date(ev.endMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return `${t1} – ${t2} Uhr`;
+  }
+  return `${t1} Uhr`;
+}
+function buildCalendarViewSwitcherHtml(activeStyle, ctxType = 'home') {
+  const styles = (typeof CALENDAR_STYLES !== 'undefined' && Array.isArray(CALENDAR_STYLES)) ? CALENDAR_STYLES : [
+    ['list',   '📋 7-Tage-Liste (Classic)',      'Liste'],
+    ['agenda', '⚡ Kompakt-Agenda (Nur Termine)', 'Agenda'],
+    ['google', '🟦 Google-Kalender-Stil',        'Google'],
+    ['apple',  '🍎 Apple-Kalender-Stil (Split)', 'Apple'],
+    ['board',  '🗂️ Wochen-Board (7 Spalten)',    'Board'],
+    ['month',  '📅 Monats-Kalender (Raster)',    'Monat']
+  ];
+  const btns = styles.map(([id, fullLabel, shortLabel]) =>
+    `<button type="button" class="cal-sw-btn ${activeStyle === id ? 'on' : ''}" data-act="calQuickStyle" data-ctx="${esc(ctxType)}" data-style="${esc(id)}" title="${esc(fullLabel)}">${esc(shortLabel || id)}</button>`
+  ).join('');
+  return `<div class="cal-switcher" role="group" aria-label="Kalender-Ansicht wählen">${btns}</div>`;
+}
+function buildMonthNavHtml(mRange) {
+  const isCurrentMonth = (Number(homeCalendarState.monthOffset) || 0) === 0;
+  return `<div class="cal-month-nav">
+    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="-1" title="Vorheriger Monat">‹</button>
+    <b class="cal-month-lbl">${esc(mRange.label)}</b>
+    <button type="button" class="cal-nav-btn" data-act="calMonthNav" data-dir="1" title="Nächster Monat">›</button>
+    <button type="button" class="cal-today-btn ${isCurrentMonth ? 'on' : ''}" data-act="calMonthToday" title="Zum aktuellen Monat & Heute springen">Heute</button>
+  </div>`;
+}
+function homeCalendarCard(daysCount = 7, customTitle = null, ctxType = 'home', overrideStyle = null) {
   const calCfg = CONFIG.calendars || {};
-  if (!(calCfg.familyEntities && calCfg.familyEntities.length)) return '';
-  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const weekEnd = new Date(today); weekEnd.setDate(weekEnd.getDate() + daysCount);
-  const upcoming = homeCalendarState.family.filter(ev => ev.allDay ? (ev.startMs >= today.getTime() && ev.startMs < weekEnd.getTime()) : (ev.startMs >= now.getTime() && ev.startMs < weekEnd.getTime()));
-  const dayRows = Array.from({ length: daysCount }, (_, i) => {
-    const day = new Date(today); day.setDate(day.getDate() + i);
-    const events = upcoming.filter(ev => { const d = new Date(ev.startMs); return d.getFullYear() === day.getFullYear() && d.getMonth() === day.getMonth() && d.getDate() === day.getDate(); });
+  const hasEntities = !!(calCfg.familyEntities && calCfg.familyEntities.length);
+  if (!hasEntities && !DEMO && !ui.editMode) return '';
+
+  const style = getEffectiveCalendarStyle(ctxType, overrideStyle);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = toLocalDateKey(today);
+  if (!homeCalendarState.selectedDateKey) homeCalendarState.selectedDateKey = todayKey;
+
+  const effDays = Math.max(1, parseInt(daysCount, 10) || 7);
+  const defaultTitle = (style === 'month' || style === 'apple')
+    ? 'Familienkalender'
+    : `Familienkalender · ${effDays} Tage`;
+  const title = customTitle || defaultTitle;
+  const switcherHtml = buildCalendarViewSwitcherHtml(style, ctxType);
+
+  // Für Apple & Monat: Monatsdaten aus Cache holen (oder asynchron nachladen)
+  if (style === 'apple' || style === 'month') {
+    const mRange = getCalendarMonthRange(homeCalendarState.monthOffset, now);
+    const cached = homeCalendarState.monthCache[mRange.monthKey];
+    if (!cached && !homeCalendarState._loadingMonth) {
+      setTimeout(() => ensureCalendarMonthLoaded(homeCalendarState.monthOffset, false), 0);
+    }
+    const monthEvents = cached ? cached.events : (DEMO ? getDemoCalendarEvents(mRange.gridStart.getTime(), mRange.gridEnd.getTime()) : homeCalendarState.family);
+    const selKey = homeCalendarState.selectedDateKey || todayKey;
+    const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const wdHeader = weekdays.map(w => `<div class="cal-wd">${w}</div>`).join('');
+
+    const cells = [];
+    let selectedDayObj = today;
+    for (let i = 0; i < mRange.cellCount; i++) {
+      const cellDate = new Date(mRange.gridStart.getFullYear(), mRange.gridStart.getMonth(), mRange.gridStart.getDate() + i);
+      const key = toLocalDateKey(cellDate);
+      const inMonth = cellDate.getMonth() === mRange.month;
+      const isToday = key === todayKey;
+      const isSel = key === selKey;
+      if (isSel) selectedDayObj = cellDate;
+      const dayEvents = monthEvents.filter(ev => isEventOnDay(ev, cellDate));
+      cells.push({ cellDate, key, inMonth, isToday, isSel, dayEvents });
+    }
+    // Falls ausgewähltes Datum nicht im sichtbaren Raster liegt, auf 1. des Monats (oder Heute) setzen
+    if (!cells.some(c => c.key === selKey)) {
+      const fallbackCell = cells.find(c => c.isToday) || cells.find(c => c.inMonth) || cells[0];
+      if (fallbackCell) selectedDayObj = fallbackCell.cellDate;
+    }
+    const selEvents = monthEvents.filter(ev => isEventOnDay(ev, selectedDayObj));
+    const selDateTitle = selectedDayObj.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const selDetailListHtml = selEvents.length
+      ? selEvents.map(ev => `<div class="cal-detail-item" style="--ev-c:${esc(ev.color || 'var(--acc2)')}">
+          <div class="cal-detail-time">${esc(formatCalEventTime(ev))}</div>
+          <div class="cal-detail-body">
+            <b>${esc(ev.summary)}</b>
+            ${ev.location ? `<small>📍 ${esc(ev.location)}</small>` : ''}
+            ${ev.description ? `<small>${esc(ev.description)}</small>` : ''}
+          </div>
+        </div>`).join('')
+      : `<div class="home-agenda-empty">Keine Termine an diesem Tag.</div>`;
+
+    if (style === 'apple') {
+      const miniCellsHtml = cells.map(c => {
+        const dots = c.dayEvents.slice(0, 3).map(ev => `<i style="background:${esc(ev.color || 'var(--acc2)')}"></i>`).join('');
+        return `<button type="button" class="cal-apple-day ${c.inMonth ? '' : 'outside'} ${c.isToday ? 'today' : ''} ${c.key === toLocalDateKey(selectedDayObj) ? 'selected' : ''}" data-act="calSelectDay" data-date="${esc(c.key)}">
+          <span class="cal-apple-num">${c.cellDate.getDate()}</span>
+          <span class="cal-apple-dots">${dots}</span>
+        </button>`;
+      }).join('');
+
+      return `<section class="card home-agenda cal-card cal-style-apple" data-cal-style="apple">
+        <div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div>
+        <div class="cal-apple-split">
+          <div class="cal-apple-left">
+            ${buildMonthNavHtml(mRange)}
+            <div class="cal-apple-grid">
+              ${wdHeader}
+              ${miniCellsHtml}
+            </div>
+          </div>
+          <div class="cal-apple-right">
+            <div class="cal-detail-hdr">
+              <b>${esc(selDateTitle)}</b>
+              <span class="mut sm">${selEvents.length} ${selEvents.length === 1 ? 'Termin' : 'Termine'}</span>
+            </div>
+            <div class="cal-detail-list">${selDetailListHtml}</div>
+          </div>
+        </div>
+      </section>`;
+    }
+
+    // 6. month (Großes Monats-Raster mit Termin-Vorschau in den Tageszellen + Klick-Detailansicht)
+    const monthCellsHtml = cells.map(c => {
+      const previews = c.dayEvents.slice(0, 3).map(ev => {
+        const tShort = ev.allDay ? '' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' ';
+        return `<div class="cal-month-pill" style="--ev-c:${esc(ev.color || 'var(--acc2)')}" title="${esc(ev.summary)} (${esc(formatCalEventTime(ev))})">${esc(tShort + ev.summary)}</div>`;
+      }).join('');
+      const more = c.dayEvents.length > 3 ? `<div class="cal-month-more">+${c.dayEvents.length - 3} weitere</div>` : '';
+      return `<button type="button" class="cal-month-cell ${c.inMonth ? '' : 'outside'} ${c.isToday ? 'today' : ''} ${c.key === toLocalDateKey(selectedDayObj) ? 'selected' : ''}" data-act="calSelectDay" data-date="${esc(c.key)}">
+        <div class="cal-month-cell-top"><span class="cal-month-num">${c.cellDate.getDate()}</span></div>
+        <div class="cal-month-events">${previews}${more}</div>
+      </button>`;
+    }).join('');
+
+    return `<section class="card home-agenda cal-card cal-style-month" data-cal-style="month">
+      <div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div>
+      ${buildMonthNavHtml(mRange)}
+      <div class="cal-month-grid">
+        ${wdHeader}
+        ${monthCellsHtml}
+      </div>
+      <div class="cal-month-detail">
+        <div class="cal-detail-hdr">
+          <b>📌 ${esc(selDateTitle)}</b>
+          <span class="mut sm">${selEvents.length} ${selEvents.length === 1 ? 'Termin' : 'Termine'}</span>
+        </div>
+        <div class="cal-detail-list">${selDetailListHtml}</div>
+      </div>
+    </section>`;
+  }
+
+  // Wochen-/Tages-basierte Ansichten (list, agenda, google, board)
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + effDays);
+  const sourceEvents = (DEMO && (!homeCalendarState.family || !homeCalendarState.family.length))
+    ? getDemoCalendarEvents(today.getTime(), weekEnd.getTime())
+    : homeCalendarState.family;
+  const upcoming = sourceEvents.filter(ev =>
+    ev.allDay
+      ? (isEventOnDay(ev, today) || (ev.startMs >= today.getTime() && ev.startMs < weekEnd.getTime()))
+      : ((ev.endMs && ev.endMs >= now.getTime() && ev.startMs < weekEnd.getTime()) || (ev.startMs >= today.getTime() && ev.startMs < weekEnd.getTime()))
+  );
+
+  const daysList = Array.from({ length: effDays }, (_, i) => {
+    const day = new Date(today);
+    day.setDate(day.getDate() + i);
+    const key = toLocalDateKey(day);
+    const events = upcoming.filter(ev => isEventOnDay(ev, day));
     const dayLabel = i === 0 ? 'Heute' : i === 1 ? 'Morgen' : day.toLocaleDateString('de-DE', { weekday: 'short' });
     const dateLabel = day.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-    const eventHtml = events.length ? events.map(ev => `<div class="home-agenda-event"><b>${esc(ev.summary)}</b><small>${ev.allDay ? 'Ganztags' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr'}</small></div>`).join('') : '<small>Keine Termine</small>';
-    return `<div class="home-agenda-row" style="--agenda-accent:#F1C40F"><div class="home-agenda-date">${dayLabel}<br>${dateLabel}</div><div class="home-agenda-main">${eventHtml}</div></div>`;
+    return { i, day, key, isToday: i === 0, dayLabel, dateLabel, events };
+  });
+
+  // 2. agenda (Kompakt-Agenda: Zeigt nur Tage mit tatsächlichen Terminen)
+  if (style === 'agenda') {
+    const activeDays = daysList.filter(d => d.events.length > 0);
+    const rows = activeDays.length
+      ? activeDays.map(d => {
+          const eventHtml = d.events.map(ev => `<div class="home-agenda-event"><b>${esc(ev.summary)}</b><small>${esc(formatCalEventTime(ev))}</small></div>`).join('');
+          return `<div class="home-agenda-row ${d.isToday ? 'is-today' : ''}" style="--agenda-accent:${esc(d.events[0]?.color || '#34d399')}"><div class="home-agenda-date">${esc(d.dayLabel)}<br>${esc(d.dateLabel)}</div><div class="home-agenda-main">${eventHtml}</div></div>`;
+        }).join('')
+      : `<div class="home-agenda-empty">Keine anstehenden Termine in den nächsten ${effDays} Tagen.</div>`;
+    return `<section class="card home-agenda cal-card cal-style-agenda" data-cal-style="agenda"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="home-agenda-list">${rows}</div></section>`;
+  }
+
+  // 3. google (Google-Kalender-Stil: Farbige abgerundete Termin-Pillen, Rasterlinien, rote aktuelle Tages-/Zeitlinie)
+  if (style === 'google') {
+    const nowTimeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const gRows = daysList.map(d => {
+      const wdShort = d.day.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
+      const pills = d.events.map(ev => `<div class="cal-google-pill" style="--ev-c:${esc(ev.color || '#38bdf8')}">
+        <span class="cal-google-pill-time">${esc(ev.allDay ? 'Ganztags' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))}</span>
+        <b class="cal-google-pill-title">${esc(ev.summary)}</b>
+        ${ev.location ? `<small class="cal-google-pill-loc">· ${esc(ev.location)}</small>` : ''}
+      </div>`).join('');
+      const nowLine = d.isToday ? `<div class="cal-google-nowline" title="Aktuelle Uhrzeit: ${esc(nowTimeStr)} Uhr"><span>${esc(nowTimeStr)}</span><i></i></div>` : '';
+      return `<div class="cal-google-day ${d.isToday ? 'today' : ''}">
+        <div class="cal-google-datecol">
+          <span class="cal-google-wd">${esc(wdShort)}</span>
+          <span class="cal-google-dnum ${d.isToday ? 'today' : ''}">${d.day.getDate()}</span>
+        </div>
+        <div class="cal-google-slot">
+          ${nowLine}
+          ${pills || `<div class="cal-google-empty">Keine Termine</div>`}
+        </div>
+      </div>`;
+    }).join('');
+    return `<section class="card home-agenda cal-card cal-style-google" data-cal-style="google"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="cal-google-grid">${gRows}</div></section>`;
+  }
+
+  // 5. board (Wochen-Board / 7 gleichmäßige Karten-Spalten Mo-So bzw. 7 Tage nebeneinander)
+  if (style === 'board') {
+    const boardCols = daysList.slice(0, 7).map(d => {
+      const wdName = d.day.toLocaleDateString('de-DE', { weekday: 'short' });
+      const cards = d.events.length
+        ? d.events.map(ev => `<div class="cal-board-ev" style="--ev-c:${esc(ev.color || 'var(--acc2)')}">
+            <small>${esc(ev.allDay ? 'Ganztags' : new Date(ev.startMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr')}</small>
+            <b>${esc(ev.summary)}</b>
+          </div>`).join('')
+        : `<div class="cal-board-empty">Frei</div>`;
+      return `<div class="cal-board-col ${d.isToday ? 'today' : ''}">
+        <div class="cal-board-col-hdr">
+          <span class="cal-board-wd">${esc(d.isToday ? 'Heute' : wdName)}</span>
+          <b class="cal-board-dt">${esc(d.dateLabel)}</b>
+        </div>
+        <div class="cal-board-col-body">${cards}</div>
+      </div>`;
+    }).join('');
+    return `<section class="card home-agenda cal-card cal-style-board" data-cal-style="board"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="cal-board-wrap">${boardCols}</div></section>`;
+  }
+
+  // 1. list (7-Tage-Liste / Classic: Alle Tage untereinander inkl. "Keine Termine")
+  const dayRows = daysList.map(d => {
+    const eventHtml = d.events.length
+      ? d.events.map(ev => `<div class="home-agenda-event"><b>${esc(ev.summary)}</b><small>${esc(formatCalEventTime(ev))}</small></div>`).join('')
+      : '<small>Keine Termine</small>';
+    return `<div class="home-agenda-row ${d.isToday ? 'is-today' : ''}" style="--agenda-accent:#F1C40F"><div class="home-agenda-date">${esc(d.dayLabel)}<br>${esc(d.dateLabel)}</div><div class="home-agenda-main">${eventHtml}</div></div>`;
   }).join('');
-  return `<section class="card home-agenda"><div class="ch"><b>${esc(customTitle || `Familienkalender · ${daysCount} Tage`)}</b></div><div class="home-agenda-list">${DEMO ? '<div class="home-agenda-empty">Kalender im HA-Modus aktiv.</div>' : dayRows}</div></section>`;
+  return `<section class="card home-agenda cal-card cal-style-list" data-cal-style="list"><div class="ch cal-hdr"><b>${esc(title)}</b>${switcherHtml}</div><div class="home-agenda-list">${dayRows}</div></section>`;
 }
 function homeTrashCard(maxDays = 2, maxItems = 6, subtitle = null) {
   const calCfg = CONFIG.calendars || {};
