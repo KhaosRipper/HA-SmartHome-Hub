@@ -176,16 +176,24 @@
 
     if (inst.hasSearched && !inst.searchLoading) {
       if (inst.searchResults && inst.searchResults.length) {
+        const typeLabels = {
+          track: safeT('mh.type.track'),
+          artist: safeT('mh.type.artist'),
+          album: safeT('mh.type.album'),
+          radio: safeT('mh.type.radio'),
+          alexa_spotify: 'Alexa'
+        };
         body += `<div class="mh-results">
           ${inst.searchResults.map((item, idx) => {
             const thumb = safeImgUrl(item.thumb);
+            const tag = typeLabels[item.type] || item.type || item.provider;
             return `<button type="button" class="mh-result-item" data-mh-act="playResult" data-mh-idx="${idx}">
-              <div class="mh-result-thumb">${thumb ? `<img src="${safeEsc(thumb)}" alt="">` : safeEsc(item.icon || '🎵')}</div>
+              <div class="mh-result-thumb">${thumb ? `<img src="${safeEsc(thumb)}" alt="" onerror="this.style.display='none'">` : safeEsc(item.icon || '🎵')}</div>
               <div class="mh-result-meta">
                 <div class="mh-result-title">${safeEsc(item.title)}</div>
                 <div class="mh-result-sub">${safeEsc(item.subtitle || item.provider)}</div>
               </div>
-              <span class="mh-result-tag">${safeEsc(item.type || item.provider)}</span>
+              <span class="mh-result-tag">${safeEsc(tag)}</span>
             </button>`;
           }).join('')}
         </div>`;

@@ -169,9 +169,25 @@
     return sourceList.find(s => String(s).toLowerCase().includes(shortId.toLowerCase())) || '';
   }
 
+  async function fetchJsonWithTimeout(url, timeoutMs = 4500) {
+    if (typeof fetch !== 'function') return null;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    try {
+      const resp = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+      if (!resp || !resp.ok) return null;
+      return await resp.json();
+    } catch (_) {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   /* ---------- 1. Webradio (Radio Browser + Favorites) ---------- */
   async function searchRadio(hass, query, mhCfg) {
-    const q = String(query || '').trim().toLowerCase();
+    const rawQ = String(query || '').trim();
+    const q = rawQ.toLowerCase();
     const favs = ((mhCfg && mhCfg.radioFavorites) || []).filter(f => f && (f.contentId || f.name));
     const favItems = favs
       .filter(f => !q || String(f.name).toLowerCase().includes(q) || String(f.contentId).toLowerCase().includes(q))
@@ -198,6 +214,47 @@
         { id: 'media-source://radio_browser/chillout', title: 'Lofi Chill Radio', subtitle: 'Radio Browser · Chill', type: 'radio', contentType: 'music', provider: 'radio' }
       ].filter(s => s.title.toLowerCase().includes(q) || s.subtitle.toLowerCase().includes(q));
       return { items: [...favItems, ...demoStations], errors: [] };
+    }
+
+    // 1. Public Radio Browser API (returns full station directory & favicons without auth)
+    const favByName = new Map(favItems.map(f => [String(f.title || '').trim().toLowerCase(), f]));
+    const rbParams = `name=${encodeURIComponent(rawQ)}&limit=15&order=clickcount&reverse=true&hidebroken=true`;
+    let rbData = await fetchJsonWithTimeout(`https://de1.api.radio-browser.info/json/stations/search?${rbParams}`);
+    if (!Array.isArray(rbData) || !rbData.length) {
+      const mirrorData = await fetchJsonWithTimeout(`https://all.api.radio-browser.info/json/stations/search?${rbParams}`);
+      if (Array.isArray(mirrorData)) rbData = mirrorData;
+    }
+
+    if (Array.isArray(rbData) && rbData.length) {
+      const liveItems = [];
+      const seenNames = new Set();
+      rbData.forEach(st => {
+        const name = String((st && st.name) || '').trim();
+        if (!name) return;
+        const normKey = name.toLowerCase();
+        const favicon = st.favicon ? String(st.favicon).trim() : '';
+        const matchingFav = favByName.get(normKey);
+        if (matchingFav) {
+          if (!matchingFav.thumb && favicon) matchingFav.thumb = favicon;
+          return;
+        }
+        if (seenNames.has(normKey)) return;
+        seenNames.add(normKey);
+        const tags = String(st.tags || '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 2).join(', ');
+        const br = st.bitrate ? `${st.bitrate} kbps` : '';
+        liveItems.push({
+          id: st.stationuuid ? `media-source://radio_browser/${st.stationuuid}` : String(st.url_resolved || st.url || name),
+          uri: String(st.url_resolved || st.url || ''),
+          title: name,
+          subtitle: [st.countrycode, tags, br].filter(Boolean).join(' · ') || 'Radio Browser',
+          type: 'radio',
+          contentType: 'music',
+          thumb: favicon,
+          icon: '📻',
+          provider: 'radio'
+        });
+      });
+      return { items: [...favItems, ...liveItems], errors: [] };
     }
 
     if (typeof hass.callWS !== 'function') return { items: favItems, errors: [] };
@@ -235,7 +292,16 @@
         .filter(c => String(c.title || '').toLowerCase().includes(q))
         .slice(0, 20)
         .map(c => normalizeItem(c, 'radio', 'radio'))
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter(it => {
+          const k = it.title.trim().toLowerCase();
+          const fav = favByName.get(k);
+          if (fav) {
+            if (!fav.thumb && it.thumb) fav.thumb = it.thumb;
+            return false;
+          }
+          return true;
+        });
 
       return { items: [...favItems, ...liveItems], errors: [] };
     } catch (err) {
@@ -456,6 +522,96 @@
       .filter(Boolean);
   }
 
+  async function searchPublicMusicCatalog(query, mediaTypes, country = 'DE') {
+    const q = String(query || '').trim();
+    if (!q) return [];
+    const data = await fetchJsonWithTimeout(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=18&country=${encodeURIComponent(country)}`
+    );
+    const results = (data && Array.isArray(data.results)) ? data.results : [];
+    if (!results.length) return [];
+
+    const allowed = Array.isArray(mediaTypes) && mediaTypes.length ? mediaTypes : ['track', 'artist', 'album'];
+    const tracks = [];
+    const artistMap = new Map();
+    const albumMap = new Map();
+    const seenTracks = new Set();
+
+    results.forEach(r => {
+      if (!r || typeof r !== 'object') return;
+      const thumb = String(r.artworkUrl100 || r.artworkUrl60 || r.artworkUrl30 || '').trim();
+      const artistName = String(r.artistName || '').trim();
+      const albumName = String(r.collectionName || '').trim();
+      const trackName = String(r.trackName || '').trim();
+
+      if (artistName) {
+        const aKey = String(r.artistId || artistName.toLowerCase());
+        if (!artistMap.has(aKey)) {
+          artistMap.set(aKey, {
+            id: `catalog:artist:${aKey}`,
+            uri: artistName,
+            title: artistName,
+            subtitle: r.primaryGenreName || 'Artist',
+            artist: artistName,
+            type: 'artist',
+            contentType: 'SPOTIFY',
+            thumb,
+            icon: '🎤',
+            provider: 'spotify',
+            catalogFallback: true
+          });
+        } else if (!artistMap.get(aKey).thumb && thumb) {
+          artistMap.get(aKey).thumb = thumb;
+        }
+      }
+
+      if (albumName && artistName) {
+        const alKey = String(r.collectionId || `${albumName.toLowerCase()}::${artistName.toLowerCase()}`);
+        if (!albumMap.has(alKey)) {
+          albumMap.set(alKey, {
+            id: `catalog:album:${alKey}`,
+            uri: `${albumName} ${artistName}`.trim(),
+            title: albumName,
+            subtitle: artistName,
+            artist: artistName,
+            type: 'album',
+            contentType: 'SPOTIFY',
+            thumb,
+            icon: '💿',
+            provider: 'spotify',
+            catalogFallback: true
+          });
+        }
+      }
+
+      if (trackName) {
+        const trKey = `${trackName.toLowerCase()}::${artistName.toLowerCase()}`;
+        if (!seenTracks.has(trKey)) {
+          seenTracks.add(trKey);
+          tracks.push({
+            id: `catalog:track:${r.trackId || trKey}`,
+            uri: `${trackName} ${artistName}`.trim(),
+            title: trackName,
+            subtitle: [artistName, albumName].filter(Boolean).join(' · '),
+            artist: artistName,
+            type: 'track',
+            contentType: 'SPOTIFY',
+            thumb,
+            icon: '🎵',
+            provider: 'spotify',
+            catalogFallback: true
+          });
+        }
+      }
+    });
+
+    const out = [];
+    if (allowed.includes('artist')) out.push(...Array.from(artistMap.values()).slice(0, 4));
+    if (allowed.includes('track')) out.push(...tracks.slice(0, 10));
+    if (allowed.includes('album')) out.push(...Array.from(albumMap.values()).slice(0, 4));
+    return out;
+  }
+
   async function searchSpotify(hass, query, mediaTypes, mhCfg, targetPlayer) {
     const q = String(query || '').trim();
     if (!q) return { items: [], errors: [] };
@@ -476,6 +632,7 @@
     const types = Array.isArray(mediaTypes) && mediaTypes.length ? mediaTypes : ['track', 'artist', 'album'];
     const targetState = targetPlayer && hass && hass.states && hass.states[targetPlayer];
     const targetIsAlexa = isAlexaPlayer(targetState, targetPlayer);
+    const catalogCountry = /^en/i.test(String((hass && hass.language) || '')) ? 'US' : 'DE';
     const alexaDirectItem = targetIsAlexa ? {
       id: q,
       uri: q,
@@ -489,7 +646,9 @@
     } : null;
 
     if (!ent) {
-      return { items: alexaDirectItem ? [alexaDirectItem] : [], errors: [] };
+      const catalogItems = await searchPublicMusicCatalog(q, types, catalogCountry);
+      if (alexaDirectItem) catalogItems.push(alexaDirectItem);
+      return { items: catalogItems, errors: [] };
     }
 
     const items = [];
@@ -547,9 +706,17 @@
       } catch (err) {
         if (!lastError) lastError = err;
       }
+      const catalogItems = await searchPublicMusicCatalog(q, types, catalogCountry);
+      if (catalogItems.length) {
+        const existingTitles = new Set(items.map(i => `${String(i.title || '').toLowerCase()}::${i.type || ''}`));
+        catalogItems.forEach(ci => {
+          const key = `${String(ci.title || '').toLowerCase()}::${ci.type || ''}`;
+          if (!existingTitles.has(key)) items.push(ci);
+        });
+      }
     }
 
-    if (alexaDirectItem) items.unshift(alexaDirectItem);
+    if (alexaDirectItem) items.push(alexaDirectItem);
 
     if (!items.length && lastError) {
       return { items: [], errors: [{ provider: 'spotify', reasonKey: 'mh.err_search_failed', detail: String(lastError && lastError.message || lastError) }] };
@@ -560,12 +727,26 @@
   async function playSpotify(hass, targetPlayer, item, mhCfg) {
     const sp = (mhCfg && mhCfg.providers && mhCfg.providers.spotify) || {};
     const targetState = targetPlayer && hass && hass.states && hass.states[targetPlayer];
-    if (item && (item.type === 'alexa_spotify' || (!sp.entity && isAlexaPlayer(targetState, targetPlayer)))) {
-      if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+    const targetIsAlexa = isAlexaPlayer(targetState, targetPlayer);
+    if (item && (item.catalogFallback || item.type === 'alexa_spotify' || (!sp.entity && targetIsAlexa))) {
+      const playQuery = item.type === 'artist'
+        ? String(item.title || item.uri || '').trim()
+        : `${item.title || ''} ${item.artist || ''}`.trim() || String(item.uri || item.id || '').trim();
+      if (targetIsAlexa) {
+        if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+        await callService(hass, 'media_player', 'play_media', {
+          entity_id: targetPlayer,
+          media_content_id: playQuery,
+          media_content_type: 'SPOTIFY'
+        });
+        return { ok: true };
+      }
+      const fallbackEnt = sp.entity || targetPlayer;
+      if (!fallbackEnt) return { ok: false, reasonKey: 'mh.err_spotify_no_entity' };
       await callService(hass, 'media_player', 'play_media', {
-        entity_id: targetPlayer,
-        media_content_id: item.id || item.title || item.uri,
-        media_content_type: 'SPOTIFY'
+        entity_id: fallbackEnt,
+        media_content_id: playQuery,
+        media_content_type: 'music'
       });
       return { ok: true };
     }

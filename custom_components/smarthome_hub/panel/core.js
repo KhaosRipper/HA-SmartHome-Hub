@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.7.1';
+const VERSION = '3.7.2';
 
 /* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
 const I18N = {
