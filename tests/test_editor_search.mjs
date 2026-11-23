@@ -208,7 +208,7 @@ assert.match(initPySrc, /VERSION\s*=\s*"3\.6\.0"/, '__init__.py VERSION must be 
 assert.match(coreSrc, /const VERSION\s*=\s*'3\.6\.0'/, 'core.js VERSION must be 3.6.0');
 assert.doesNotMatch(indexSrc, /\?v=(3\.[345]\.)/, 'index.html must not contain old version query params');
 const vMatches = indexSrc.match(/\?v=3\.6\.0/g) || [];
-assert.equal(vMatches.length, 9, 'All 9 assets in index.html must use ?v=3.6.0');
+assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.6.0');
 assert.match(gitignoreSrc, /graphify-out\//, '.gitignore must ignore graphify-out/');
 
 // Execute config.js + core.js + views.js in sandbox to test calendar, profile popover & camera popup logic
@@ -443,7 +443,7 @@ for (const k of deKeys) {
 }
 
 // Scan all panel/*.js files for t('...') calls and verify every referenced key exists in both de and en
-const panelFiles = ['core.js', 'views.js', 'editor.js', 'app.js', 'camera.js', 'charts.js', 'sports.js'];
+const panelFiles = ['core.js', 'views.js', 'editor.js', 'app.js', 'camera.js', 'charts.js', 'sports.js', 'media_hub_adapters.js', 'media_hub.js'];
 for (const file of panelFiles) {
   const src = fs.readFileSync(`custom_components/smarthome_hub/panel/${file}`, 'utf8');
   const matches = src.matchAll(/\bt\(\s*'([a-z0-9_]+(?:\.[a-z0-9_-]+)+)'\s*[,)]/gi);
