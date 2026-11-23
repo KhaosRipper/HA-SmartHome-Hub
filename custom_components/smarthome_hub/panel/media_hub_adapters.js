@@ -141,10 +141,10 @@
       id: String(id),
       uri: String(raw.uri || id),
       title: String(title),
-      subtitle: String(raw.subtitle || raw.artist || raw.artists?.[0]?.name || raw.album?.name || raw.author || ''),
+      subtitle: String(raw.subtitle || raw.artist || (Array.isArray(raw.artists) ? raw.artists.map(a => (a && a.name) || a).filter(Boolean).join(', ') : '') || raw.album?.name || raw.author || ''),
       type: String(raw.media_type || raw.media_class || raw.type || fallbackType),
       contentType: String(raw.media_content_type || raw.media_type || raw.type || 'music'),
-      thumb: String(raw.thumbnail || raw.image || raw.thumb || raw.image_url || raw.album?.images?.[0]?.url || raw.images?.[0]?.url || raw.metadata?.images?.[0]?.url || ''),
+      thumb: String(raw.thumbnail || raw.image || raw.thumb || raw.image_url || (Array.isArray(raw.thumbnails) && raw.thumbnails.length ? (raw.thumbnails[raw.thumbnails.length - 1]?.url || raw.thumbnails[0]?.url) : '') || raw.album?.images?.[0]?.url || raw.images?.[0]?.url || raw.metadata?.images?.[0]?.url || ''),
       provider,
       canPlay: raw.can_play !== false,
       raw
@@ -338,6 +338,52 @@
   }
 
   /* ---------- 2. YouTube Music Free (ytube_music_player) ---------- */
+  function getLiveHass(fallbackHass) {
+    if (typeof getHass === 'function' && !isDemoMode(fallbackHass)) {
+      const live = getHass();
+      if (live && live.states) return live;
+    }
+    return fallbackHass;
+  }
+
+  function extractYtubeResultsFromStates(hassObj, ytEntity) {
+    const states = hassObj && hassObj.states;
+    if (!states) return [];
+    const ytAttrs = (states[ytEntity] && states[ytEntity].attributes) || {};
+    const direct = ytAttrs.search_results || ytAttrs.search;
+    if (Array.isArray(direct) && direct.length) return direct;
+
+    const objId = String(ytEntity || '').replace(/^media_player\./, '');
+    const extraCandidates = [
+      `sensor.${objId}_extra`,
+      ...Object.keys(states).filter(id => id.startsWith('sensor.') && id.includes('ytube') && id.endsWith('_extra'))
+    ];
+    for (const eid of extraCandidates) {
+      const attrs = states[eid] && states[eid].attributes;
+      const list = attrs && (attrs.search_results || attrs.search);
+      if (Array.isArray(list) && list.length) return list;
+    }
+    return [];
+  }
+
+  function mapYtubeRawItem(r) {
+    if (!r || typeof r !== 'object') return null;
+    const thumbs = Array.isArray(r.thumbnails) ? r.thumbnails : [];
+    const bestThumb = r.thumbnail || r.thumb || (thumbs.length ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '');
+    const artistStr = Array.isArray(r.artists)
+      ? r.artists.map(a => (a && a.name) || (typeof a === 'string' ? a : '')).filter(Boolean).join(', ')
+      : (r.artist || '');
+    const itemType = r.type || r.resultType || 'track';
+    return normalizeItem({
+      id: r.id || r.videoId || r.browseId || r.playlistId || r.media_content_id,
+      title: r.title || r.name || r.artist,
+      subtitle: r.subtitle || [artistStr, r.album && r.album.name].filter(Boolean).join(' · ') || itemType,
+      media_type: itemType,
+      media_content_type: r.media_content_type || itemType,
+      thumbnail: bestThumb
+    }, 'ytube_free', 'track');
+  }
+
   async function searchYtube(hass, query, mhCfg) {
     const q = String(query || '').trim();
     if (!q) return { items: [], errors: [] };
@@ -355,30 +401,59 @@
     }
 
     const ytEntity = mhCfg.providers.ytube_free.entity;
-    const prevRaw = JSON.stringify((hass.states[ytEntity] && hass.states[ytEntity].attributes && hass.states[ytEntity].attributes.search_results) || null);
+    const useLiveHass = getLiveHass(hass) === hass;
+    const readResults = () => extractYtubeResultsFromStates(useLiveHass ? getLiveHass(hass) : hass, ytEntity);
+    const prevRaw = JSON.stringify(readResults() || null);
     try {
       await callService(hass, 'ytube_music_player', 'search', {
         entity_id: ytEntity,
         query: q
       });
-      // Allow HA state attributes to update briefly if search updates async
-      let results = (hass.states[ytEntity] && hass.states[ytEntity].attributes && hass.states[ytEntity].attributes.search_results) || [];
-      for (let i = 0; i < 6; i++) {
+      // Poll fresh HA states (up to ~1.6s) since ytube_music_player updates attributes asynchronously
+      let results = readResults();
+      for (let i = 0; i < 8; i++) {
         const curRaw = JSON.stringify(results || null);
         if (Array.isArray(results) && results.length && curRaw !== prevRaw) break;
         await new Promise(r => setTimeout(r, 200));
-        results = (hass.states[ytEntity] && hass.states[ytEntity].attributes && hass.states[ytEntity].attributes.search_results) || [];
+        results = readResults();
       }
-      const items = (Array.isArray(results) ? results : [])
-        .map(r => normalizeItem({
-          id: r.id || r.videoId || r.browseId,
-          title: r.title || r.name,
-          subtitle: r.artist || r.subtitle || r.type || '',
-          media_type: r.type || 'track',
-          media_content_type: r.type || 'track',
-          thumbnail: r.thumbnail || r.thumb || ''
-        }, 'ytube_free', 'track'))
-        .filter(Boolean);
+
+      let items = (Array.isArray(results) ? results : []).map(mapYtubeRawItem).filter(Boolean);
+
+      // Fallback: HA Media Browser search node used by ytube_music_player
+      if (!items.length && typeof hass.callWS === 'function') {
+        try {
+          const browseNode = await hass.callWS({
+            type: 'media_player/browse_media',
+            entity_id: ytEntity,
+            media_content_type: 'search',
+            media_content_id: ''
+          });
+          const collected = [];
+          const dirs = [];
+          const walk = node => {
+            const kids = (node && node.children) || [];
+            kids.forEach(c => {
+              if (c.can_play) collected.push(c);
+              else if (c.can_expand && c.media_content_id) dirs.push(c);
+            });
+          };
+          walk(browseNode);
+          if (!collected.length && dirs.length) {
+            const subNodes = await Promise.allSettled(
+              dirs.slice(0, 4).map(d => hass.callWS({
+                type: 'media_player/browse_media',
+                entity_id: ytEntity,
+                media_content_type: d.media_content_type,
+                media_content_id: d.media_content_id
+              }))
+            );
+            subNodes.forEach(r => { if (r.status === 'fulfilled' && r.value) walk(r.value); });
+          }
+          items = collected.slice(0, 25).map(c => normalizeItem(c, 'ytube_free', 'track')).filter(Boolean);
+        } catch (_) {}
+      }
+
       return { items, errors: [] };
     } catch (err) {
       return { items: [], errors: [{ provider: 'ytube_free', reasonKey: 'mh.err_search_failed', detail: String(err && err.message || err) }] };
