@@ -17,6 +17,10 @@
   min-width: 0;
 }
 
+.mh-root [hidden] {
+  display: none !important;
+}
+
 /* Header */
 .mh-hdr {
   display: flex;

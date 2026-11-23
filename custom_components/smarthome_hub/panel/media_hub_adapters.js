@@ -7,8 +7,25 @@
   'use strict';
 
   const FEATURE_GROUPING = 524288; // MediaPlayerEntityFeature.GROUPING
+  const FEATURE_SEARCH_MEDIA = 2097152; // MediaPlayerEntityFeature.SEARCH_MEDIA
   const DIRECT_AUDIO_RE = /\.(mp3|aac|ogg|opus|flac|wav|m4a|m3u8|pls)(\?.*)?$/i;
   const EXTRACTOR_HOST_RE = /(youtube\.com|youtu\.be|music\.youtube\.com|soundcloud\.com|vimeo\.com|twitch\.tv)/i;
+
+  function isAlexaPlayer(state, entityId) {
+    const eid = String(entityId || '').toLowerCase();
+    const attrs = (state && state.attributes) || {};
+    const fname = String(attrs.friendly_name || '').toLowerCase();
+    const srcList = Array.isArray(attrs.source_list) ? attrs.source_list : [];
+    if (
+      attrs.last_called !== undefined ||
+      attrs.connected_bluetooth !== undefined ||
+      Array.isArray(attrs.bluetooth_list) ||
+      srcList.includes('Local Speaker')
+    ) {
+      return true;
+    }
+    return /\b(echo|alexa)\b/i.test(`${eid} ${fname}`);
+  }
 
   function hasService(hass, domain, service) {
     return !!(hass && hass.services && hass.services[domain] && hass.services[domain][service]);
@@ -74,7 +91,7 @@
     return active.length ? active : ['radio'];
   }
 
-  function checkProviderAvailability(hass, providerId, mhCfg) {
+  function checkProviderAvailability(hass, providerId, mhCfg, targetPlayer) {
     if (isDemoMode(hass)) return { available: true, demo: true };
     const p = (mhCfg && mhCfg.providers) || {};
     switch (providerId) {
@@ -99,9 +116,9 @@
         return { available: true, hasExtractor: hasService(hass, 'media_extractor', 'play_media') };
       case 'spotify': {
         const sp = p.spotify || {};
-        if (!sp.entity) return { available: false, reasonKey: 'mh.err_spotify_no_entity' };
-        if (sp.mode === 'spotifyplus' && !hasService(hass, 'spotifyplus', 'search_tracks') && !hasService(hass, 'media_player', 'search_media')) {
-          return { available: false, reasonKey: 'mh.err_spotify_missing' };
+        const tgtState = targetPlayer && hass && hass.states && hass.states[targetPlayer];
+        if (!sp.entity && !isAlexaPlayer(tgtState, targetPlayer)) {
+          return { available: false, reasonKey: 'mh.err_spotify_no_entity' };
         }
         return { available: true };
       }
@@ -127,7 +144,7 @@
       subtitle: String(raw.subtitle || raw.artist || raw.artists?.[0]?.name || raw.album?.name || raw.author || ''),
       type: String(raw.media_type || raw.media_class || raw.type || fallbackType),
       contentType: String(raw.media_content_type || raw.media_type || raw.type || 'music'),
-      thumb: String(raw.thumbnail || raw.image || raw.thumb || raw.metadata?.images?.[0]?.url || ''),
+      thumb: String(raw.thumbnail || raw.image || raw.thumb || raw.image_url || raw.album?.images?.[0]?.url || raw.images?.[0]?.url || raw.metadata?.images?.[0]?.url || ''),
       provider,
       canPlay: raw.can_play !== false,
       raw
@@ -228,13 +245,28 @@
 
   async function playRadio(hass, targetPlayer, item) {
     const contentId = String((item && (item.id || item.contentId || item.uri)) || '').trim();
-    if (!contentId || !targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+    const stationName = String((item && (item.title || item.name)) || '').trim();
+    if ((!contentId && !stationName) || !targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+
+    const targetState = hass && hass.states && hass.states[targetPlayer];
+    if (isAlexaPlayer(targetState, targetPlayer)) {
+      const tuneInQuery = /^s\d+$/i.test(contentId)
+        ? contentId
+        : (stationName || contentId.replace(/^media-source:\/\/radio_browser\//i, '').replace(/[_-]+/g, ' '));
+      await callService(hass, 'media_player', 'play_media', {
+        entity_id: targetPlayer,
+        media_content_id: tuneInQuery,
+        media_content_type: 'TUNEIN'
+      });
+      return { ok: true };
+    }
+
     const contentType = contentId.startsWith('media-source://') ? 'music' : (item.contentType || 'audio/mpeg');
     await callService(hass, 'media_player', 'play_media', {
       entity_id: targetPlayer,
       media_content_id: contentId,
       media_content_type: contentType,
-      extra: { title: item.title || item.name || contentId }
+      extra: { title: stationName || contentId }
     });
     return { ok: true };
   }
@@ -391,10 +423,43 @@
     return Array.isArray(list) ? list : [];
   }
 
-  async function searchSpotify(hass, query, mediaTypes, mhCfg) {
+  async function browseSpotifyLibrary(hass, ent, query) {
+    if (!hass || typeof hass.callWS !== 'function' || !ent) return [];
+    const q = String(query || '').trim().toLowerCase();
+    const collected = [];
+    const dirsToExpand = [];
+    const walk = node => {
+      const kids = (node && node.children) || [];
+      kids.forEach(c => {
+        if (c.can_play) collected.push(c);
+        else if (c.can_expand && c.media_content_id) dirsToExpand.push(c);
+      });
+    };
+    const rootNode = await hass.callWS({ type: 'media_player/browse_media', entity_id: ent });
+    walk(rootNode);
+    const subDirs = dirsToExpand.slice(0, 4);
+    if (subDirs.length) {
+      const subNodes = await Promise.allSettled(
+        subDirs.map(d => hass.callWS({
+          type: 'media_player/browse_media',
+          entity_id: ent,
+          media_content_id: d.media_content_id,
+          media_content_type: d.media_content_type
+        }))
+      );
+      subNodes.forEach(r => { if (r.status === 'fulfilled' && r.value) walk(r.value); });
+    }
+    return collected
+      .filter(c => !q || String(c.title || '').toLowerCase().includes(q))
+      .slice(0, 20)
+      .map(c => normalizeItem(c, 'spotify', c.media_content_type || 'track'))
+      .filter(Boolean);
+  }
+
+  async function searchSpotify(hass, query, mediaTypes, mhCfg, targetPlayer) {
     const q = String(query || '').trim();
     if (!q) return { items: [], errors: [] };
-    const avail = checkProviderAvailability(hass, 'spotify', mhCfg);
+    const avail = checkProviderAvailability(hass, 'spotify', mhCfg, targetPlayer);
     if (!avail.available) return { items: [], errors: [{ provider: 'spotify', reasonKey: avail.reasonKey }] };
 
     if (isDemoMode(hass)) {
@@ -409,38 +474,102 @@
     const sp = mhCfg.providers.spotify || {};
     const ent = sp.entity;
     const types = Array.isArray(mediaTypes) && mediaTypes.length ? mediaTypes : ['track', 'artist', 'album'];
+    const targetState = targetPlayer && hass && hass.states && hass.states[targetPlayer];
+    const targetIsAlexa = isAlexaPlayer(targetState, targetPlayer);
+    const alexaDirectItem = targetIsAlexa ? {
+      id: q,
+      uri: q,
+      title: q,
+      subtitle: 'Alexa · Spotify',
+      type: 'alexa_spotify',
+      contentType: 'SPOTIFY',
+      thumb: '',
+      icon: '🟢',
+      provider: 'spotify'
+    } : null;
 
-    try {
-      if (sp.mode === 'spotifyplus' && hasService(hass, 'spotifyplus', 'search_tracks')) {
-        const svcMap = { track: 'search_tracks', artist: 'search_artists', album: 'search_albums' };
-        const calls = types.filter(tp => svcMap[tp]).map(tp =>
-          callServiceWithResponse(hass, 'spotifyplus', svcMap[tp], { entity_id: ent, criteria: q, limit: 10 })
-            .then(raw => {
-              const res = extractWsResponse(raw, ent);
-              const rows = (res && (res.items || res.result || (res.tracks && res.tracks.items) || (res.artists && res.artists.items) || (res.albums && res.albums.items))) || [];
-              return rows.map(r => normalizeItem(r, 'spotify', tp)).filter(Boolean);
-            })
-        );
-        const settled = await Promise.allSettled(calls);
-        const items = [];
-        settled.forEach(s => { if (s.status === 'fulfilled') items.push(...s.value); });
+    if (!ent) {
+      return { items: alexaDirectItem ? [alexaDirectItem] : [], errors: [] };
+    }
+
+    const items = [];
+    let lastError = null;
+
+    if (sp.mode === 'spotifyplus' && hasService(hass, 'spotifyplus', 'search_tracks')) {
+      const svcMap = { track: 'search_tracks', artist: 'search_artists', album: 'search_albums' };
+      const calls = types.filter(tp => svcMap[tp]).map(tp =>
+        callServiceWithResponse(hass, 'spotifyplus', svcMap[tp], { entity_id: ent, criteria: q, limit: 10 })
+          .then(raw => {
+            const res = extractWsResponse(raw, ent);
+            const container = (res && res.result && typeof res.result === 'object' && !Array.isArray(res.result)) ? res.result : res;
+            const rows = (
+              (Array.isArray(res && res.result) && res.result) ||
+              (container && (container.items || (container.tracks && container.tracks.items) || (container.artists && container.artists.items) || (container.albums && container.albums.items))) ||
+              (Array.isArray(res) && res) ||
+              []
+            );
+            return rows.map(r => normalizeItem(r, 'spotify', tp)).filter(Boolean);
+          })
+      );
+      const settled = await Promise.allSettled(calls);
+      settled.forEach(s => {
+        if (s.status === 'fulfilled') items.push(...s.value);
+        else if (!lastError) lastError = s.reason;
+      });
+      if (items.length) {
+        if (alexaDirectItem) items.push(alexaDirectItem);
         return { items, errors: [] };
       }
-
-      const raw = await callServiceWithResponse(hass, 'media_player', 'search_media', {
-        entity_id: ent,
-        search_query: q
-      });
-      const res = extractWsResponse(raw, ent);
-      const list = Array.isArray(res.result) ? res.result : (Array.isArray(res) ? res : []);
-      return { items: list.map(r => normalizeItem(r, 'spotify', 'track')).filter(Boolean), errors: [] };
-    } catch (err) {
-      return { items: [], errors: [{ provider: 'spotify', reasonKey: 'mh.err_search_failed', detail: String(err && err.message || err) }] };
     }
+
+    const spState = hass && hass.states && hass.states[ent];
+    const supportsSearch = !spState || !spState.attributes || spState.attributes.supported_features === undefined
+      || ((Number(spState.attributes.supported_features || 0) & FEATURE_SEARCH_MEDIA) !== 0);
+
+    if (supportsSearch && hasService(hass, 'media_player', 'search_media')) {
+      try {
+        const raw = await callServiceWithResponse(hass, 'media_player', 'search_media', {
+          entity_id: ent,
+          search_query: q
+        });
+        const res = extractWsResponse(raw, ent);
+        const list = Array.isArray(res.result) ? res.result : (Array.isArray(res) ? res : []);
+        items.push(...list.map(r => normalizeItem(r, 'spotify', 'track')).filter(Boolean));
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!items.length) {
+      try {
+        const browsed = await browseSpotifyLibrary(hass, ent, q);
+        items.push(...browsed);
+      } catch (err) {
+        if (!lastError) lastError = err;
+      }
+    }
+
+    if (alexaDirectItem) items.unshift(alexaDirectItem);
+
+    if (!items.length && lastError) {
+      return { items: [], errors: [{ provider: 'spotify', reasonKey: 'mh.err_search_failed', detail: String(lastError && lastError.message || lastError) }] };
+    }
+    return { items, errors: [] };
   }
 
   async function playSpotify(hass, targetPlayer, item, mhCfg) {
     const sp = (mhCfg && mhCfg.providers && mhCfg.providers.spotify) || {};
+    const targetState = targetPlayer && hass && hass.states && hass.states[targetPlayer];
+    if (item && (item.type === 'alexa_spotify' || (!sp.entity && isAlexaPlayer(targetState, targetPlayer)))) {
+      if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+      await callService(hass, 'media_player', 'play_media', {
+        entity_id: targetPlayer,
+        media_content_id: item.id || item.title || item.uri,
+        media_content_type: 'SPOTIFY'
+      });
+      return { ok: true };
+    }
+
     const spEntity = sp.entity || targetPlayer;
     if (!spEntity) return { ok: false, reasonKey: 'mh.err_spotify_no_entity' };
 
@@ -534,7 +663,7 @@
   }
 
   /* ---------- 7. Unified Search & Playback Dispatcher ---------- */
-  async function searchProvider(hass, providerId, query, mediaTypes, mhCfg) {
+  async function searchProvider(hass, providerId, query, mediaTypes, mhCfg, targetPlayer) {
     switch (providerId) {
       case 'radio': return searchRadio(hass, query, mhCfg);
       case 'ytube_free': return searchYtube(hass, query, mhCfg);
@@ -556,17 +685,17 @@
           };
         }
         return { items: [], errors: [] };
-      case 'spotify': return searchSpotify(hass, query, mediaTypes, mhCfg);
+      case 'spotify': return searchSpotify(hass, query, mediaTypes, mhCfg, targetPlayer);
       case 'music_assistant': return searchMusicAssistant(hass, query, mediaTypes, mhCfg);
       default: return { items: [], errors: [] };
     }
   }
 
-  async function search({ hass, mhCfg, tabId, query }) {
+  async function search({ hass, mhCfg, tabId, query, targetPlayer }) {
     const cfg = mhCfg || {};
     const q = String(query || '').trim();
     if (isDirectUrl(q)) {
-      return searchProvider(hass, 'direct_url', q, [], cfg);
+      return searchProvider(hass, 'direct_url', q, [], cfg, targetPlayer);
     }
     const mediaTypes = (cfg.search && cfg.search.mediaTypes) || ['track', 'artist', 'album', 'radio'];
     const scope = (cfg.search && cfg.search.scope) || 'active_tab';
@@ -575,7 +704,7 @@
       : [tabId || getActiveProviders(cfg)[0] || 'radio'];
 
     const settled = await Promise.allSettled(
-      providersToSearch.map(pid => searchProvider(hass, pid, q, mediaTypes, cfg))
+      providersToSearch.map(pid => searchProvider(hass, pid, q, mediaTypes, cfg, targetPlayer))
     );
 
     const items = [];
@@ -685,8 +814,10 @@
 
   root.MediaHubAdapters = {
     FEATURE_GROUPING,
+    FEATURE_SEARCH_MEDIA,
     hasService,
     isDirectUrl,
+    isAlexaPlayer,
     getActiveProviders,
     checkProviderAvailability,
     getSpotifyConnectDevices,

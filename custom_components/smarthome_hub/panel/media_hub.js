@@ -168,7 +168,8 @@
     }
     if (inst.searchErrors && inst.searchErrors.length) {
       inst.searchErrors.forEach(err => {
-        const msg = err.reasonKey ? safeT(err.reasonKey) : (err.detail || safeT('mh.err_search_failed'));
+        const baseMsg = err.reasonKey ? safeT(err.reasonKey) : safeT('mh.err_search_failed');
+        const msg = err.detail ? `${baseMsg} (${err.detail})` : baseMsg;
         body += `<div class="mh-hint warn">⚠️ ${safeEsc(msg)}</div>`;
       });
     }
@@ -208,7 +209,7 @@
     } else if (inst.activeTab === 'direct_url' && !inst.hasSearched) {
       body += `<div class="mh-hint">${safeEsc(safeT('mh.direct_url_hint'))}</div>`;
     } else if (!inst.hasSearched && inst.activeTab !== 'radio') {
-      const avail = adapters ? adapters.checkProviderAvailability(hass, inst.activeTab, mhCfg) : { available: true };
+      const avail = adapters ? adapters.checkProviderAvailability(hass, inst.activeTab, mhCfg, inst.selectedPlayer) : { available: true };
       if (!avail.available && avail.reasonKey) {
         body += `<div class="mh-hint warn">⚠️ ${safeEsc(safeT(avail.reasonKey))}</div>`;
       } else {
