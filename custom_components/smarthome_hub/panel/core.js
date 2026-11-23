@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.6.0';
+const VERSION = '3.7.0';
 
 /* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
 const I18N = {
@@ -437,7 +437,129 @@ const I18N = {
     'dev.col_runtime': 'Laufzeit',
     'dev.col_today': 'Heute',
     'dev.col_position': 'Position',
-    'dev.col_control': 'Steuerung'
+    'dev.col_control': 'Steuerung',
+    'mh.title': 'Media Hub',
+    'mh.no_players': 'Keine Media-Player konfiguriert. Im Konfigurator unter „Media Hub / Audio“ festlegen.',
+    'mh.nothing_playing': 'Keine aktive Wiedergabe',
+    'mh.unknown_artist': 'Unbekannter Interpret',
+    'mh.select_player': 'Player wählen',
+    'mh.prev': 'Vorheriger Titel',
+    'mh.play_pause': 'Wiedergabe / Pause',
+    'mh.next': 'Nächster Titel',
+    'mh.vol_down': 'Leiser',
+    'mh.vol_up': 'Lauter',
+    'mh.mute': 'Stumm',
+    'mh.multiroom': 'Multiroom',
+    'mh.multiroom_title': 'Multiroom-Gruppe & Lautstärke',
+    'mh.multiroom_master': 'Master',
+    'mh.multiroom_presets': 'Gruppen-Presets',
+    'mh.multiroom_joined': 'Verbunden',
+    'mh.multiroom_join': 'Verbinden',
+    'mh.search_placeholder': 'Suchen oder Audio-/YouTube-URL eingeben…',
+    'mh.search_btn': 'Suchen',
+    'mh.search_clear': 'Suche leeren',
+    'mh.search_toggle': 'Suche öffnen',
+    'mh.searching': 'Suche läuft…',
+    'mh.no_results': 'Keine Treffer gefunden.',
+    'mh.play_url': 'URL direkt abspielen',
+    'mh.radio_favs_empty': 'Noch keine Radio-Favoriten hinterlegt. Nutze die Suche oder ergänze Sender im Konfigurator.',
+    'mh.direct_url_hint': 'Füge eine direkte Stream-URL (.mp3/.m3u8) oder YouTube-/SoundCloud-URL ein, um sie sofort abzuspielen.',
+    'mh.tab_search_hint': 'Gib einen Suchbegriff ein, um {source} zu durchsuchen.',
+    'mh.type.track': 'Titel',
+    'mh.type.artist': 'Interpret',
+    'mh.type.album': 'Album',
+    'mh.type.radio': 'Radio',
+    'mh.tab.radio': '📻 Radio',
+    'mh.tab.ytube_free': '▶️ YT Music',
+    'mh.tab.local_library': '💾 Lokal',
+    'mh.tab.direct_url': '🔗 URL',
+    'mh.tab.spotify': '🟢 Spotify',
+    'mh.tab.music_assistant': '🎵 Music Assistant',
+    'mh.toast_playing': 'Wiedergabe gestartet: {title}',
+    'mh.toast_preset': 'Gruppe aktiviert: {name}',
+    'mh.swipe_hint': 'Wischen zum Wechseln',
+    'mh.err_ytube_no_entity': 'Keine ytube_music_player-Entität im Konfigurator gewählt.',
+    'mh.err_ytube_missing': 'Integration „ytube_music_player“ ist in Home Assistant nicht verfügbar.',
+    'mh.err_local_no_entity': 'Kein Medienserver-Player (Emby/Jellyfin/DLNA) konfiguriert.',
+    'mh.err_spotify_no_entity': 'Keine Spotify-/SpotifyPlus-Entität konfiguriert.',
+    'mh.err_spotify_missing': 'Spotify / SpotifyPlus Dienst nicht verfügbar.',
+    'mh.err_ma_missing': 'Music Assistant Integration ist nicht installiert oder nicht aktiv.',
+    'mh.err_radio_browse': 'Radio Browser Live-Suche nicht verfügbar (Favoriten aktiv).',
+    'mh.err_extractor_missing': 'Für YouTube/SoundCloud-URLs wird die HA-Integration „media_extractor“ benötigt.',
+    'mh.err_invalid_url': 'Bitte eine gültige http:// oder https:// URL eingeben.',
+    'mh.err_no_player': 'Kein Ziel-Player ausgewählt.',
+    'mh.err_search_failed': 'Suche fehlgeschlagen – Provider-Status prüfen.',
+    'mh.err_provider_unknown': 'Unbekannter Medien-Provider.',
+    'mh.err_nothing_selected': 'Kein Medienelement ausgewählt.',
+    'mh.cfg_tab': '🎵 Media Hub / Audio',
+    'mh.cfg_box_profile': '🎛️ Aktivierung, Betriebsprofil & Musik-Quellen',
+    'mh.cfg_box_profile_desc': 'Läuft standardmäßig 100 % ohne Abo (Radio Browser, ytube_music_player, Emby/Jellyfin/DLNA, Direkt-URL). Optional mit Spotify/SpotifyPlus oder Music Assistant.',
+    'mh.cfg_title': 'Widget-Titel',
+    'mh.cfg_profile': 'Betriebsprofil',
+    'mh.cfg_profile_free': 'Free Direct (0 € / Ohne Abo)',
+    'mh.cfg_profile_hybrid': 'Hybrid Premium (Free + Spotify / SpotifyPlus)',
+    'mh.cfg_profile_ma': 'Music Assistant (All-in-One-Modus)',
+    'mh.cfg_radio_enable': 'Webradio (Radio Browser) aktivieren',
+    'mh.cfg_radio_live': 'Radio Browser Live-Suche aktivieren',
+    'mh.cfg_ytube_enable': 'YouTube Music Free (ytube_music_player via HACS)',
+    'mh.cfg_ytube_ent': 'ytube_music_player Entität',
+    'mh.cfg_local_enable': 'Lokale Bibliothek / Medienserver (Emby, Jellyfin, DLNA)',
+    'mh.cfg_local_ent': 'Medienserver-Entität (media_player.*)',
+    'mh.cfg_direct_enable': 'Direkt-URL / media_extractor (Audio, YouTube, SoundCloud)',
+    'mh.cfg_spotify_enable': 'Spotify / SpotifyPlus aktivieren (optional)',
+    'mh.cfg_spotify_mode': 'Spotify-Backend',
+    'mh.cfg_spotify_ent': 'Spotify-Entität (media_player.*)',
+    'mh.cfg_ma_enable': 'Music Assistant aktivieren',
+    'mh.cfg_ma_entry': 'Music Assistant Config-Entry-ID (optional)',
+    'mh.cfg_box_players': '🔊 Ausgabe-Player (media_player.*)',
+    'mh.cfg_box_players_desc': 'Wähle deine Lautsprecher/Verstärker aus Home Assistant und vergib optionale Kurznamen.',
+    'mh.cfg_default_player': 'Standard-Master-Player',
+    'mh.cfg_player_entity': 'Player-Entität (media_player.*)',
+    'mh.cfg_player_name': 'Anzeigename (optional)',
+    'mh.cfg_add_player': '+ Player hinzufügen',
+    'mh.cfg_detected_players': 'Erkannte media_player Entitäten (1-Klick):',
+    'mh.cfg_box_multiroom': '🔗 Multiroom & Gruppen-Presets',
+    'mh.cfg_box_multiroom_desc': 'Automatische Erkennung gruppierbarer Lautsprecher (Feature-Bit 524288) oder manuelle Auswahl + Presets.',
+    'mh.cfg_mr_enable': 'Multiroom-Steuerung im Widget aktivieren',
+    'mh.cfg_mr_override': 'Gruppierbare Player manuell einschränken (leer = automatisch via Feature-Bit 524288):',
+    'mh.cfg_mr_presets': 'Multiroom-Presets',
+    'mh.cfg_mr_preset_name': 'Gruppenname',
+    'mh.cfg_mr_preset_master': 'Master-Player',
+    'mh.cfg_mr_preset_members': 'Mitglieder',
+    'mh.cfg_add_preset': '+ Gruppen-Preset hinzufügen',
+    'mh.cfg_box_radio': '📻 Radio-Favoriten',
+    'mh.cfg_box_radio_desc': 'Eigene Sender mit Name, media_content_id/Stream-URL und Icon hinzufügen, sortieren oder löschen.',
+    'mh.cfg_rf_name': 'Sendername',
+    'mh.cfg_rf_cid': 'media_content_id oder Stream-URL',
+    'mh.cfg_rf_icon': 'Icon / Emoji',
+    'mh.cfg_add_rf': '+ Radio-Favorit hinzufügen',
+    'mh.cfg_box_ui': '📱 Suche, Touch-Optimierung & Widget-Layout',
+    'mh.cfg_box_ui_desc': 'Wand-Tablet-Dichte (48×48px Touch-Ziele), Swipe-Gesten, Suchleisten-Position & Design.',
+    'mh.cfg_search_scope': 'Suchbereich',
+    'mh.cfg_scope_tab': 'Nur aktiver Quellen-Tab',
+    'mh.cfg_scope_combined': 'Kombinierte Suche über alle aktiven Quellen',
+    'mh.cfg_media_types': 'Suchbare Medientypen:',
+    'mh.cfg_density': 'Bedienmodus / UI-Dichte',
+    'mh.cfg_density_std': 'Standard (Desktop & Kompakt)',
+    'mh.cfg_density_touch': 'Wand-Tablet Touch (≥ 48×48px & 16px Suche)',
+    'mh.cfg_tab_swipe': 'Tab-Swipe (Wischen zwischen Quellen-Tabs)',
+    'mh.cfg_track_swipe': 'Track-Swipe (Wischen auf Now-Playing-Banner)',
+    'mh.cfg_search_pos': 'Suchleisten-Position',
+    'mh.cfg_pos_header': 'Header (oben)',
+    'mh.cfg_pos_below_tabs': 'Unter den Tabs',
+    'mh.cfg_pos_footer': 'Footer (unten)',
+    'mh.cfg_search_style': 'Suchleisten-Stil',
+    'mh.cfg_style_full': 'Voll (Input + Filter-Chips)',
+    'mh.cfg_style_compact': 'Kompakt (Schmal)',
+    'mh.cfg_style_icon': 'Nur Icon (Overlay ausklappbar)',
+    'mh.cfg_player_style': 'Player-Auswahlstil',
+    'mh.cfg_pstyle_pills': 'Quick-Switch-Pills',
+    'mh.cfg_pstyle_dropdown': 'Dropdown-Auswahl',
+    'mh.cfg_vol_style': 'Lautstärke-Stil',
+    'mh.cfg_vstyle_slider': 'Slider + Mute',
+    'mh.cfg_vstyle_buttons': 'Buttons (Vol − / Mute / Vol +)',
+    'mh.cfg_show_cover': 'Cover-Art (entity_picture) anzeigen',
+    'mh.cfg_radio_cols': 'Radio-Grid Spaltenanzahl (1–4)'
   },
   en: {
     'cal.style.list': '📋 7-Day List (Classic)',
@@ -869,7 +991,129 @@ const I18N = {
     'dev.col_runtime': 'Runtime',
     'dev.col_today': 'Today',
     'dev.col_position': 'Position',
-    'dev.col_control': 'Controls'
+    'dev.col_control': 'Controls',
+    'mh.title': 'Media Hub',
+    'mh.no_players': 'No media players configured. Set them in Configurator → Media Hub / Audio.',
+    'mh.nothing_playing': 'Nothing playing',
+    'mh.unknown_artist': 'Unknown artist',
+    'mh.select_player': 'Select player',
+    'mh.prev': 'Previous track',
+    'mh.play_pause': 'Play / Pause',
+    'mh.next': 'Next track',
+    'mh.vol_down': 'Volume down',
+    'mh.vol_up': 'Volume up',
+    'mh.mute': 'Mute',
+    'mh.multiroom': 'Multiroom',
+    'mh.multiroom_title': 'Multiroom Group & Volume',
+    'mh.multiroom_master': 'Master',
+    'mh.multiroom_presets': 'Group Presets',
+    'mh.multiroom_joined': 'Joined',
+    'mh.multiroom_join': 'Join',
+    'mh.search_placeholder': 'Search or paste audio/YouTube URL…',
+    'mh.search_btn': 'Search',
+    'mh.search_clear': 'Clear search',
+    'mh.search_toggle': 'Toggle search',
+    'mh.searching': 'Searching…',
+    'mh.no_results': 'No results found.',
+    'mh.play_url': 'Play URL directly',
+    'mh.radio_favs_empty': 'No radio favorites configured yet. Use search or add stations in the configurator.',
+    'mh.direct_url_hint': 'Paste a direct stream URL (.mp3/.m3u8) or YouTube/SoundCloud link to play immediately.',
+    'mh.tab_search_hint': 'Enter a search query above to search {source}.',
+    'mh.type.track': 'Track',
+    'mh.type.artist': 'Artist',
+    'mh.type.album': 'Album',
+    'mh.type.radio': 'Radio',
+    'mh.tab.radio': '📻 Radio',
+    'mh.tab.ytube_free': '▶️ YT Music',
+    'mh.tab.local_library': '💾 Local',
+    'mh.tab.direct_url': '🔗 URL',
+    'mh.tab.spotify': '🟢 Spotify',
+    'mh.tab.music_assistant': '🎵 Music Assistant',
+    'mh.toast_playing': 'Playing: {title}',
+    'mh.toast_preset': 'Group activated: {name}',
+    'mh.swipe_hint': 'Swipe to switch',
+    'mh.err_ytube_no_entity': 'No ytube_music_player entity selected in configurator.',
+    'mh.err_ytube_missing': 'Integration "ytube_music_player" is not available in Home Assistant.',
+    'mh.err_local_no_entity': 'No local media server player (Emby/Jellyfin/DLNA) configured.',
+    'mh.err_spotify_no_entity': 'No Spotify/SpotifyPlus entity configured.',
+    'mh.err_spotify_missing': 'Spotify / SpotifyPlus service not available.',
+    'mh.err_ma_missing': 'Music Assistant integration is not installed or active.',
+    'mh.err_radio_browse': 'Radio Browser live search unavailable (favorites active).',
+    'mh.err_extractor_missing': 'The HA "media_extractor" integration is required for YouTube/SoundCloud URLs.',
+    'mh.err_invalid_url': 'Please enter a valid http:// or https:// URL.',
+    'mh.err_no_player': 'No target player selected.',
+    'mh.err_search_failed': 'Search failed – check provider status.',
+    'mh.err_provider_unknown': 'Unknown media provider.',
+    'mh.err_nothing_selected': 'No media item selected.',
+    'mh.cfg_tab': '🎵 Media Hub / Audio',
+    'mh.cfg_box_profile': '🎛️ Activation, Provider Profile & Audio Sources',
+    'mh.cfg_box_profile_desc': 'Runs 100% subscription-free by default (Radio Browser, ytube_music_player, Emby/Jellyfin/DLNA, Direct URL). Optionally switch to Spotify/SpotifyPlus or Music Assistant.',
+    'mh.cfg_title': 'Widget Title',
+    'mh.cfg_profile': 'Operating Profile',
+    'mh.cfg_profile_free': 'Free Direct (€0 / No Subscription)',
+    'mh.cfg_profile_hybrid': 'Hybrid Premium (Free + Spotify / SpotifyPlus)',
+    'mh.cfg_profile_ma': 'Music Assistant (All-in-One Mode)',
+    'mh.cfg_radio_enable': 'Enable Webradio (Radio Browser)',
+    'mh.cfg_radio_live': 'Enable Radio Browser live search',
+    'mh.cfg_ytube_enable': 'YouTube Music Free (ytube_music_player via HACS)',
+    'mh.cfg_ytube_ent': 'ytube_music_player Entity',
+    'mh.cfg_local_enable': 'Local Library / Media Server (Emby, Jellyfin, DLNA)',
+    'mh.cfg_local_ent': 'Media Server Entity (media_player.*)',
+    'mh.cfg_direct_enable': 'Direct URL / media_extractor (Audio, YouTube, SoundCloud)',
+    'mh.cfg_spotify_enable': 'Enable Spotify / SpotifyPlus (optional)',
+    'mh.cfg_spotify_mode': 'Spotify Backend',
+    'mh.cfg_spotify_ent': 'Spotify Entity (media_player.*)',
+    'mh.cfg_ma_enable': 'Enable Music Assistant',
+    'mh.cfg_ma_entry': 'Music Assistant Config Entry ID (optional)',
+    'mh.cfg_box_players': '🔊 Output Players (media_player.*)',
+    'mh.cfg_box_players_desc': 'Select your speakers/receivers from Home Assistant and assign optional short names.',
+    'mh.cfg_default_player': 'Default Master Player',
+    'mh.cfg_player_entity': 'Player Entity (media_player.*)',
+    'mh.cfg_player_name': 'Display Name (optional)',
+    'mh.cfg_add_player': '+ Add Player',
+    'mh.cfg_detected_players': 'Detected media_player entities (1-Click):',
+    'mh.cfg_box_multiroom': '🔗 Multiroom & Group Presets',
+    'mh.cfg_box_multiroom_desc': 'Automatic detection of groupable speakers (feature bit 524288) or manual selection + presets.',
+    'mh.cfg_mr_enable': 'Enable Multiroom control in widget',
+    'mh.cfg_mr_override': 'Manually restrict groupable players (empty = auto via feature bit 524288):',
+    'mh.cfg_mr_presets': 'Multiroom Presets',
+    'mh.cfg_mr_preset_name': 'Group Name',
+    'mh.cfg_mr_preset_master': 'Master Player',
+    'mh.cfg_mr_preset_members': 'Members',
+    'mh.cfg_add_preset': '+ Add Group Preset',
+    'mh.cfg_box_radio': '📻 Radio Favorites',
+    'mh.cfg_box_radio_desc': 'Add, reorder, or delete custom stations with name, media_content_id/stream URL, and icon.',
+    'mh.cfg_rf_name': 'Station Name',
+    'mh.cfg_rf_cid': 'media_content_id or Stream URL',
+    'mh.cfg_rf_icon': 'Icon / Emoji',
+    'mh.cfg_add_rf': '+ Add Radio Favorite',
+    'mh.cfg_box_ui': '📱 Search, Touch Optimization & Widget Layout',
+    'mh.cfg_box_ui_desc': 'Wall-tablet density (48×48px touch targets), swipe gestures, search bar position & style.',
+    'mh.cfg_search_scope': 'Search Scope',
+    'mh.cfg_scope_tab': 'Active source tab only',
+    'mh.cfg_scope_combined': 'Combined search across all active sources',
+    'mh.cfg_media_types': 'Searchable media types:',
+    'mh.cfg_density': 'UI Density / Control Mode',
+    'mh.cfg_density_std': 'Standard (Desktop & Compact)',
+    'mh.cfg_density_touch': 'Wall-Tablet Touch (≥ 48×48px & 16px search)',
+    'mh.cfg_tab_swipe': 'Tab Swipe (horizontal swipe between source tabs)',
+    'mh.cfg_track_swipe': 'Track Swipe (swipe on Now-Playing banner)',
+    'mh.cfg_search_pos': 'Search Bar Position',
+    'mh.cfg_pos_header': 'Header (top)',
+    'mh.cfg_pos_below_tabs': 'Below Tabs',
+    'mh.cfg_pos_footer': 'Footer (bottom)',
+    'mh.cfg_search_style': 'Search Bar Style',
+    'mh.cfg_style_full': 'Full (Input + Filter Chips)',
+    'mh.cfg_style_compact': 'Compact (Slim)',
+    'mh.cfg_style_icon': 'Icon Only (Expandable Overlay)',
+    'mh.cfg_player_style': 'Player Selector Style',
+    'mh.cfg_pstyle_pills': 'Quick-Switch Pills',
+    'mh.cfg_pstyle_dropdown': 'Dropdown Select',
+    'mh.cfg_vol_style': 'Volume Style',
+    'mh.cfg_vstyle_slider': 'Slider + Mute',
+    'mh.cfg_vstyle_buttons': 'Buttons (Vol − / Mute / Vol +)',
+    'mh.cfg_show_cover': 'Show Cover Art (entity_picture)',
+    'mh.cfg_radio_cols': 'Radio Grid Columns (1–4)'
   }
 };
 
@@ -1054,7 +1298,11 @@ const ICONS = {
   play:'<polygon points="6 4 20 12 6 20 6 4"/>',
   pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
   prev:'<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>',
-  next:'<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>'
+  next:'<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
+  music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  radio:'<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>',
+  volume:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+  volumeMute:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>'
 };
 const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ICONS.plug}</svg>`;
 
@@ -1152,6 +1400,45 @@ function DEFAULT_CLIMATE_TILES() {
   ];
 }
 
+function DEFAULT_MEDIA_HUB_CONFIG() {
+  return {
+    show: false,
+    title: 'Media Hub',
+    profile: 'free_direct',
+    players: [],
+    defaultPlayer: '',
+    providers: {
+      radio: { enabled: true, liveSearch: true },
+      ytube_free: { enabled: false, entity: '' },
+      local_library: { enabled: false, entity: '' },
+      direct_url: { enabled: true },
+      spotify: { enabled: false, mode: 'spotifyplus', entity: '' },
+      music_assistant: { enabled: false, configEntryId: '' }
+    },
+    multiroom: {
+      enabled: true,
+      groupablePlayers: [],
+      presets: []
+    },
+    radioFavorites: [],
+    search: {
+      scope: 'active_tab',
+      mediaTypes: ['track', 'artist', 'album', 'radio']
+    },
+    ui: {
+      density: 'standard',
+      tabSwipe: true,
+      trackSwipe: false,
+      searchPosition: 'below_tabs',
+      searchStyle: 'full',
+      playerSelectorStyle: 'pills',
+      volumeStyle: 'slider',
+      showCoverArt: true,
+      radioGridCols: 2
+    }
+  };
+}
+
 function calcAbsoluteHumidity(t, rh) {
   if (t == null || rh == null || isNaN(t) || isNaN(rh)) return null;
   const T = parseFloat(t);
@@ -1185,6 +1472,7 @@ function DEFAULT_DASHBOARD_LAYOUT() {
     { id: 'wallbox',          label: '🚗 Wallbox & E-Auto',               col: 2, show: false, scope: 'all',  cfgTab: 'energie' },
     { id: 'security',         label: '🔒 Sicherheit (Schlösser/Fenster)', col: 2, show: true,  scope: 'all',  cfgTab: 'kameras' },
     { id: 'lights',           label: '💡 Lichter-Gruppen',                col: 2, show: true,  scope: 'all',  cfgTab: 'geraete' },
+    { id: 'media_hub',        label: '🎵 Media Hub / Audio',              col: 1, show: false, scope: 'all',  cfgTab: 'media' },
     { id: 'system_health',    label: '🖥️ System-Health (Server/Docker)',  col: 2, show: false, scope: 'all',  cfgTab: 'geraete' },
     { id: 'trash',            label: '🗑️ Abfallkalender',                 col: 2, show: true,  scope: 'home', cfgTab: 'kalender' }
   ];
@@ -1270,6 +1558,7 @@ const MODULE_SHOW_PROP_MAP = {
   wallbox: ['wallbox', 'show'],
   appliances: ['appliances', 'show'],
   system_health: ['systemHealth', 'show'],
+  media_hub: ['mediaHub', 'show'],
   rain_timeline: ['weather', 'showRainTimeline']
 };
 
@@ -1702,6 +1991,63 @@ function ensureConfigDefaults(cfg) {
 
   if (!cfg.systemHealth || typeof cfg.systemHealth !== 'object') cfg.systemHealth = { show: false, title: 'Server & Docker', cpu: '', ram: '', disk: '', temp: '', containers: [] };
   if (!Array.isArray(cfg.systemHealth.containers)) cfg.systemHealth.containers = [];
+
+  const mhDef = DEFAULT_MEDIA_HUB_CONFIG();
+  if (!cfg.mediaHub || typeof cfg.mediaHub !== 'object') {
+    cfg.mediaHub = JSON.parse(JSON.stringify(mhDef));
+  } else {
+    const mh = cfg.mediaHub;
+    if (mh.show === undefined) mh.show = mhDef.show;
+    if (!mh.title) mh.title = mhDef.title;
+    if (!['free_direct', 'hybrid_premium', 'music_assistant'].includes(mh.profile)) mh.profile = mhDef.profile;
+    if (!Array.isArray(mh.players)) mh.players = [];
+    mh.players = mh.players.map(p => (typeof p === 'string' ? { entity: p, name: '' } : { entity: String((p && p.entity) || ''), name: String((p && p.name) || '') })).filter(p => p.entity);
+    if (mh.defaultPlayer === undefined) mh.defaultPlayer = '';
+    if (!mh.providers || typeof mh.providers !== 'object') mh.providers = {};
+    Object.entries(mhDef.providers).forEach(([pk, pdef]) => {
+      if (!mh.providers[pk] || typeof mh.providers[pk] !== 'object') mh.providers[pk] = Object.assign({}, pdef);
+      else {
+        Object.entries(pdef).forEach(([fk, fv]) => {
+          if (mh.providers[pk][fk] === undefined) mh.providers[pk][fk] = fv;
+        });
+      }
+    });
+    if (!['spotifyplus', 'spotify'].includes(mh.providers.spotify.mode)) mh.providers.spotify.mode = 'spotifyplus';
+    if (!mh.multiroom || typeof mh.multiroom !== 'object') mh.multiroom = JSON.parse(JSON.stringify(mhDef.multiroom));
+    if (mh.multiroom.enabled === undefined) mh.multiroom.enabled = true;
+    if (!Array.isArray(mh.multiroom.groupablePlayers)) mh.multiroom.groupablePlayers = [];
+    if (!Array.isArray(mh.multiroom.presets)) mh.multiroom.presets = [];
+    mh.multiroom.presets = mh.multiroom.presets.map(pr => ({
+      name: String((pr && pr.name) || ''),
+      master: String((pr && pr.master) || ''),
+      members: Array.isArray(pr && pr.members) ? pr.members.filter(Boolean) : []
+    }));
+    if (!Array.isArray(mh.radioFavorites)) mh.radioFavorites = [];
+    mh.radioFavorites = mh.radioFavorites.map(rf => ({
+      name: String((rf && rf.name) || ''),
+      contentId: String((rf && rf.contentId) || ''),
+      icon: String((rf && rf.icon) || '📻')
+    }));
+    if (!mh.search || typeof mh.search !== 'object') mh.search = JSON.parse(JSON.stringify(mhDef.search));
+    if (!['active_tab', 'combined'].includes(mh.search.scope)) mh.search.scope = 'active_tab';
+    if (!Array.isArray(mh.search.mediaTypes) || !mh.search.mediaTypes.length) mh.search.mediaTypes = ['track', 'artist', 'album', 'radio'];
+    if (!mh.ui || typeof mh.ui !== 'object') mh.ui = JSON.parse(JSON.stringify(mhDef.ui));
+    if (!['standard', 'tablet_touch'].includes(mh.ui.density)) mh.ui.density = 'standard';
+    if (mh.ui.tabSwipe === undefined) mh.ui.tabSwipe = true;
+    if (mh.ui.trackSwipe === undefined) mh.ui.trackSwipe = false;
+    if (!['header', 'below_tabs', 'footer'].includes(mh.ui.searchPosition)) mh.ui.searchPosition = 'below_tabs';
+    if (!['full', 'compact', 'icon_only'].includes(mh.ui.searchStyle)) mh.ui.searchStyle = 'full';
+    if (!['dropdown', 'pills'].includes(mh.ui.playerSelectorStyle)) mh.ui.playerSelectorStyle = 'pills';
+    if (!['slider', 'buttons'].includes(mh.ui.volumeStyle)) mh.ui.volumeStyle = 'slider';
+    if (mh.ui.showCoverArt === undefined) mh.ui.showCoverArt = true;
+    const rgc = parseInt(mh.ui.radioGridCols, 10);
+    mh.ui.radioGridCols = clamp(Number.isFinite(rgc) ? rgc : 2, 1, 4);
+  }
+  const mhDlItem = cfg.dashboardLayout.find(x => x && x.id === 'media_hub');
+  if (mhDlItem && cfg.mediaHub.show === true && mhDlItem.show === false && !cfg._mhSyncedOnce) {
+    mhDlItem.show = true;
+  }
+  cfg._mhSyncedOnce = true;
 
   if (!Array.isArray(cfg.deviceTabs) || !cfg.deviceTabs.length) {
     cfg.deviceTabs = [

@@ -84,6 +84,42 @@ const EMPTY_CONFIG = {
   screensaver: { show: true, timeoutMins: 3 },
   bellPopup: { show: false, behavior: "popup", pageFilter: "all", allowedPages: ["dashboard", "kameras"], triggerHoldSeconds: 10, triggerEntity: "", cameraEntity: "", title: "Türklingel", durationSec: 30 },
   systemHealth: { show: false, title: "Server & Docker", cpu: "", ram: "", disk: "", temp: "", containers: [] },
+  mediaHub: {
+    show: false,
+    title: "Media Hub",
+    profile: "free_direct",
+    players: [],
+    defaultPlayer: "",
+    providers: {
+      radio: { enabled: true, liveSearch: true },
+      ytube_free: { enabled: false, entity: "" },
+      local_library: { enabled: false, entity: "" },
+      direct_url: { enabled: true },
+      spotify: { enabled: false, mode: "spotifyplus", entity: "" },
+      music_assistant: { enabled: false, configEntryId: "" }
+    },
+    multiroom: {
+      enabled: true,
+      groupablePlayers: [],
+      presets: []
+    },
+    radioFavorites: [],
+    search: {
+      scope: "active_tab",
+      mediaTypes: ["track", "artist", "album", "radio"]
+    },
+    ui: {
+      density: "standard",
+      tabSwipe: true,
+      trackSwipe: false,
+      searchPosition: "below_tabs",
+      searchStyle: "full",
+      playerSelectorStyle: "pills",
+      volumeStyle: "slider",
+      showCoverArt: true,
+      radioGridCols: 2
+    }
+  },
 
   powerFlow: [],
 

@@ -78,6 +78,7 @@ const DASHBOARD_CARD_LABELS = {
   wallbox: '🚗 Wallbox & E-Auto',
   security: '🔒 Sicherheits-Kachel (Schlösser/Fenster/Kameras)',
   lights: '💡 Lichter-Gruppen & Hauptschalter',
+  media_hub: '🎵 Media Hub / Audio',
   system_health: '🖥️ System-Health (Server & Docker)',
   trash: '🗑️ Abfallkalender'
 };
@@ -92,7 +93,8 @@ const WIDGET_TYPE_GROUPS = [
       ['favorites', '⭐ Schnellauswahl / Favoriten'],
       ['quick_routines', '⚡ Szenen & Routinen (1-Klick Buttons)'],
       ['presence', '👥 Familien-Präsenz (Anwesenheit)'],
-      ['appliances', '🧺 Haushaltsgeräte-Monitor (Waschmaschine & Co.)']
+      ['appliances', '🧺 Haushaltsgeräte-Monitor (Waschmaschine & Co.)'],
+      ['media_hub', '🎵 Media Hub / Audio (Multiroom, Radio, Streaming)']
     ]
   },
   {
@@ -472,6 +474,7 @@ function openCfgEditor(initialTab = null, initialSubTab = null) {
     metrics: 'energie', energie: 'energie', badges: 'allgemein',
     sec: 'kameras', kameras: 'kameras',
     pages: 'kalender', seiten: 'kalender', kalender: 'kalender',
+    media: 'media', media_hub: 'media',
     backup: 'backup',
     appliances: 'geraete'
   };
@@ -510,6 +513,7 @@ function renderCfgModal(preserveScroll = true) {
     ['layout', tr('📐 Layout & Platzierung', '📐 Layout & Placement')],
     ['raeume', tr('🏠 Räume', '🏠 Rooms')],
     ['geraete', tr('🔌 Geräte, Licht & Rollos', '🔌 Devices, Lights & Covers')],
+    ['media', t('mh.cfg_tab')],
     ['klima', tr('🌡️ Klima, Wetter & Lüftung', '🌡️ Climate, Weather & Ventilation')],
     ['energie', tr('⚡ Energie, PV & Wallbox', '⚡ Energy, PV & Wallbox')],
     ['kameras', tr('🔒 Sicherheit, Kameras & Alerts', '🔒 Security, Cameras & Alerts')],
@@ -1580,7 +1584,7 @@ function renderCfgModal(preserveScroll = true) {
         ${(p.widgets || []).map((w, wi) => {
           let extraWidgetCfg = '';
           const roomFilterTypes = ['devices', 'covers', 'favorites', 'ventilation'];
-          const noTargetInputTypes = ['sports_hub', 'weather_forecast', 'rain_timeline', 'battery_forecast', 'energy_prices', 'wallbox', 'appliances', 'quick_routines', 'presence', 'system_health', 'security', 'status', 'alerts', 'climate', 'calendar', 'trash', 'power_flow', 'stat_group'];
+          const noTargetInputTypes = ['sports_hub', 'media_hub', 'weather_forecast', 'rain_timeline', 'battery_forecast', 'energy_prices', 'wallbox', 'appliances', 'quick_routines', 'presence', 'system_health', 'security', 'status', 'alerts', 'climate', 'calendar', 'trash', 'power_flow', 'stat_group'];
 
           let targetInputHtml = '';
           if (roomFilterTypes.includes(w.type)) {
@@ -1717,6 +1721,148 @@ function renderCfgModal(preserveScroll = true) {
   }).join('') +
   `<button class="btn-pri" data-act="cfgAddPage" style="align-self:flex-start">+ Neue eigene Unterseite anlegen (z.B. Büro, Technik, OG)</button>`;
 
+  // ---------- TAB MEDIA HUB / AUDIO ----------
+  const mh = cfgDraft.mediaHub || DEFAULT_MEDIA_HUB_CONFIG();
+  const mhProv = mh.providers || {};
+  const mhMr = mh.multiroom || {};
+  const mhSearch = mh.search || {};
+  const mhUi = mh.ui || {};
+  const haInst = typeof getHass === 'function' ? getHass() : null;
+  const detectedMediaPlayers = (haInst && haInst.states)
+    ? Object.keys(haInst.states).filter(id => id.startsWith('media_player.')).sort()
+    : [];
+  const configuredPlayerIds = (mh.players || []).map(p => p.entity).filter(Boolean);
+  const mrCandidates = Array.from(new Set([...configuredPlayerIds, ...detectedMediaPlayers]));
+
+  const playerChipQuickAddHtml = detectedMediaPlayers.length ? `
+    <div style="margin-bottom:10px">
+      <span class="cfg-desc" style="display:block;margin-bottom:6px">${esc(t('mh.cfg_detected_players'))}</span>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${detectedMediaPlayers.map(eid => {
+          const st = haInst.states[eid];
+          const fn = (st && st.attributes && st.attributes.friendly_name) || eid;
+          const isGroupable = typeof MediaHubAdapters !== 'undefined' && MediaHubAdapters.isPlayerGroupable(st);
+          const already = configuredPlayerIds.includes(eid);
+          return `<button type="button" class="chip ${already ? 'on' : ''}" data-act="cfgMhQuickAddPlayer" data-entity="${esc(eid)}" data-name="${esc(fn)}" style="font-size:11px;padding:4px 10px">
+            ${already ? '✓ ' : '+ '}${esc(fn)} ${isGroupable ? '🔊' : ''}
+          </button>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  const tMedia = box(t('mh.cfg_box_profile'), t('mh.cfg_box_profile_desc'), `
+    ${placementBarHtml('media_hub', 'media_hub', mh.title || 'Media Hub')}
+    <div class="cfg-row">
+      ${fld(t('mh.cfg_title'), `data-cpath="mediaHub.title" value="${esc(mh.title || 'Media Hub')}"`)}
+      ${sel(t('mh.cfg_profile'), [
+        ['free_direct', t('mh.cfg_profile_free')],
+        ['hybrid_premium', t('mh.cfg_profile_hybrid')],
+        ['music_assistant', t('mh.cfg_profile_ma')]
+      ].map(([v, l]) => `<option value="${v}" ${(mh.profile || 'free_direct') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.profile"`)}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.radio.enabled" ${(mhProv.radio && mhProv.radio.enabled !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_radio_enable'))}</label>
+        <label><input type="checkbox" data-cbool="mediaHub.providers.radio.liveSearch" ${(mhProv.radio && mhProv.radio.liveSearch !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_radio_live'))}</label>
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.ytube_free.enabled" ${(mhProv.ytube_free && mhProv.ytube_free.enabled) ? 'checked' : ''}> ${esc(t('mh.cfg_ytube_enable'))}</label>
+        ${fld(t('mh.cfg_ytube_ent'), `list="ha-entities-list" data-cpath="mediaHub.providers.ytube_free.entity" value="${esc((mhProv.ytube_free && mhProv.ytube_free.entity) || '')}"`)}
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.local_library.enabled" ${(mhProv.local_library && mhProv.local_library.enabled) ? 'checked' : ''}> ${esc(t('mh.cfg_local_enable'))}</label>
+        ${fld(t('mh.cfg_local_ent'), `list="ha-entities-list" data-cpath="mediaHub.providers.local_library.entity" value="${esc((mhProv.local_library && mhProv.local_library.entity) || '')}"`)}
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.direct_url.enabled" ${(mhProv.direct_url && mhProv.direct_url.enabled !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_direct_enable'))}</label>
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.spotify.enabled" ${(mhProv.spotify && mhProv.spotify.enabled) ? 'checked' : ''}> ${esc(t('mh.cfg_spotify_enable'))}</label>
+        ${sel(t('mh.cfg_spotify_mode'), [['spotifyplus', 'SpotifyPlus (HACS)'], ['spotify', 'Spotify (Native)']].map(([v, l]) => `<option value="${v}" ${((mhProv.spotify && mhProv.spotify.mode) || 'spotifyplus') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.providers.spotify.mode"`)}
+        ${fld(t('mh.cfg_spotify_ent'), `list="ha-entities-list" data-cpath="mediaHub.providers.spotify.entity" value="${esc((mhProv.spotify && mhProv.spotify.entity) || '')}"`)}
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.music_assistant.enabled" ${(mhProv.music_assistant && mhProv.music_assistant.enabled) ? 'checked' : ''}> ${esc(t('mh.cfg_ma_enable'))}</label>
+        ${fld(t('mh.cfg_ma_entry'), `data-cpath="mediaHub.providers.music_assistant.configEntryId" value="${esc((mhProv.music_assistant && mhProv.music_assistant.configEntryId) || '')}"`)}
+      </div>
+    </div>`, true, placementStatusBadgeHtml('media_hub', 'media_hub'), 'media_profile') +
+  box(t('mh.cfg_box_players'), t('mh.cfg_box_players_desc'), `
+    ${playerChipQuickAddHtml}
+    <div class="cfg-row" style="margin-bottom:10px">
+      ${sel(t('mh.cfg_default_player'), `<option value="">— Auto —</option>` + (mh.players || []).map(p => `<option value="${esc(p.entity)}" ${mh.defaultPlayer === p.entity ? 'selected' : ''}>${esc(p.name || p.entity)}</option>`).join(''), `data-cpath="mediaHub.defaultPlayer"`)}
+    </div>
+    ${(mh.players || []).map((p, pi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+      ${fld(t('mh.cfg_player_entity'), `list="ha-entities-list" data-mh-p-i="${pi}" data-mh-p-k="entity" value="${esc(p.entity || '')}"`)}
+      ${fld(t('mh.cfg_player_name'), `data-mh-p-i="${pi}" data-mh-p-k="name" value="${esc(p.name || '')}"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMhMovePlayer" data-i="${pi}" data-dir="-1" ${pi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMhMovePlayer" data-i="${pi}" data-dir="1" ${pi === mh.players.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgMhDelPlayer" data-i="${pi}">✕</button></div>
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgMhAddPlayer">${esc(t('mh.cfg_add_player'))}</button>`, false, `<span class="cfg-badge-info">${(mh.players || []).length} Player</span>`, 'media_players') +
+  box(t('mh.cfg_box_multiroom'), t('mh.cfg_box_multiroom_desc'), `
+    <div class="cfg-row">
+      <label><input type="checkbox" data-cbool="mediaHub.multiroom.enabled" ${mhMr.enabled !== false ? 'checked' : ''}> ${esc(t('mh.cfg_mr_enable'))}</label>
+    </div>
+    ${mrCandidates.length ? `<div style="margin-top:8px">
+      <span class="cfg-desc" style="display:block;margin-bottom:6px">${esc(t('mh.cfg_mr_override'))}</span>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${mrCandidates.map(eid => {
+          const checked = Array.isArray(mhMr.groupablePlayers) && mhMr.groupablePlayers.includes(eid);
+          const st = haInst && haInst.states && haInst.states[eid];
+          const grpSupported = typeof MediaHubAdapters !== 'undefined' && MediaHubAdapters.isPlayerGroupable(st);
+          return `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--line);font-size:12px">
+            <input type="checkbox" data-mh-mr-ent="${esc(eid)}" ${checked ? 'checked' : ''}>
+            <span>${esc(eid)}</span>${grpSupported ? '<small class="mut">(524288✓)</small>' : ''}
+          </label>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)">
+      <span class="cfg-desc" style="display:block;margin-bottom:8px;font-weight:600">${esc(t('mh.cfg_mr_presets'))}</span>
+      ${(mhMr.presets || []).map((pr, pri) => `<div style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px">
+        <div class="cfg-row">
+          ${fld(t('mh.cfg_mr_preset_name'), `data-mh-pr-i="${pri}" data-mh-pr-k="name" value="${esc(pr.name || '')}"`)}
+          ${sel(t('mh.cfg_mr_preset_master'), `<option value="">—</option>` + mrCandidates.map(eid => `<option value="${esc(eid)}" ${pr.master === eid ? 'selected' : ''}>${esc(eid)}</option>`).join(''), `data-mh-pr-i="${pri}" data-mh-pr-k="master"`)}
+          <button class="btn-danger" data-act="cfgMhDelPreset" data-i="${pri}">✕</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <span class="mut sm">${esc(t('mh.cfg_mr_preset_members'))}:</span>
+          ${mrCandidates.map(eid => {
+            const on = Array.isArray(pr.members) && pr.members.includes(eid);
+            return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" data-mh-pm-pi="${pri}" data-mh-pm-ent="${esc(eid)}" ${on ? 'checked' : ''}> ${esc(eid)}</label>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+      <button class="iconbtn" data-act="cfgMhAddPreset">${esc(t('mh.cfg_add_preset'))}</button>
+    </div>`, false, '', 'media_multiroom') +
+  box(t('mh.cfg_box_radio'), t('mh.cfg_box_radio_desc'), `
+    ${(mh.radioFavorites || []).map((rf, rfi) => `<div class="cfg-row" style="background:rgba(255,255,255,.02);padding:8px;border-radius:8px;margin-bottom:6px">
+      ${fld(t('mh.cfg_rf_name'), `data-mh-rf-i="${rfi}" data-mh-rf-k="name" value="${esc(rf.name || '')}"`)}
+      ${fld(t('mh.cfg_rf_cid'), `data-mh-rf-i="${rfi}" data-mh-rf-k="contentId" value="${esc(rf.contentId || '')}"`)}
+      ${fld(t('mh.cfg_rf_icon'), `data-mh-rf-i="${rfi}" data-mh-rf-k="icon" value="${esc(rf.icon || '📻')}"`)}
+      <div class="order-btns"><button class="btn-move" data-act="cfgMhMoveRadioFav" data-i="${rfi}" data-dir="-1" ${rfi === 0 ? 'disabled' : ''}>▲</button><button class="btn-move" data-act="cfgMhMoveRadioFav" data-i="${rfi}" data-dir="1" ${rfi === mh.radioFavorites.length - 1 ? 'disabled' : ''}>▼</button><button class="btn-danger" data-act="cfgMhDelRadioFav" data-i="${rfi}">✕</button></div>
+    </div>`).join('')}
+    <button class="iconbtn" data-act="cfgMhAddRadioFav">${esc(t('mh.cfg_add_rf'))}</button>`, false, `<span class="cfg-badge-info">${(mh.radioFavorites || []).length}</span>`, 'media_radio') +
+  box(t('mh.cfg_box_ui'), t('mh.cfg_box_ui_desc'), `
+    <div class="cfg-row">
+      ${sel(t('mh.cfg_search_scope'), [['active_tab', t('mh.cfg_scope_tab')], ['combined', t('mh.cfg_scope_combined')]].map(([v, l]) => `<option value="${v}" ${(mhSearch.scope || 'active_tab') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.search.scope"`)}
+      ${sel(t('mh.cfg_density'), [['standard', t('mh.cfg_density_std')], ['tablet_touch', t('mh.cfg_density_touch')]].map(([v, l]) => `<option value="${v}" ${(mhUi.density || 'standard') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.ui.density"`)}
+      ${sel(t('mh.cfg_search_pos'), [['header', t('mh.cfg_pos_header')], ['below_tabs', t('mh.cfg_pos_below_tabs')], ['footer', t('mh.cfg_pos_footer')]].map(([v, l]) => `<option value="${v}" ${(mhUi.searchPosition || 'below_tabs') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.ui.searchPosition"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:8px">
+      ${sel(t('mh.cfg_search_style'), [['full', t('mh.cfg_style_full')], ['compact', t('mh.cfg_style_compact')], ['icon_only', t('mh.cfg_style_icon')]].map(([v, l]) => `<option value="${v}" ${(mhUi.searchStyle || 'full') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.ui.searchStyle"`)}
+      ${sel(t('mh.cfg_player_style'), [['pills', t('mh.cfg_pstyle_pills')], ['dropdown', t('mh.cfg_pstyle_dropdown')]].map(([v, l]) => `<option value="${v}" ${(mhUi.playerSelectorStyle || 'pills') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.ui.playerSelectorStyle"`)}
+      ${sel(t('mh.cfg_vol_style'), [['slider', t('mh.cfg_vstyle_slider')], ['buttons', t('mh.cfg_vstyle_buttons')]].map(([v, l]) => `<option value="${v}" ${(mhUi.volumeStyle || 'slider') === v ? 'selected' : ''}>${esc(l)}</option>`).join(''), `data-cpath="mediaHub.ui.volumeStyle"`)}
+      ${fld(t('mh.cfg_radio_cols'), `type="number" min="1" max="4" data-cpath="mediaHub.ui.radioGridCols" value="${mhUi.radioGridCols || 2}"`)}
+    </div>
+    <div class="cfg-row" style="margin-top:10px;gap:14px">
+      <span class="mut sm">${esc(t('mh.cfg_media_types'))}</span>
+      ${['track', 'artist', 'album', 'radio'].map(tp => `<label><input type="checkbox" data-mh-mt="${tp}" ${(mhSearch.mediaTypes || []).includes(tp) ? 'checked' : ''}> ${esc(t('mh.type.' + tp))}</label>`).join('')}
+    </div>
+    <div class="cfg-row" style="margin-top:10px;gap:14px">
+      <label><input type="checkbox" data-cbool="mediaHub.ui.tabSwipe" ${mhUi.tabSwipe !== false ? 'checked' : ''}> ${esc(t('mh.cfg_tab_swipe'))}</label>
+      <label><input type="checkbox" data-cbool="mediaHub.ui.trackSwipe" ${mhUi.trackSwipe ? 'checked' : ''}> ${esc(t('mh.cfg_track_swipe'))}</label>
+      <label><input type="checkbox" data-cbool="mediaHub.ui.showCoverArt" ${mhUi.showCoverArt !== false ? 'checked' : ''}> ${esc(t('mh.cfg_show_cover'))}</label>
+    </div>`, false, '', 'media_ui');
+
   // ---------- TAB 9: SYSTEM & BACKUP ----------
   let tBackup = box('🚀 Schnellstart, Live-Sync & Automatische Erkennung', 'Lasse deine Home Assistant Räume, Lichter, Klimageräte, Rolläden und Kameras vollautomatisch erkennen oder erzwinge einen Tablet-Reload.', `
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -1738,6 +1884,7 @@ function renderCfgModal(preserveScroll = true) {
     'layout': tLayout,
     'raeume': tRaeume,
     'geraete': tGeraete,
+    'media': tMedia,
     'klima': tKlima,
     'energie': tEnergie,
     'kameras': tKameras,
@@ -1944,6 +2091,15 @@ document.addEventListener('input', e => {
       cfgDraft.calendars[t.dataset.cpath] = t.value;
     }
     if (t.dataset.cpath === 'dashboardLayoutMode') renderCfgModal(true);
+    if (t.dataset.cpath === 'mediaHub.profile') {
+      if (!cfgDraft.mediaHub) cfgDraft.mediaHub = DEFAULT_MEDIA_HUB_CONFIG();
+      if (val === 'music_assistant') cfgDraft.mediaHub.providers.music_assistant.enabled = true;
+      if (val === 'hybrid_premium') cfgDraft.mediaHub.providers.spotify.enabled = true;
+      renderCfgModal(true);
+    }
+    if (t.dataset.cpath === 'mediaHub.ui.radioGridCols') {
+      setByPath(cfgDraft, t.dataset.cpath, clamp(parseInt(val, 10) || 2, 1, 4));
+    }
     if (t.dataset.cpath.startsWith('theme.')) {
       const prop = t.dataset.cpath.slice(6);
       const r = document.documentElement.style;
@@ -2056,6 +2212,38 @@ document.addEventListener('input', e => {
     chip[k] = k === 'decimals' ? parseInt(t.value, 10) || 0 : t.value;
   }
   if (t.dataset.dI != null) cfgDraft.devices[+t.dataset.dI][t.dataset.dK] = t.value;
+  if (t.dataset.mhPI != null && cfgDraft.mediaHub && cfgDraft.mediaHub.players) {
+    cfgDraft.mediaHub.players[+t.dataset.mhPI][t.dataset.mhPK] = t.value;
+  }
+  if (t.dataset.mhRfI != null && cfgDraft.mediaHub && cfgDraft.mediaHub.radioFavorites) {
+    cfgDraft.mediaHub.radioFavorites[+t.dataset.mhRfI][t.dataset.mhRfK] = t.value;
+  }
+  if (t.dataset.mhPrI != null && cfgDraft.mediaHub && cfgDraft.mediaHub.multiroom && cfgDraft.mediaHub.multiroom.presets) {
+    cfgDraft.mediaHub.multiroom.presets[+t.dataset.mhPrI][t.dataset.mhPrK] = t.value;
+  }
+  if (t.dataset.mhPmPi != null && cfgDraft.mediaHub && cfgDraft.mediaHub.multiroom && cfgDraft.mediaHub.multiroom.presets) {
+    const pr = cfgDraft.mediaHub.multiroom.presets[+t.dataset.mhPmPi];
+    const eid = t.dataset.mhPmEnt;
+    if (pr && eid) {
+      if (!Array.isArray(pr.members)) pr.members = [];
+      if (t.checked && !pr.members.includes(eid)) pr.members.push(eid);
+      else if (!t.checked) pr.members = pr.members.filter(x => x !== eid);
+    }
+  }
+  if (t.dataset.mhMrEnt != null && cfgDraft.mediaHub && cfgDraft.mediaHub.multiroom) {
+    const eid = t.dataset.mhMrEnt;
+    if (!Array.isArray(cfgDraft.mediaHub.multiroom.groupablePlayers)) cfgDraft.mediaHub.multiroom.groupablePlayers = [];
+    if (t.checked && !cfgDraft.mediaHub.multiroom.groupablePlayers.includes(eid)) cfgDraft.mediaHub.multiroom.groupablePlayers.push(eid);
+    else if (!t.checked) cfgDraft.mediaHub.multiroom.groupablePlayers = cfgDraft.mediaHub.multiroom.groupablePlayers.filter(x => x !== eid);
+  }
+  if (t.dataset.mhMt != null && cfgDraft.mediaHub && cfgDraft.mediaHub.search) {
+    const tp = t.dataset.mhMt;
+    if (!Array.isArray(cfgDraft.mediaHub.search.mediaTypes)) cfgDraft.mediaHub.search.mediaTypes = [];
+    if (t.checked && !cfgDraft.mediaHub.search.mediaTypes.includes(tp)) cfgDraft.mediaHub.search.mediaTypes.push(tp);
+    else if (!t.checked && cfgDraft.mediaHub.search.mediaTypes.length > 1) {
+      cfgDraft.mediaHub.search.mediaTypes = cfgDraft.mediaHub.search.mediaTypes.filter(x => x !== tp);
+    }
+  }
   if (t.dataset.cvI != null) cfgDraft.covers[+t.dataset.cvI][t.dataset.cvK] = t.value;
   if (t.dataset.lmK) {
     if (!cfgDraft.lightsMain) cfgDraft.lightsMain = { mode: 'group', group: 0, entities: [] };

@@ -28,6 +28,7 @@ const DASH_CARD_EDITOR_TAB = {
   wallbox: 'energie',
   security: 'kameras',
   lights: 'geraete',
+  media_hub: 'media',
   system_health: 'geraete',
   trash: 'kalender'
 };
@@ -65,6 +66,7 @@ function renderDashCardHtml(id, item = null) {
     case 'wallbox': return wallboxCard(null, true);
     case 'security': return securityCard();
     case 'lights': return lightsCard();
+    case 'media_hub': return typeof mediaHubCard === 'function' ? mediaHubCard(null, true, 'dash_media_hub') : '';
     case 'system_health': return systemHealthCard(true);
     case 'trash': return homeTrashCard();
     default: return '';
@@ -146,6 +148,7 @@ function render() {
 
   if (ui.view !== 'kameras') teardownCamObserver();
   if (ui.view !== 'dashboard') dropHeroMedia();
+  if (typeof MediaHubWidget !== 'undefined') MediaHubWidget.detachAll();
 
   const rooms = CONFIG.rooms && CONFIG.rooms.length ? CONFIG.rooms : [{ name: 'Home', chips: [] }];
   if (ui.room >= rooms.length) ui.room = 0;
@@ -532,6 +535,7 @@ function render() {
   if (newMain) newMain.scrollTop = mainScroll;
   if (newSide) newSide.scrollTop = sideScroll;
   mountPFC();
+  if (typeof MediaHubWidget !== 'undefined') MediaHubWidget.mountAll();
 
   // Falls ein Geräte-Detail-Modal offen ist, live aktualisieren (sofern kein Slider gezogen wird)
   if (sm.open && !document.activeElement?.classList?.contains('dd-slider')) {
@@ -641,6 +645,14 @@ function rebuildEntitiesList() {
   (CONFIG.dashboardLayout || []).forEach(it => {
     if (it && it.isCustomWidget && it.widget) collectWidgetEntities(it.widget);
   });
+  if (CONFIG.mediaHub) {
+    (CONFIG.mediaHub.players || []).forEach(p => { if (p && p.entity) ids.push(p.entity); });
+    if (CONFIG.mediaHub.defaultPlayer) ids.push(CONFIG.mediaHub.defaultPlayer);
+    const mp = CONFIG.mediaHub.providers || {};
+    if (mp.ytube_free && mp.ytube_free.entity) ids.push(mp.ytube_free.entity);
+    if (mp.local_library && mp.local_library.entity) ids.push(mp.local_library.entity);
+    if (mp.spotify && mp.spotify.entity) ids.push(mp.spotify.entity);
+  }
   ENTITIES = [...new Set(ids.filter(Boolean))];
 }
 
@@ -658,6 +670,7 @@ function tick(force) {
   const sig = ENTITIES.map(id => { const s = S(id); if (!s) return '-'; const a = s.attributes || {}; return [s.state, a.temperature, a.current_temperature, a.humidity, a.wind_speed, a.pressure, a.precipitation, a.hvac_action, a.current_position, a.fan_mode, a.preset_mode, a.percentage, a.brightness, a.color_temp_kelvin, a.volume_level, a.battery_level, a.battery].join('|'); }).join(';')
     + `#${getLang()}:${ui.room}${ui.view}${ui.showAll}${ui.editMode}${ui.profileMenuOpen}${ui.seriesVer}${homeCalendarState.loadedAt}:${homeCalendarState.rev}:${homeCalendarState.monthOffset}:${homeCalendarState.selectedDateKey}:${CONFIG.calendarHomeStyle}:${CONFIG.calendarPageStyle}${weatherForecastState.loadedAt}${ui.unlockArmedUntil > Date.now()}:${canUseGo2rtc()}:${go2rtcState.modeOverride}`;
   if (force || sig !== lastSig) { lastSig = sig; render(); }
+  if (typeof MediaHubWidget !== 'undefined') MediaHubWidget.updateAll();
 }
 
 function runtimeTick() {
@@ -1929,6 +1942,41 @@ document.addEventListener('click', ev => {
     renderCfgModal(true);
     return;
   }
+
+  /* Media Hub Konfigurator-Aktionen */
+  if (act === 'cfgMhAddPlayer') {
+    if (!cfgDraft.mediaHub) cfgDraft.mediaHub = DEFAULT_MEDIA_HUB_CONFIG();
+    cfgDraft.mediaHub.players.push({ entity: '', name: '' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgMhQuickAddPlayer') {
+    if (!cfgDraft.mediaHub) cfgDraft.mediaHub = DEFAULT_MEDIA_HUB_CONFIG();
+    const eid = el.dataset.entity;
+    const name = el.dataset.name || '';
+    const idx = cfgDraft.mediaHub.players.findIndex(p => p.entity === eid);
+    if (idx >= 0) cfgDraft.mediaHub.players.splice(idx, 1);
+    else cfgDraft.mediaHub.players.push({ entity: eid, name });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgMhDelPlayer') { if (cfgDraft.mediaHub) { cfgDraft.mediaHub.players.splice(+el.dataset.i, 1); renderCfgModal(true); } return; }
+  if (act === 'cfgMhMovePlayer') { if (cfgDraft.mediaHub) { moveItem(cfgDraft.mediaHub.players, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); } return; }
+  if (act === 'cfgMhAddPreset') {
+    if (!cfgDraft.mediaHub) cfgDraft.mediaHub = DEFAULT_MEDIA_HUB_CONFIG();
+    cfgDraft.mediaHub.multiroom.presets.push({ name: 'Gruppe', master: (cfgDraft.mediaHub.players[0] && cfgDraft.mediaHub.players[0].entity) || '', members: [] });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgMhDelPreset') { if (cfgDraft.mediaHub && cfgDraft.mediaHub.multiroom) { cfgDraft.mediaHub.multiroom.presets.splice(+el.dataset.i, 1); renderCfgModal(true); } return; }
+  if (act === 'cfgMhAddRadioFav') {
+    if (!cfgDraft.mediaHub) cfgDraft.mediaHub = DEFAULT_MEDIA_HUB_CONFIG();
+    cfgDraft.mediaHub.radioFavorites.push({ name: 'Radio', contentId: '', icon: '📻' });
+    renderCfgModal(true);
+    return;
+  }
+  if (act === 'cfgMhDelRadioFav') { if (cfgDraft.mediaHub) { cfgDraft.mediaHub.radioFavorites.splice(+el.dataset.i, 1); renderCfgModal(true); } return; }
+  if (act === 'cfgMhMoveRadioFav') { if (cfgDraft.mediaHub) { moveItem(cfgDraft.mediaHub.radioFavorites, +el.dataset.i, +el.dataset.dir); renderCfgModal(true); } return; }
 
   if (act === 'cfgAutoDiscover') { autoDiscoverFromHA(); return; }
   if (act === 'cfgLoadTimoPreset') { cfgDraft = ensureConfigDefaults(JSON.parse(JSON.stringify(TIMO_PRESET_CONFIG))); renderCfgModal(false); toast('Timo-Preset in den Editor geladen'); return; }

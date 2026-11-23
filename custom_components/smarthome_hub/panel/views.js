@@ -1662,6 +1662,7 @@ function renderCustomWidget(w, widgetKey = 'sh_default') {
   if (w.type === 'buli_table') return buliTableCard(w);
   if (w.type === 'f1_next') return f1NextRaceCard(w);
   if (w.type === 'f1_standings') return f1StandingsCard(w);
+  if (w.type === 'media_hub') return typeof mediaHubCard === 'function' ? mediaHubCard(w.title, true, widgetKey) : '';
   return '';
 }
 
