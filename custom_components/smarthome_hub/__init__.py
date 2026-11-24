@@ -26,7 +26,7 @@ from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-VERSION = "3.7.3"
+VERSION = "3.7.4"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
@@ -53,7 +53,7 @@ def _get_assets_hash() -> str:
 
 def _register_panel(hass: HomeAssistant, title: str, icon: str) -> None:
     """Registriert oder aktualisiert das Seitenleisten-Panel via update=True."""
-    asset_hash = _get_assets_hash()
+    asset_hash = hass.data.get(DOMAIN, {}).get("asset_hash", VERSION)
     frontend.async_register_built_in_panel(
         hass,
         component_name="iframe",
@@ -92,6 +92,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.async_add_executor_job(
         lambda: os.makedirs(upload_dir, exist_ok=True)
     )
+
+    hass.data[DOMAIN]["asset_hash"] = await hass.async_add_executor_job(_get_assets_hash)
 
     saved = await store.async_load() or {}
     sidebar_title = saved.get("sidebarTitle", entry.title or "Smart Home Hub")
@@ -146,7 +148,7 @@ async def ws_get_config(
         {
             "config": _sanitize_config_for_client(data),
             "version": VERSION,
-            "asset_hash": _get_assets_hash(),
+            "asset_hash": hass.data[DOMAIN].get("asset_hash", VERSION),
         },
     )
 
