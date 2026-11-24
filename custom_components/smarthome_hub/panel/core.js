@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.7.4';
+const VERSION = '3.7.5';
 
 /* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
 const I18N = {
@@ -2433,12 +2433,34 @@ let _lastKnownServerDigest = '';
 let _lastKnownAssetHash = '';
 let _subscribedConnection = null;
 let _initialDeviceProfileApplied = false;
+let _lastSignedUrlsAt = 0;
+const UPLOAD_SIGN_REFRESH_MS = 30 * 60 * 1000;
 
 function _configDigest(cfg) {
   if (!cfg || typeof cfg !== 'object') return '';
   const copy = Object.assign({}, cfg);
   delete copy._updatedAt;
-  return JSON.stringify(copy);
+  return JSON.stringify(copy).replace(/(\/api\/smarthome_hub\/uploads\/[^"'?]+)\?authSig=[^"'&]+/g, '$1');
+}
+
+function _syncSignedUploadUrls(target, source) {
+  if (!target || !source || typeof target !== 'object' || typeof source !== 'object') return false;
+  if (Array.isArray(target) !== Array.isArray(source)) return false;
+  let updated = false;
+  const prefix = '/api/smarthome_hub/uploads/';
+  for (const key of Object.keys(target)) {
+    const tv = target[key];
+    const sv = source[key];
+    if (typeof tv === 'string' && typeof sv === 'string') {
+      if (tv.startsWith(prefix) && sv.startsWith(prefix) && tv.split('?')[0] === sv.split('?')[0] && tv !== sv) {
+        target[key] = sv;
+        updated = true;
+      }
+    } else if (tv && sv && typeof tv === 'object' && typeof sv === 'object') {
+      if (_syncSignedUploadUrls(tv, sv)) updated = true;
+    }
+  }
+  return updated;
 }
 
 async function loadConfigFromServer(isRemoteUpdate = false) {
@@ -2465,6 +2487,7 @@ async function loadConfigFromServer(isRemoteUpdate = false) {
       if (res && res.config && Object.keys(res.config).length > 0) {
         _lastKnownUpdatedAt = res.config._updatedAt || 0;
         _lastKnownServerDigest = _configDigest(res.config);
+        _lastSignedUrlsAt = Date.now();
         CONFIG = ensureConfigDefaults(Object.assign(JSON.parse(JSON.stringify(EMPTY_CONFIG)), res.config));
         localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       } else {
@@ -2522,6 +2545,9 @@ async function saveConfigToServer(newCfg) {
       _lastKnownServerDigest = _configDigest(CONFIG);
       localStorage.setItem('smarthome_hub_backup_cfg', JSON.stringify(CONFIG));
       syncHASidebarDOM(CONFIG.sidebarTitle, CONFIG.sidebarIcon);
+      if (/\/api\/smarthome_hub\/uploads\/[^"'?]+["']/.test(JSON.stringify(CONFIG))) {
+        await loadConfigFromServer(true);
+      }
       toast(t('toast.saved_server'));
     } catch (e) {
       toast(t('toast.saved_local'));
@@ -2589,9 +2615,17 @@ async function checkRemoteConfigUpdate() {
         _lastKnownUpdatedAt = remoteTs;
         _lastKnownServerDigest = remoteDigest;
         await loadConfigFromServer(true);
+      } else if (Date.now() - _lastSignedUrlsAt >= UPLOAD_SIGN_REFRESH_MS) {
+        const refreshed = _syncSignedUploadUrls(CONFIG, res.config);
+        _lastSignedUrlsAt = Date.now();
+        if (refreshed && typeof syncHeroMedia === 'function' && CONFIG.rooms && typeof ui !== 'undefined' && CONFIG.rooms[ui.room]) {
+          syncHeroMedia(CONFIG.rooms[ui.room]);
+        }
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    _lastSignedUrlsAt = 0;
+  }
 }
 
 function forceReloadApp(silent = false) {

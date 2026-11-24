@@ -2482,7 +2482,7 @@ document.addEventListener('change', async e => {
           const res = await h.callWS({ type: 'smarthome_hub/upload_image', filename: file.name, data: b64 });
           cfgDraft.rooms[idx].image = res.url;
           renderCfgModal(true);
-          toast('Bild hochgeladen: ' + res.url);
+          toast('Bild hochgeladen: ' + String(res.url || '').split('?')[0]);
         } catch (err) {
           const errMsg = (err && (err.message || err.error?.message || String(err))) || 'Unbekannter Fehler';
           toast('Upload fehlgeschlagen: ' + errMsg);
