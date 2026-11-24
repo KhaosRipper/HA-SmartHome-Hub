@@ -6,8 +6,10 @@ import binascii
 from datetime import timedelta
 import hashlib
 import hmac
+import logging
 import os
 import re
+import shutil
 import time
 from typing import Any
 import uuid
@@ -30,13 +32,14 @@ from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-VERSION = "3.7.5"
+VERSION = "3.7.6"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
 STATIC_URL = f"/{DOMAIN}_static"
 UPLOAD_SUBDIR = "smarthome_hub_uploads"
 UPLOAD_API_URL = f"/api/{DOMAIN}/uploads"
+LEGACY_UPLOAD_URL = f"/local/{UPLOAD_SUBDIR}"
 UPLOAD_URL_SIGN_TTL = timedelta(hours=1)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB max. Bildgröße
 ALLOWED_IMAGE_EXTENSIONS = {
@@ -46,6 +49,7 @@ ALLOWED_IMAGE_EXTENSIONS = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
+_LOGGER = logging.getLogger(__name__)
 
 
 def _get_assets_hash() -> str:
@@ -101,8 +105,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN]["static_paths_registered"] = True
 
     upload_dir = hass.config.path(UPLOAD_SUBDIR)
+    legacy_upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
     await hass.async_add_executor_job(
-        lambda: os.makedirs(upload_dir, exist_ok=True)
+        _migrate_legacy_uploads, legacy_upload_dir, upload_dir
     )
 
     if not hass.data[DOMAIN].get("upload_view_registered"):
@@ -112,6 +117,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN]["asset_hash"] = await hass.async_add_executor_job(_get_assets_hash)
 
     saved = await store.async_load() or {}
+    if saved:
+        migrated, changed = _migrate_legacy_upload_urls(saved)
+        if changed:
+            await store.async_save(migrated)
+            saved = migrated
     sidebar_title = saved.get("sidebarTitle", entry.title or "Smart Home Hub")
     sidebar_icon = saved.get("sidebarIcon", "mdi:home-automation")
     _register_panel(hass, sidebar_title, sidebar_icon)
@@ -147,6 +157,94 @@ def _sanitize_config_for_client(data: dict[str, Any] | None) -> dict[str, Any] |
     pin_len = int(clean.pop("_pinLen", 0) or len(raw_pin) or 4)
     clean["pinCode"] = ("*" * pin_len) if (pin_hash or raw_pin) else ""
     return clean
+
+
+def _is_valid_upload_filename(filename: str) -> bool:
+    """Prüft, ob ein Dateiname ein gültiges, pfadsicheres Upload-Bild ist."""
+    return (
+        bool(filename)
+        and "/" not in filename
+        and "\\" not in filename
+        and "\x00" not in filename
+        and os.path.basename(filename) == filename
+        and os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+    )
+
+
+def _migrate_legacy_uploads(legacy_dir: str, upload_dir: str) -> int:
+    """Verschiebt Alt-Uploads einmalig aus /config/www/smarthome_hub_uploads nach /config/smarthome_hub_uploads."""
+    os.makedirs(upload_dir, exist_ok=True)
+    abs_upload_dir = os.path.realpath(upload_dir)
+    if not os.path.isdir(legacy_dir) or os.path.islink(legacy_dir):
+        return 0
+    abs_legacy_dir = os.path.realpath(legacy_dir)
+    if abs_legacy_dir == abs_upload_dir:
+        return 0
+
+    try:
+        with os.scandir(abs_legacy_dir) as it:
+            entries = list(it)
+    except OSError as err:
+        _LOGGER.warning("Konnte Alt-Upload-Ordner %s nicht lesen: %s", legacy_dir, err)
+        return 0
+
+    moved = 0
+    for entry in entries:
+        if (
+            entry.is_symlink()
+            or not entry.is_file(follow_symlinks=False)
+            or not _is_valid_upload_filename(entry.name)
+        ):
+            continue
+        src_path = os.path.realpath(entry.path)
+        target_path = os.path.realpath(os.path.join(abs_upload_dir, entry.name))
+        if not src_path.startswith(abs_legacy_dir + os.sep) or not target_path.startswith(
+            abs_upload_dir + os.sep
+        ):
+            continue
+        try:
+            if os.path.exists(target_path):
+                os.remove(src_path)
+            else:
+                shutil.move(src_path, target_path)
+            moved += 1
+        except OSError as err:
+            _LOGGER.warning("Alt-Upload %s konnte nicht migriert werden: %s", entry.name, err)
+
+    try:
+        os.rmdir(abs_legacy_dir)
+    except OSError:
+        pass
+
+    if moved:
+        _LOGGER.info("%d Alt-Upload(s) nach %s migriert", moved, upload_dir)
+    return moved
+
+
+def _migrate_legacy_upload_urls(value: Any) -> tuple[Any, bool]:
+    """Schreibt gespeicherte /local/smarthome_hub_uploads/...-URLs rekursiv auf die authentifizierte Upload-URL um."""
+    if isinstance(value, dict):
+        changed = False
+        out: dict[Any, Any] = {}
+        for k, v in value.items():
+            new_v, item_changed = _migrate_legacy_upload_urls(v)
+            out[k] = new_v
+            changed = changed or item_changed
+        return out, changed
+    if isinstance(value, list):
+        changed = False
+        out_list: list[Any] = []
+        for item in value:
+            new_item, item_changed = _migrate_legacy_upload_urls(item)
+            out_list.append(new_item)
+            changed = changed or item_changed
+        return out_list, changed
+    legacy_prefix = f"{LEGACY_UPLOAD_URL}/"
+    if isinstance(value, str) and value.startswith(legacy_prefix):
+        filename = value[len(legacy_prefix) :].split("?", 1)[0]
+        if _is_valid_upload_filename(filename):
+            return f"{UPLOAD_API_URL}/{filename}", True
+    return value, False
 
 
 def _map_upload_urls(value: Any, transform: Any) -> Any:
@@ -222,7 +320,7 @@ async def ws_save_config(
     """Speichert die Konfiguration, aktualisiert die HA-Seitenleiste und benachrichtigt alle Clients live."""
     store: Store = hass.data[DOMAIN]["store"]
     old = await store.async_load() or {}
-    cfg = _strip_upload_signature(dict(msg["config"]))
+    cfg, _ = _migrate_legacy_upload_urls(_strip_upload_signature(dict(msg["config"])))
     raw_pin = str(cfg.pop("pinCode", "") or "").strip()
     if not raw_pin:
         cfg.pop("_pinHash", None)
@@ -339,18 +437,9 @@ def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
 
 def _read_uploaded_file(upload_dir: str, filename: str) -> tuple[bytes, str] | None:
     """Liest ein hochgeladenes Bild sicher aus dem privaten Upload-Ordner (Executor)."""
-    if (
-        not filename
-        or "/" in filename
-        or "\\" in filename
-        or "\x00" in filename
-        or os.path.basename(filename) != filename
-    ):
+    if not _is_valid_upload_filename(filename):
         return None
-    ext = os.path.splitext(filename)[1].lower()
-    content_type = ALLOWED_IMAGE_EXTENSIONS.get(ext)
-    if content_type is None:
-        return None
+    content_type = ALLOWED_IMAGE_EXTENSIONS[os.path.splitext(filename)[1].lower()]
     abs_upload_dir = os.path.realpath(upload_dir)
     target_path = os.path.realpath(os.path.join(abs_upload_dir, filename))
     if not target_path.startswith(abs_upload_dir + os.sep) or not os.path.isfile(target_path):
