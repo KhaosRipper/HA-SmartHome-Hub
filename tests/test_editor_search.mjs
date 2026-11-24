@@ -203,12 +203,12 @@ const initPySrc = fs.readFileSync('custom_components/smarthome_hub/__init__.py',
 const gitignoreSrc = fs.readFileSync('.gitignore', 'utf8');
 
 // Version consistency across manifest.json, __init__.py, core.js, and index.html
-assert.equal(manifestObj.version, '3.6.0', 'manifest.json version must be 3.6.0');
-assert.match(initPySrc, /VERSION\s*=\s*"3\.6\.0"/, '__init__.py VERSION must be 3.6.0');
-assert.match(coreSrc, /const VERSION\s*=\s*'3\.6\.0'/, 'core.js VERSION must be 3.6.0');
-assert.doesNotMatch(indexSrc, /\?v=(3\.[345]\.)/, 'index.html must not contain old version query params');
-const vMatches = indexSrc.match(/\?v=3\.6\.0/g) || [];
-assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.6.0');
+assert.equal(manifestObj.version, '3.7.5', 'manifest.json version must be 3.7.5');
+assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.5"/, '__init__.py VERSION must be 3.7.5');
+assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.5'/, 'core.js VERSION must be 3.7.5');
+assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[01234])/, 'index.html must not contain old version query params');
+const vMatches = indexSrc.match(/\?v=3\.7\.5/g) || [];
+assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.5');
 assert.match(gitignoreSrc, /graphify-out\//, '.gitignore must ignore graphify-out/');
 
 // Execute config.js + core.js + views.js in sandbox to test calendar, profile popover & camera popup logic
@@ -271,10 +271,21 @@ const calSandbox = vm.createContext({
 vm.runInContext(
   configSrc + '\n' + coreSrc + '\n' + cameraSrc + '\n' + viewsSrc + '\n' +
   appSrc.replace(/\(async function init\(\)[\s\S]*$/, '') +
-  '\nthis.CONFIG = CONFIG; this.ui = ui; this.homeCalendarState = homeCalendarState; S = id => mockStates[id]; render = () => {};',
+  '\nthis.CONFIG = CONFIG; this.ui = ui; this.homeCalendarState = homeCalendarState; this._configDigest = _configDigest; this._syncSignedUploadUrls = _syncSignedUploadUrls; S = id => mockStates[id]; render = () => {};',
   calSandbox
 );
 calSandbox.mockStates = mockStates;
+
+// Test signed upload URL digest stability & in-place signature refresh
+const cfgA = { rooms: [{ image: '/api/smarthome_hub/uploads/a_room.png?authSig=sig1' }, { image: 'https://example.com/x.png?v=1' }] };
+const cfgB = { rooms: [{ image: '/api/smarthome_hub/uploads/a_room.png?authSig=sig2' }, { image: 'https://example.com/x.png?v=2' }] };
+const cfgC = { rooms: [{ image: '/api/smarthome_hub/uploads/a_room.png?authSig=sig2' }, { image: 'https://example.com/x.png?v=1' }] };
+assert.equal(calSandbox._configDigest(cfgA), calSandbox._configDigest(cfgC), '_configDigest must ignore authSig changes on upload URLs');
+assert.notEqual(calSandbox._configDigest(cfgA), calSandbox._configDigest(cfgB), '_configDigest must detect non-upload URL query changes');
+assert.equal(calSandbox._syncSignedUploadUrls(cfgA, cfgB), true, '_syncSignedUploadUrls must report update when upload signature changes');
+assert.equal(cfgA.rooms[0].image, '/api/smarthome_hub/uploads/a_room.png?authSig=sig2', 'Upload URL signature must be updated in place');
+assert.equal(cfgA.rooms[1].image, 'https://example.com/x.png?v=1', 'Non-upload URL must remain untouched');
+assert.equal(calSandbox._syncSignedUploadUrls(cfgA, cfgB), false, 'Repeated sync with identical upload signatures must return false');
 
 // Test default & backward-compatible config migration for calendarHomeStyle & calendarPageStyle
 const migratedDefault = calSandbox.ensureConfigDefaults(JSON.parse(JSON.stringify({})));

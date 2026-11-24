@@ -9,7 +9,8 @@ const widgetSrc = fs.readFileSync('custom_components/smarthome_hub/panel/media_h
 const editorSrc = fs.readFileSync('custom_components/smarthome_hub/panel/editor.js', 'utf8');
 const cssSrc = fs.readFileSync('custom_components/smarthome_hub/panel/media_hub.css', 'utf8');
 
-// 1. Verify CSS tablet_touch rules exist
+// 1. Verify CSS tablet_touch & [hidden] rules exist
+assert.match(cssSrc, /\.mh-root\s+\[hidden\]\s*\{\s*display:\s*none\s*!important/, '.mh-root [hidden] must override flex display');
 assert.match(cssSrc, /\.mh-root\.mh-touch\s+\.mh-btn[^}]*min-width:\s*48px/, 'Touch mode must enforce >= 48px target size');
 assert.match(cssSrc, /\.mh-root\.mh-touch\s+\.mh-search-input[^}]*font-size:\s*16px/, 'Touch mode search input must have >= 16px font-size');
 assert.match(cssSrc, /touch-action:\s*pan-y/, 'Content/swipe surface must use touch-action: pan-y');
@@ -322,6 +323,231 @@ assert.equal(spRes.items[0].id, 'spotify:track:42');
 await adapters.play({ hass: mockHass, mhCfg: mhHybrid, targetPlayer: 'media_player.wohnzimmer', item: spRes.items[0] });
 assert.equal(mockHass.callCalls.at(-1).domain, 'spotifyplus');
 assert.equal(mockHass.callCalls.at(-1).service, 'player_media_play_tracks');
+
+// SpotifyPlus nested { response: { result: { items: [...] } } } + Alexa Echo Dot radio & Spotify tests
+const echoHass = {
+  language: 'de',
+  services: {
+    media_player: { play_media: {}, select_source: {} },
+    spotifyplus: { search_tracks: {} }
+  },
+  states: {
+    'media_player.echo_dot_kuche_esszimmer': {
+      state: 'standby',
+      attributes: {
+        friendly_name: 'Echo Dot Küche/Esszimmer',
+        source_list: ['Local Speaker'],
+        last_called: true
+      }
+    },
+    'media_player.spotify_native': {
+      state: 'idle',
+      attributes: {
+        friendly_name: 'Spotify Native',
+        supported_features: 16384 // no SEARCH_MEDIA (2097152)
+      }
+    }
+  },
+  callCalls: [],
+  async callService(domain, service, data) {
+    this.callCalls.push({ domain, service, data });
+    return {};
+  },
+  async callWS(msg) {
+    if (msg.type === 'call_service' && msg.domain === 'spotifyplus') {
+      return {
+        response: {
+          result: {
+            items: [{ uri: 'spotify:track:nested1', name: 'Nested Hit', artists: [{ name: 'Artist N' }], album: { images: [{ url: 'https://img/1.jpg' }] } }]
+          }
+        }
+      };
+    }
+    if (msg.type === 'media_player/browse_media') {
+      return {
+        children: [
+          { title: 'Engel - Rammstein', media_content_id: 'spotify:track:engel1', media_content_type: 'track', can_play: true }
+        ]
+      };
+    }
+    return {};
+  }
+};
+assert.equal(adapters.isAlexaPlayer(echoHass.states['media_player.echo_dot_kuche_esszimmer'], 'media_player.echo_dot_kuche_esszimmer'), true);
+assert.equal(adapters.isAlexaPlayer(mockHass.states['media_player.wohnzimmer'], 'media_player.wohnzimmer'), false);
+
+// Alexa Radio uses TUNEIN + station name (never media-source://...)
+await adapters.play({
+  hass: echoHass,
+  mhCfg: mhFree,
+  targetPlayer: 'media_player.echo_dot_kuche_esszimmer',
+  item: { id: 'media-source://radio_browser/swr3', title: 'SWR3', provider: 'radio' }
+});
+assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'TUNEIN');
+assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'SWR3');
+
+// SpotifyPlus nested result unwrapping
+const nestedSpRes = await adapters.searchSpotify(echoHass, 'Nested', ['track'], mhHybrid, 'media_player.echo_dot_kuche_esszimmer');
+assert.ok(nestedSpRes.items.some(i => i.id === 'spotify:track:nested1' && i.thumb === 'https://img/1.jpg'), 'Must unwrap nested SpotifyPlus result.items');
+
+// Native Spotify without search_media falls back to browse_media + Alexa direct Spotify item
+const mhNativeSp = ctx.ensureConfigDefaults({
+  mediaHub: {
+    profile: 'hybrid_premium',
+    providers: { spotify: { enabled: true, mode: 'spotify', entity: 'media_player.spotify_native' } }
+  }
+}).mediaHub;
+const nativeRes = await adapters.search({ hass: echoHass, mhCfg: mhNativeSp, tabId: 'spotify', query: 'engel', targetPlayer: 'media_player.echo_dot_kuche_esszimmer' });
+assert.equal(nativeRes.errors.length, 0, 'Native Spotify browse + Alexa fallback must not error');
+assert.ok(nativeRes.items.some(i => i.type === 'alexa_spotify' && i.title === 'engel'), 'Must include 1-tap Alexa Spotify item');
+assert.ok(nativeRes.items.some(i => i.id === 'spotify:track:engel1'), 'Must include browse_media match');
+
+const alexaSpItem = nativeRes.items.find(i => i.type === 'alexa_spotify');
+await adapters.play({ hass: echoHass, mhCfg: mhNativeSp, targetPlayer: 'media_player.echo_dot_kuche_esszimmer', item: alexaSpItem });
+assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'SPOTIFY');
+assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'engel');
+
+// Public Radio Browser API + Public Music Catalog (iTunes) fallback with cover art
+ctx.fetch = async url => {
+  if (url.includes('api.radio-browser.info')) {
+    return {
+      ok: true,
+      async json() {
+        return [
+          { stationuuid: 'uuid-swr3', name: 'SWR3', countrycode: 'DE', tags: 'pop,rock', bitrate: 128, favicon: 'https://cdn/swr3.png', url_resolved: 'https://stream/swr3.mp3' },
+          { stationuuid: 'uuid-swr1', name: 'SWR1 Baden-Württemberg', countrycode: 'DE', tags: 'oldies,hits', bitrate: 128, favicon: 'https://cdn/swr1.png', url_resolved: 'https://stream/swr1.mp3' },
+          { stationuuid: 'uuid-swr4', name: 'SWR4', countrycode: 'DE', tags: 'schlager', bitrate: 128, favicon: 'https://cdn/swr4.png', url_resolved: 'https://stream/swr4.mp3' }
+        ];
+      }
+    };
+  }
+  if (url.includes('itunes.apple.com/search')) {
+    return {
+      ok: true,
+      async json() {
+        return {
+          results: [
+            {
+              wrapperType: 'track',
+              kind: 'song',
+              artistId: 1001,
+              artistName: 'Sarah Connor',
+              collectionId: 2001,
+              collectionName: 'Muttersprache',
+              trackId: 3001,
+              trackName: 'Wie schön du bist',
+              primaryGenreName: 'Pop',
+              artworkUrl100: 'https://cdn/sarah_connor.jpg'
+            },
+            {
+              wrapperType: 'track',
+              kind: 'song',
+              artistId: 1002,
+              artistName: 'Sarah Engels',
+              collectionId: 2002,
+              collectionName: 'Im Herzschlag',
+              trackId: 3002,
+              trackName: 'Te Amo Mi Amor',
+              primaryGenreName: 'Pop',
+              artworkUrl100: 'https://cdn/sarah_engels.jpg'
+            }
+          ]
+        };
+      }
+    };
+  }
+  return { ok: false };
+};
+
+const swrCfg = ctx.ensureConfigDefaults({
+  mediaHub: {
+    radioFavorites: [{ name: 'SWR3', contentId: 'SWR3', icon: '📻' }],
+    providers: { radio: { enabled: true, liveSearch: true } }
+  }
+}).mediaHub;
+const swrRes = await adapters.searchRadio(echoHass, 'swr', swrCfg);
+assert.equal(swrRes.items.filter(i => i.title === 'SWR3').length, 1, 'SWR3 favorite must be deduped against live SWR3');
+assert.equal(swrRes.items.find(i => i.title === 'SWR3').thumb, 'https://cdn/swr3.png', 'SWR3 favorite must inherit favicon cover');
+assert.ok(swrRes.items.some(i => i.title === 'SWR1 Baden-Württemberg' && i.thumb === 'https://cdn/swr1.png'), 'Must return SWR1 with cover');
+assert.ok(swrRes.items.some(i => i.title === 'SWR4' && i.thumb === 'https://cdn/swr4.png'), 'Must return SWR4 with cover');
+
+const sarahRes = await adapters.search({
+  hass: echoHass,
+  mhCfg: mhNativeSp,
+  tabId: 'spotify',
+  query: 'sarah',
+  targetPlayer: 'media_player.echo_dot_kuche_esszimmer'
+});
+assert.ok(sarahRes.items.some(i => i.type === 'artist' && i.title === 'Sarah Connor' && i.thumb === 'https://cdn/sarah_connor.jpg'), 'Must find artist Sarah Connor with cover');
+assert.ok(sarahRes.items.some(i => i.type === 'track' && i.title === 'Wie schön du bist' && i.thumb === 'https://cdn/sarah_connor.jpg'), 'Must find track with cover');
+assert.ok(sarahRes.items.some(i => i.type === 'album' && i.title === 'Muttersprache'), 'Must find album with cover');
+
+const trackPick = sarahRes.items.find(i => i.type === 'track' && i.title === 'Wie schön du bist');
+await adapters.play({ hass: echoHass, mhCfg: mhNativeSp, targetPlayer: 'media_player.echo_dot_kuche_esszimmer', item: trackPick });
+assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'SPOTIFY');
+assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'Wie schön du bist Sarah Connor');
+
+const artistPick = sarahRes.items.find(i => i.type === 'artist' && i.title === 'Sarah Connor');
+await adapters.play({ hass: echoHass, mhCfg: mhNativeSp, targetPlayer: 'media_player.echo_dot_kuche_esszimmer', item: artistPick });
+assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'SPOTIFY');
+assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'Sarah Connor');
+delete ctx.fetch;
+
+// ytube_music_player: sensor.*_extra attributes.search & media_player/browse_media fallback
+const ytExtraHass = {
+  services: { ytube_music_player: { search: {} }, media_player: { play_media: {}, select_source: {} } },
+  states: {
+    'media_player.ytube_music_player': { state: 'idle', attributes: { source_list: ['Wohnzimmer'] } },
+    'sensor.ytube_music_player_extra': { state: 'ok', attributes: { search: [] } }
+  },
+  async callService(domain, service) {
+    if (domain === 'ytube_music_player' && service === 'search') {
+      this.states['sensor.ytube_music_player_extra'].attributes.search = [
+        {
+          videoId: 'em_vid_1',
+          title: 'Lose Yourself',
+          resultType: 'song',
+          artists: [{ name: 'Eminem' }],
+          album: { name: '8 Mile' },
+          thumbnails: [{ url: 'https://yt/small.jpg' }, { url: 'https://yt/large.jpg' }]
+        },
+        {
+          browseId: 'em_art_1',
+          artist: 'Eminem',
+          resultType: 'artist',
+          thumbnails: [{ url: 'https://yt/artist.jpg' }]
+        }
+      ];
+    }
+    return {};
+  }
+};
+const ytExtraRes = await adapters.searchYtube(ytExtraHass, 'eminem', mhFree);
+assert.equal(ytExtraRes.items.length, 2, 'Must read ytube results from sensor.*_extra');
+assert.equal(ytExtraRes.items[0].id, 'em_vid_1');
+assert.equal(ytExtraRes.items[0].thumb, 'https://yt/large.jpg', 'Must pick highest-res ytube thumbnail');
+assert.equal(ytExtraRes.items[0].subtitle, 'Eminem · 8 Mile');
+assert.equal(ytExtraRes.items[1].title, 'Eminem', 'Must map artist field when title is omitted');
+
+const ytBrowseHass = {
+  services: { ytube_music_player: { search: {} } },
+  states: { 'media_player.ytube_music_player': { state: 'idle', attributes: {} } },
+  async callService() { return {}; },
+  async callWS(msg) {
+    if (msg.type === 'media_player/browse_media' && msg.media_content_type === 'search') {
+      return {
+        children: [
+          { title: 'Without Me', media_content_id: 'yt_browse_1', media_content_type: 'track', thumbnail: 'https://yt/wm.jpg', can_play: true }
+        ]
+      };
+    }
+    return {};
+  }
+};
+const ytBrowseRes = await adapters.searchYtube(ytBrowseHass, 'eminem', mhFree);
+assert.equal(ytBrowseRes.items.length, 1, 'Must fall back to browse_media search node');
+assert.equal(ytBrowseRes.items[0].id, 'yt_browse_1');
+assert.equal(ytBrowseRes.items[0].thumb, 'https://yt/wm.jpg');
 
 const mhMa = ctx.ensureConfigDefaults({
   mediaHub: { profile: 'music_assistant', providers: { music_assistant: { enabled: true } } }
