@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+from datetime import timedelta
 import hashlib
 import hmac
 import os
@@ -10,9 +11,12 @@ import re
 import time
 from typing import Any
 import uuid
+from aiohttp import web
 import voluptuous as vol
 
 from homeassistant.components import frontend, websocket_api
+from homeassistant.components.http import HomeAssistantView
+from homeassistant.components.http.auth import async_sign_path
 try:
     from homeassistant.components.http import StaticPathConfig
     HAS_STATIC_PATH_CONFIG = True
@@ -26,14 +30,22 @@ from homeassistant.helpers.storage import Store
 
 DOMAIN = "smarthome_hub"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-VERSION = "3.7.4"
+VERSION = "3.7.5"
 PANEL_URL_PATH = "smarthome-hub"
 STORAGE_KEY = f"{DOMAIN}_config"
 STORAGE_VERSION = 1
 STATIC_URL = f"/{DOMAIN}_static"
 UPLOAD_SUBDIR = "smarthome_hub_uploads"
+UPLOAD_API_URL = f"/api/{DOMAIN}/uploads"
+UPLOAD_URL_SIGN_TTL = timedelta(hours=1)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB max. Bildgröße
-ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_IMAGE_EXTENSIONS = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
 
 
 def _get_assets_hash() -> str:
@@ -88,10 +100,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.http.register_static_path(STATIC_URL, panel_dir, cache_headers=False)
         hass.data[DOMAIN]["static_paths_registered"] = True
 
-    upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
+    upload_dir = hass.config.path(UPLOAD_SUBDIR)
     await hass.async_add_executor_job(
         lambda: os.makedirs(upload_dir, exist_ok=True)
     )
+
+    if not hass.data[DOMAIN].get("upload_view_registered"):
+        hass.http.register_view(SmartHomeHubUploadView(hass))
+        hass.data[DOMAIN]["upload_view_registered"] = True
 
     hass.data[DOMAIN]["asset_hash"] = await hass.async_add_executor_job(_get_assets_hash)
 
@@ -133,6 +149,37 @@ def _sanitize_config_for_client(data: dict[str, Any] | None) -> dict[str, Any] |
     return clean
 
 
+def _map_upload_urls(value: Any, transform: Any) -> Any:
+    """Wendet eine Transformation rekursiv auf alle Upload-URLs in dict/list-Strukturen an."""
+    if isinstance(value, dict):
+        return {k: _map_upload_urls(v, transform) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_map_upload_urls(item, transform) for item in value]
+    if isinstance(value, str) and value.startswith(f"{UPLOAD_API_URL}/"):
+        return transform(value.split("?", 1)[0])
+    return value
+
+
+def _strip_upload_signature(value: Any) -> Any:
+    """Entfernt temporäre authSig-Query-Parameter aus Upload-URLs vor dem Speichern."""
+    return _map_upload_urls(value, lambda clean: clean)
+
+
+def _sign_upload_urls(
+    hass: HomeAssistant, value: Any, refresh_token_id: str | None = None
+) -> Any:
+    """Signiert alle Upload-URLs einer Konfiguration für authentifizierte <img>/CSS-Abrufe."""
+    return _map_upload_urls(
+        value,
+        lambda clean: async_sign_path(
+            hass,
+            clean,
+            UPLOAD_URL_SIGN_TTL,
+            refresh_token_id=refresh_token_id,
+        ),
+    )
+
+
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_config"})
 @websocket_api.async_response
 async def ws_get_config(
@@ -143,10 +190,16 @@ async def ws_get_config(
     """Lädt die gespeicherte Dashboard-Konfiguration aus .storage."""
     store: Store = hass.data[DOMAIN]["store"]
     data = await store.async_load()
+    client_cfg = _sanitize_config_for_client(data)
+    client_cfg = _sign_upload_urls(
+        hass,
+        client_cfg,
+        refresh_token_id=getattr(connection, "refresh_token_id", None),
+    )
     connection.send_result(
         msg["id"],
         {
-            "config": _sanitize_config_for_client(data),
+            "config": client_cfg,
             "version": VERSION,
             "asset_hash": hass.data[DOMAIN].get("asset_hash", VERSION),
         },
@@ -169,7 +222,7 @@ async def ws_save_config(
     """Speichert die Konfiguration, aktualisiert die HA-Seitenleiste und benachrichtigt alle Clients live."""
     store: Store = hass.data[DOMAIN]["store"]
     old = await store.async_load() or {}
-    cfg = dict(msg["config"])
+    cfg = _strip_upload_signature(dict(msg["config"]))
     raw_pin = str(cfg.pop("pinCode", "") or "").strip()
     if not raw_pin:
         cfg.pop("_pinHash", None)
@@ -240,7 +293,7 @@ def _validate_image_magic(data: bytes, ext: str) -> bool:
 
 
 def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
-    """Speichert ein validiertes Bild unter /config/www/smarthome_hub_uploads/."""
+    """Speichert ein validiertes Bild unter /config/smarthome_hub_uploads/."""
     # Dateiendung prüfen
     _, raw_ext = os.path.splitext(filename)
     ext = raw_ext.lower().strip()
@@ -281,7 +334,60 @@ def _save_uploaded_file(upload_dir: str, filename: str, b64_data: str) -> str:
     with open(target_path, "wb") as f:
         f.write(raw)
 
-    return f"/local/{UPLOAD_SUBDIR}/{safe_name}"
+    return f"{UPLOAD_API_URL}/{safe_name}"
+
+
+def _read_uploaded_file(upload_dir: str, filename: str) -> tuple[bytes, str] | None:
+    """Liest ein hochgeladenes Bild sicher aus dem privaten Upload-Ordner (Executor)."""
+    if (
+        not filename
+        or "/" in filename
+        or "\\" in filename
+        or "\x00" in filename
+        or os.path.basename(filename) != filename
+    ):
+        return None
+    ext = os.path.splitext(filename)[1].lower()
+    content_type = ALLOWED_IMAGE_EXTENSIONS.get(ext)
+    if content_type is None:
+        return None
+    abs_upload_dir = os.path.realpath(upload_dir)
+    target_path = os.path.realpath(os.path.join(abs_upload_dir, filename))
+    if not target_path.startswith(abs_upload_dir + os.sep) or not os.path.isfile(target_path):
+        return None
+    try:
+        with open(target_path, "rb") as f:
+            return f.read(), content_type
+    except OSError:
+        return None
+
+
+class SmartHomeHubUploadView(HomeAssistantView):
+    """Authentifizierter HTTP-Endpunkt zum Ausliefern hochgeladener Raum-Bilder."""
+
+    url = f"{UPLOAD_API_URL}/{{filename}}"
+    name = f"api:{DOMAIN}:uploads"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+
+    async def get(self, request: web.Request, filename: str) -> web.StreamResponse:
+        """Liefert ein hochgeladenes Bild ausschließlich für authentifizierte/signierte Anfragen."""
+        result = await self.hass.async_add_executor_job(
+            _read_uploaded_file, self.hass.config.path(UPLOAD_SUBDIR), filename
+        )
+        if result is None:
+            return web.Response(status=404, text="Not Found")
+        data, content_type = result
+        return web.Response(
+            body=data,
+            content_type=content_type,
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
 
 @websocket_api.require_admin
@@ -298,12 +404,18 @@ async def ws_upload_image(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Nimmt einen Base64-Bildupload entgegen, validiert ihn und gibt die URL zurück."""
-    upload_dir = hass.config.path("www", UPLOAD_SUBDIR)
+    """Nimmt einen Base64-Bildupload entgegen, validiert ihn und gibt die signierte URL zurück."""
+    upload_dir = hass.config.path(UPLOAD_SUBDIR)
     try:
-        url_path = await hass.async_add_executor_job(
+        canonical_path = await hass.async_add_executor_job(
             _save_uploaded_file, upload_dir, msg["filename"], msg["data"]
         )
-        connection.send_result(msg["id"], {"url": url_path})
+        signed_url = async_sign_path(
+            hass,
+            canonical_path,
+            UPLOAD_URL_SIGN_TTL,
+            refresh_token_id=getattr(connection, "refresh_token_id", None),
+        )
+        connection.send_result(msg["id"], {"url": signed_url})
     except Exception as err:
         connection.send_error(msg["id"], "upload_error", str(err))
