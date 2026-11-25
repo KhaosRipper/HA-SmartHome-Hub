@@ -290,12 +290,12 @@
     promise.then(res => {
       inst.browseCache[key] = { loading: false, loaded: true, items: (res && res.items) || [] };
       if (getBrowseKey(inst) === key && !inst.hasSearched) {
-        refreshContentAndSearch(inst, mhCfg, true);
+        refreshContentAndSearch(inst, mhCfg, true, false);
       }
     }).catch(() => {
       inst.browseCache[key] = { loading: false, loaded: true, items: [] };
       if (getBrowseKey(inst) === key && !inst.hasSearched) {
-        refreshContentAndSearch(inst, mhCfg, true);
+        refreshContentAndSearch(inst, mhCfg, true, false);
       }
     });
   }
@@ -335,10 +335,10 @@
     const hass = safeGetHass();
     const radioCols = Math.min(4, Math.max(1, parseInt(uiCfg.radioGridCols, 10) || 2));
 
-    let body = '';
     if (inst.searchLoading) {
-      body += `<div class="mh-hint">${safeEsc(safeT('mh.searching'))}</div>`;
+      return `<div class="mh-hint">${safeEsc(safeT('mh.searching'))}</div>`;
     }
+    let body = '';
     if (inst.searchErrors && inst.searchErrors.length) {
       inst.searchErrors.forEach(err => {
         const baseMsg = err.reasonKey ? safeT(err.reasonKey) : safeT('mh.err_search_failed');
@@ -862,7 +862,7 @@
     refreshQueueUi(inst, mhCfg);
   }
 
-  function refreshContentAndSearch(inst, mhCfg, preserveInputFocus = true) {
+  function refreshContentAndSearch(inst, mhCfg, preserveInputFocus = true, updateSearchBar = true) {
     if (!inst || !inst.el) return;
     const uiCfg = mhCfg.ui || {};
     const activeEl = preserveInputFocus && typeof document !== 'undefined' ? document.activeElement : null;
@@ -870,16 +870,18 @@
     const selStart = wasInput ? activeEl.selectionStart : null;
     const selEnd = wasInput ? activeEl.selectionEnd : null;
 
-    const searchWrap = inst.el.querySelector('[data-mh-role="search-wrap"]');
-    const searchParent = searchWrap ? searchWrap.parentElement : null;
-    if (searchWrap && searchParent) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = buildSearchBarHtml(inst, mhCfg, uiCfg);
-      const nextWrap = tmp.firstElementChild;
-      if (nextWrap) searchWrap.replaceWith(nextWrap);
-      else searchWrap.remove();
-    } else if (uiCfg.searchStyle === 'icon_only' && inst.searchOpen) {
-      buildFullStructure(inst, mhCfg);
+    if (updateSearchBar) {
+      const searchWrap = inst.el.querySelector('[data-mh-role="search-wrap"]');
+      const searchParent = searchWrap ? searchWrap.parentElement : null;
+      if (searchWrap && searchParent) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildSearchBarHtml(inst, mhCfg, uiCfg);
+        const nextWrap = tmp.firstElementChild;
+        if (nextWrap) searchWrap.replaceWith(nextWrap);
+        else searchWrap.remove();
+      } else if (uiCfg.searchStyle === 'icon_only' && inst.searchOpen) {
+        buildFullStructure(inst, mhCfg);
+      }
     }
 
     const tabsEl = inst.el.querySelector('[data-mh-role="tabs"]');
@@ -922,12 +924,12 @@
     inst.searchLoading = true;
     inst.hasSearched = true;
     inst.searchErrors = [];
-    refreshContentAndSearch(inst, mhCfg, true);
+    refreshContentAndSearch(inst, mhCfg, true, false);
 
     const adapters = root.MediaHubAdapters;
     if (!adapters) {
       inst.searchLoading = false;
-      refreshContentAndSearch(inst, mhCfg, true);
+      refreshContentAndSearch(inst, mhCfg, true, false);
       return;
     }
     const origTypes = (mhCfg.search && mhCfg.search.mediaTypes) || ['track', 'artist', 'album', 'radio'];
@@ -954,7 +956,7 @@
     } finally {
       if (seq === inst.searchSeq) {
         inst.searchLoading = false;
-        refreshContentAndSearch(inst, mhCfg, true);
+        refreshContentAndSearch(inst, mhCfg, true, false);
       }
     }
   }

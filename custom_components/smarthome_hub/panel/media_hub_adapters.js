@@ -55,18 +55,36 @@
     return hass.callService(domain, service, data);
   }
 
-  async function callServiceWithResponse(hass, domain, service, serviceData) {
-    if (isDemoMode(hass)) return { response: {} };
-    if (typeof hass.callWS === 'function') {
-      return hass.callWS({
-        type: 'call_service',
-        domain,
-        service,
-        service_data: serviceData,
-        return_response: true
-      });
+  function withTimeout(promise, timeoutMs, onTimeout) {
+    let timer = null;
+    const ms = Math.max(1, Number(timeoutMs) || 5000);
+    const timeoutPromise = new Promise((resolve, reject) => {
+      timer = setTimeout(() => {
+        if (typeof onTimeout === 'function') resolve(onTimeout());
+        else reject(new Error('Request timeout'));
+      }, ms);
+    });
+    return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function callWsWithTimeout(hass, msg, timeoutMs = 5000) {
+    if (!hass || typeof hass.callWS !== 'function') {
+      return Promise.reject(new Error('hass.callWS unavailable'));
     }
-    throw new Error('hass.callWS unavailable');
+    return withTimeout(hass.callWS(msg), timeoutMs);
+  }
+
+  async function callServiceWithResponse(hass, domain, service, serviceData, timeoutMs = 5000) {
+    if (isDemoMode(hass)) return { response: {} };
+    return callWsWithTimeout(hass, {
+      type: 'call_service',
+      domain,
+      service,
+      service_data: serviceData,
+      return_response: true
+    }, timeoutMs);
   }
 
   function getActiveProviders(mhCfg) {
@@ -181,11 +199,20 @@
   async function fetchJsonWithTimeout(url, timeoutMs = 4500) {
     if (typeof fetch !== 'function') return null;
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    let timer = null;
     try {
-      const resp = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
-      if (!resp || !resp.ok) return null;
-      return await resp.json();
+      const work = (async () => {
+        const resp = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+        if (!resp || !resp.ok) return null;
+        return await resp.json();
+      })();
+      const timeoutPromise = new Promise(resolve => {
+        timer = setTimeout(() => {
+          if (ctrl) try { ctrl.abort(); } catch (_) {}
+          resolve(null);
+        }, Math.max(1, Number(timeoutMs) || 4500));
+      });
+      return await Promise.race([work, timeoutPromise]);
     } catch (_) {
       return null;
     } finally {
@@ -296,10 +323,10 @@
     if (typeof hass.callWS !== 'function') return { items: favItems, errors: [] };
 
     try {
-      const rootNode = await hass.callWS({
+      const rootNode = await callWsWithTimeout(hass, {
         type: 'media_source/browse_media',
         media_content_id: 'media-source://radio_browser'
-      });
+      }, 4500);
       const collected = [];
       const dirsToExpand = [];
       const walkChildren = (node) => {
@@ -319,7 +346,7 @@
 
       if (collected.length < 15 && prioritizedDirs.length) {
         const subNodes = await Promise.allSettled(
-          prioritizedDirs.map(d => hass.callWS({ type: 'media_source/browse_media', media_content_id: d.media_content_id }))
+          prioritizedDirs.map(d => callWsWithTimeout(hass, { type: 'media_source/browse_media', media_content_id: d.media_content_id }, 4500))
         );
         subNodes.forEach(r => { if (r.status === 'fulfilled' && r.value) walkChildren(r.value); });
       }
@@ -656,12 +683,12 @@
       // Fallback: HA Media Browser search node used by ytube_music_player
       if (!items.length && typeof hass.callWS === 'function') {
         try {
-          const browseNode = await hass.callWS({
+          const browseNode = await callWsWithTimeout(hass, {
             type: 'media_player/browse_media',
             entity_id: ytEntity,
             media_content_type: 'search',
             media_content_id: ''
-          });
+          }, 4500);
           const collected = [];
           const dirs = [];
           const walk = node => {
@@ -674,12 +701,12 @@
           walk(browseNode);
           if (!collected.length && dirs.length) {
             const subNodes = await Promise.allSettled(
-              dirs.slice(0, 4).map(d => hass.callWS({
+              dirs.slice(0, 4).map(d => callWsWithTimeout(hass, {
                 type: 'media_player/browse_media',
                 entity_id: ytEntity,
                 media_content_type: d.media_content_type,
                 media_content_id: d.media_content_id
-              }))
+              }, 4500))
             );
             subNodes.forEach(r => { if (r.status === 'fulfilled' && r.value) walk(r.value); });
           }
@@ -809,17 +836,17 @@
         else if (c.can_expand && c.media_content_id) dirsToExpand.push(c);
       });
     };
-    const rootNode = await hass.callWS({ type: 'media_player/browse_media', entity_id: ent });
+    const rootNode = await callWsWithTimeout(hass, { type: 'media_player/browse_media', entity_id: ent }, 4500);
     walk(rootNode);
     const subDirs = dirsToExpand.slice(0, 4);
     if (subDirs.length) {
       const subNodes = await Promise.allSettled(
-        subDirs.map(d => hass.callWS({
+        subDirs.map(d => callWsWithTimeout(hass, {
           type: 'media_player/browse_media',
           entity_id: ent,
           media_content_id: d.media_content_id,
           media_content_type: d.media_content_type
-        }))
+        }, 4500))
       );
       subNodes.forEach(r => { if (r.status === 'fulfilled' && r.value) walk(r.value); });
     }
@@ -990,8 +1017,9 @@
     }
 
     const spState = hass && hass.states && hass.states[ent];
-    const supportsSearch = !spState || !spState.attributes || spState.attributes.supported_features === undefined
-      || ((Number(spState.attributes.supported_features || 0) & FEATURE_SEARCH_MEDIA) !== 0);
+    const spUnavailable = !!(spState && (spState.state === 'unavailable' || spState.state === 'unknown'));
+    const supportsSearch = !spUnavailable && (!spState || !spState.attributes || spState.attributes.supported_features === undefined
+      || ((Number(spState.attributes.supported_features || 0) & FEATURE_SEARCH_MEDIA) !== 0));
 
     if (supportsSearch && hasService(hass, 'media_player', 'search_media')) {
       try {
@@ -1008,11 +1036,13 @@
     }
 
     if (!items.length) {
-      try {
-        const browsed = await browseSpotifyLibrary(hass, ent, q);
-        items.push(...browsed);
-      } catch (err) {
-        if (!lastError) lastError = err;
+      if (!spUnavailable) {
+        try {
+          const browsed = await browseSpotifyLibrary(hass, ent, q);
+          items.push(...browsed);
+        } catch (err) {
+          if (!lastError) lastError = err;
+        }
       }
       const catalogItems = await searchPublicMusicCatalog(q, types, catalogCountry);
       if (catalogItems.length) {
@@ -1196,7 +1226,13 @@
       : [tabId || getActiveProviders(cfg)[0] || 'radio'];
 
     const settled = await Promise.allSettled(
-      providersToSearch.map(pid => searchProvider(hass, pid, q, mediaTypes, cfg, targetPlayer))
+      providersToSearch.map(pid =>
+        withTimeout(
+          searchProvider(hass, pid, q, mediaTypes, cfg, targetPlayer),
+          10000,
+          () => ({ items: [], errors: [{ provider: pid, reasonKey: 'mh.err_search_failed', detail: 'Timeout' }] })
+        )
+      )
     );
 
     const items = [];
@@ -1359,6 +1395,7 @@
     FEATURE_GROUPING,
     FEATURE_SEARCH_MEDIA,
     hasService,
+    callWsWithTimeout,
     isDirectUrl,
     isAlexaPlayer,
     getActiveProviders,
