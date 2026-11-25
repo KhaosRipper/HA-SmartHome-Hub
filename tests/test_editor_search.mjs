@@ -203,12 +203,12 @@ const initPySrc = fs.readFileSync('custom_components/smarthome_hub/__init__.py',
 const gitignoreSrc = fs.readFileSync('.gitignore', 'utf8');
 
 // Version consistency across manifest.json, __init__.py, core.js, and index.html
-assert.equal(manifestObj.version, '3.7.7', 'manifest.json version must be 3.7.7');
-assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.7"/, '__init__.py VERSION must be 3.7.7');
-assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.7'/, 'core.js VERSION must be 3.7.7');
-assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[0-6])/, 'index.html must not contain old version query params');
-const vMatches = indexSrc.match(/\?v=3\.7\.7/g) || [];
-assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.7');
+assert.equal(manifestObj.version, '3.7.8', 'manifest.json version must be 3.7.8');
+assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.8"/, '__init__.py VERSION must be 3.7.8');
+assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.8'/, 'core.js VERSION must be 3.7.8');
+assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[0-7])/, 'index.html must not contain old version query params');
+const vMatches = indexSrc.match(/\?v=3\.7\.8/g) || [];
+assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.8');
 
 // Container-query & overflow invariants for side-by-side Calendar (Apple) and Rolläden cards
 assert.match(cssSrc, /\.cal-card\s*\{[^}]*container-type:\s*inline-size;[^}]*overflow:\s*hidden/s, '.cal-card must establish inline-size container and clip overflow');
@@ -336,6 +336,30 @@ assert.ok(pageRender.includes('data-cal-style="apple"'), 'Calendar page must use
 calSandbox.CONFIG.covers = [{ name: 'Rolladen WC', entity: 'cover.wc' }];
 const coversHtml = calSandbox.coversCard();
 assert.ok(coversHtml.includes('<section class="card covers-card">'), 'coversCard must render .covers-card container');
+
+// Modernized Speicher-Prognose (compact, no duplicate stats, reserve marker, usable kWh)
+calSandbox.CONFIG.batteryForecast = {
+  show: true,
+  capacityKwh: 10,
+  minSoC: 5,
+  maxSoC: 100,
+  socEntity: 'sensor.bat_soc',
+  chargePowerEntity: 'sensor.bat_chg',
+  dischargePowerEntity: 'sensor.bat_dis',
+  housePowerEntity: 'sensor.house_pwr',
+  pvPowerEntity: 'sensor.pv_pwr'
+};
+mockStates['sensor.bat_soc'] = { state: '45' };
+mockStates['sensor.bat_chg'] = { state: '0' };
+mockStates['sensor.bat_dis'] = { state: '650' };
+mockStates['sensor.house_pwr'] = { state: '650' };
+mockStates['sensor.pv_pwr'] = { state: '320' };
+const bfHtml = calSandbox.batteryForecastCard();
+assert.ok(bfHtml.includes('class="bf-main discharging"'), 'batteryForecastCard must render compact .bf-main hero');
+assert.ok(bfHtml.includes('class="bf-bar-min" style="left:5%"'), 'batteryForecastCard must render Min-Reserve marker');
+assert.ok(bfHtml.includes('class="bf-meta-strip"'), 'batteryForecastCard must render compact 1-row meta strip');
+assert.ok(bfHtml.includes('4,0 kWh') || bfHtml.includes('4.0 kWh') || bfHtml.includes('4 kWh'), 'batteryForecastCard must display usable kWh');
+assert.ok(!bfHtml.includes('bf-stats-row'), 'batteryForecastCard must not render redundant 3-box bf-stats-row');
 
 // 4. v3.5.0 Self-Test: Profile Popover Menu (Toggle, Action & Outside-Click / Escape)
 calSandbox.ui.profileMenuOpen = false;

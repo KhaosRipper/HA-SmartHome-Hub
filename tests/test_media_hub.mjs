@@ -55,7 +55,7 @@ class MockEl {
       inp.value = vmMatch ? vmMatch[1] : '';
       this.appendChild(inp);
     }
-    const roles = ['np-title', 'np-artist', 'np-state', 'np-state-txt', 'cover', 'play-btn', 'vol-slider', 'vol-val', 'mute-btn', 'mr-btn', 'mr-badge', 'multiroom-slot', 'tabs', 'content', 'player-pills', 'player-select'];
+    const roles = ['np-title', 'np-artist', 'np-state', 'np-state-txt', 'np-bg', 'np-progress', 'np-prog-fill', 'np-pos', 'np-dur', 'cover', 'play-btn', 'queue-btn', 'queue-badge', 'queue-slot', 'vol-slider', 'vol-val', 'mute-btn', 'mr-btn', 'mr-badge', 'multiroom-slot', 'tabs', 'content', 'player-pills', 'player-select'];
     for (const r of roles) {
       if (this._innerHTML.includes(`data-mh-role="${r}"`)) {
         const node = new MockEl(r === 'player-select' ? 'select' : r === 'vol-slider' ? 'input' : 'div');
@@ -269,7 +269,7 @@ const mhFree = ctx.ensureConfigDefaults({
   }
 }).mediaHub;
 
-assert.deepEqual([...adapters.getActiveProviders(mhFree)], ['radio', 'ytube_free', 'local_library', 'direct_url']);
+assert.deepEqual([...adapters.getActiveProviders(mhFree)], ['radio', 'somafm', 'audius', 'archive', 'ytube_free', 'local_library', 'direct_url']);
 
 // Radio search & play
 const radioRes = await adapters.searchRadio(mockHass, 'SWR3', mhFree);
@@ -493,6 +493,103 @@ assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'SPOTIFY');
 assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'Sarah Connor');
 delete ctx.fetch;
 
+// Free zero-auth streaming providers: SomaFM, Audius, Internet Archive, Radio Browser genres + SpotifyPlus queue
+ctx.fetch = async url => {
+  if (url.includes('api.somafm.com/channels.json')) {
+    return {
+      ok: true,
+      async json() {
+        return {
+          channels: [
+            { id: 'groovesalad', title: 'Groove Salad', genre: 'ambient', lastPlaying: 'Tycho', listeners: 900, image: 'https://somafm.com/gs.png' },
+            { id: 'defcon', title: 'DEF CON Radio', genre: 'electronic', lastPlaying: 'Mix', listeners: 300, image: 'https://somafm.com/dc.png' }
+          ]
+        };
+      }
+    };
+  }
+  if (url.includes('api.audius.co/v1/tracks/trending')) {
+    return {
+      ok: true,
+      async json() {
+        return {
+          data: [
+            { id: 'aud10', title: 'Chill Wave', is_streamable: true, duration: 185, user: { name: 'Oceanic' }, artwork: { '150x150': 'https://aud/10.jpg' } },
+            { id: 'aud11', title: 'Blocked Track', is_streamable: false, duration: 120, user: { name: 'X' } }
+          ]
+        };
+      }
+    };
+  }
+  if (url.includes('api.audius.co/v1/tracks/aud10/stream') && url.includes('no_redirect=true')) {
+    return { ok: true, async json() { return { data: 'https://creator.audius.co/stream/aud10.mp3' }; } };
+  }
+  if (url.includes('archive.org/advancedsearch.php')) {
+    return {
+      ok: true,
+      async json() {
+        return { response: { docs: [{ identifier: 'cornell77', title: 'Cornell 77', creator: 'Grateful Dead' }] } };
+      }
+    };
+  }
+  if (url.includes('archive.org/metadata/cornell77/files')) {
+    return {
+      ok: true,
+      async json() {
+        return { result: [{ name: 'cover.jpg' }, { name: 'track01.mp3' }] };
+      }
+    };
+  }
+  if (url.includes('api.radio-browser.info/json/stations/bytag/chill')) {
+    return {
+      ok: true,
+      async json() {
+        return [{ stationuuid: 'chill-1', name: 'Chillout Lounge', countrycode: 'DE', tags: 'chill,ambient', bitrate: 128, url_resolved: 'https://chill.fm/stream.mp3' }];
+      }
+    };
+  }
+  return { ok: false };
+};
+
+const somaRes = await adapters.searchSomaFm(mockHass, '');
+assert.equal(somaRes.items.length, 2);
+assert.equal(somaRes.items[0].uri, 'https://ice1.somafm.com/groovesalad-128-mp3');
+await adapters.play({ hass: mockHass, mhCfg: mhFree, targetPlayer: 'media_player.wohnzimmer', item: somaRes.items[0] });
+assert.equal(mockHass.callCalls.at(-1).data.media_content_id, 'https://ice1.somafm.com/groovesalad-128-mp3');
+await adapters.play({ hass: echoHass, mhCfg: mhFree, targetPlayer: 'media_player.echo_dot_kuche_esszimmer', item: somaRes.items[0] });
+assert.equal(echoHass.callCalls.at(-1).data.media_content_type, 'TUNEIN');
+assert.equal(echoHass.callCalls.at(-1).data.media_content_id, 'SomaFM Groove Salad');
+
+const audRes = await adapters.searchAudius(mockHass, '');
+assert.equal(audRes.items.length, 1, 'Must filter non-streamable Audius tracks');
+assert.equal(audRes.items[0].subtitle, 'Oceanic · 3:05');
+await adapters.play({ hass: mockHass, mhCfg: mhFree, targetPlayer: 'media_player.wohnzimmer', item: audRes.items[0] });
+assert.equal(mockHass.callCalls.at(-1).data.media_content_id, 'https://creator.audius.co/stream/aud10.mp3');
+
+const archRes = await adapters.searchArchive(mockHass, '', 'jazz');
+assert.equal(archRes.items[0].id, 'cornell77');
+await adapters.play({ hass: mockHass, mhCfg: mhFree, targetPlayer: 'media_player.wohnzimmer', item: archRes.items[0] });
+assert.equal(mockHass.callCalls.at(-1).data.media_content_id, 'https://archive.org/download/cornell77/track01.mp3');
+
+const rbGenre = await adapters.browseRadioGenre(mockHass, 'chill');
+assert.equal(rbGenre.items[0].title, 'Chillout Lounge');
+delete ctx.fetch;
+
+// fetchPlayerQueue with SpotifyPlus mock
+const qHass = {
+  ...mockHass,
+  services: { ...mockHass.services, spotifyplus: { ...mockHass.services.spotifyplus, get_player_queue_info: {} } },
+  async callWS(msg) {
+    if (msg.type === 'call_service' && msg.service === 'get_player_queue_info') {
+      return { response: { queue: [{ uri: 'spotify:track:q1', name: 'Next Up Track', artists: [{ name: 'Artist Q' }] }] } };
+    }
+    return mockHass.callWS(msg);
+  }
+};
+const spQueue = await adapters.fetchPlayerQueue(qHass, 'media_player.wohnzimmer', mhHybrid);
+assert.equal(spQueue.supported, true);
+assert.equal(spQueue.items[0].title, 'Next Up Track');
+
 // ytube_music_player: sensor.*_extra attributes.search & media_player/browse_media fallback
 const ytExtraHass = {
   services: { ytube_music_player: { search: {} }, media_player: { play_media: {}, select_source: {} } },
@@ -622,6 +719,44 @@ assert.equal(inst.el.querySelector('[data-mh-role="search-input"]').value, 'Lauf
 mockHass.states['media_player.kueche'].attributes.supported_features = 4;
 ctx.MediaHubWidget.updateAll();
 assert.equal(mrBtn.hidden, true, 'Multiroom button must hide when < 2 groupable players exist');
+
+// Queue / Up-Next workflow: add, reorder, remove, badge count & Next button pops queued item
+const qStore = {};
+ctx.localStorage.getItem = k => qStore[k] || null;
+ctx.localStorage.setItem = (k, v) => { qStore[k] = String(v); };
+
+inst.searchResults = [
+  { id: 'q_item_1', uri: 'https://stream/1.mp3', title: 'Track Eins', subtitle: 'A1', provider: 'direct_url' },
+  { id: 'q_item_2', uri: 'https://stream/2.mp3', title: 'Track Zwei', subtitle: 'A2', provider: 'direct_url' }
+];
+const clickEv = async (act, extra = {}) => {
+  const fakeBtn = { dataset: { mhAct: act, ...extra } };
+  const target = { dataset: fakeBtn.dataset, closest: sel => (sel === '[data-mh-act]' ? fakeBtn : null) };
+  for (const fn of (inst.el.listeners.click || [])) await fn({ target });
+};
+inst.el.contains = () => true;
+await clickEv('queueResult', { mhIdx: '0' });
+await clickEv('queueResult', { mhIdx: '1' });
+const qBadge = inst.el.querySelector('[data-mh-role="queue-badge"]');
+assert.equal(qBadge.hidden, false, 'Queue badge must appear when items are queued');
+assert.equal(qBadge.textContent, '2', 'Queue badge must show 2 queued items');
+
+await clickEv('toggleQueue');
+const qSlot = inst.el.querySelector('[data-mh-role="queue-slot"]');
+assert.ok(qSlot.innerHTML.includes('Track Eins') && qSlot.innerHTML.includes('Track Zwei'), 'Queue drawer must render queued tracks');
+
+// Move item 1 up -> Track Zwei becomes #1
+await clickEv('queueMove', { mhIdx: '1', mhDir: '-1' });
+assert.ok(qSlot.innerHTML.indexOf('Track Zwei') < qSlot.innerHTML.indexOf('Track Eins'), 'queueMove must reorder items');
+
+// Pressing Next pops Track Zwei and plays it instead of calling media_next_track
+await clickEv('transport', { mhSvc: 'media_next_track' });
+assert.equal(mockHass.callCalls.at(-1).data.media_content_id, 'https://stream/2.mp3', 'Next button must play queued Track Zwei');
+assert.equal(qBadge.textContent, '1', 'Queue badge must decrement to 1 after popping');
+
+// Remove remaining item
+await clickEv('queueRemove', { mhIdx: '0' });
+assert.equal(qBadge.hidden, true, 'Queue badge must hide when queue becomes empty');
 
 // 7. Test Configurator 'media' Tab Rendering in DE & EN
 vm.runInContext(editorSrc + '\nthis.renderCfgModal = renderCfgModal;', ctx);
