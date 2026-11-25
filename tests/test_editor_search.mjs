@@ -203,12 +203,19 @@ const initPySrc = fs.readFileSync('custom_components/smarthome_hub/__init__.py',
 const gitignoreSrc = fs.readFileSync('.gitignore', 'utf8');
 
 // Version consistency across manifest.json, __init__.py, core.js, and index.html
-assert.equal(manifestObj.version, '3.7.5', 'manifest.json version must be 3.7.5');
-assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.5"/, '__init__.py VERSION must be 3.7.5');
-assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.5'/, 'core.js VERSION must be 3.7.5');
-assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[01234])/, 'index.html must not contain old version query params');
-const vMatches = indexSrc.match(/\?v=3\.7\.5/g) || [];
-assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.5');
+assert.equal(manifestObj.version, '3.7.7', 'manifest.json version must be 3.7.7');
+assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.7"/, '__init__.py VERSION must be 3.7.7');
+assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.7'/, 'core.js VERSION must be 3.7.7');
+assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[0-6])/, 'index.html must not contain old version query params');
+const vMatches = indexSrc.match(/\?v=3\.7\.7/g) || [];
+assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.7');
+
+// Container-query & overflow invariants for side-by-side Calendar (Apple) and Rolläden cards
+assert.match(cssSrc, /\.cal-card\s*\{[^}]*container-type:\s*inline-size;[^}]*overflow:\s*hidden/s, '.cal-card must establish inline-size container and clip overflow');
+assert.match(cssSrc, /@container\s*\(max-width:\s*560px\)\s*\{\s*\.cal-apple-split\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/s, 'Apple calendar split must stack via container query when card is narrow');
+assert.match(cssSrc, /\.covers-card\{[^}]*container-type:inline-size;[^}]*overflow:hidden/, '.covers-card must establish inline-size container and clip overflow');
+assert.match(cssSrc, /@container\s*\(max-width:\s*520px\)\s*\{[\s\S]*?\.covers-card \.cover-row\s*\{/, '.covers-card .cover-row must switch to compact 2-row layout in narrow cards');
+assert.match(cssSrc, /\.cover-row \.dv small\{[^}]*white-space:nowrap/, '.cover-row percentage must stay on one line');
 assert.match(gitignoreSrc, /graphify-out\//, '.gitignore must ignore graphify-out/');
 
 // Execute config.js + core.js + views.js in sandbox to test calendar, profile popover & camera popup logic
@@ -325,6 +332,10 @@ const homeRender = calSandbox.homeCalendarCard(7, null, 'home');
 const pageRender = calSandbox.homeCalendarCard(14, null, 'page');
 assert.ok(homeRender.includes('data-cal-style="agenda"'), 'Home widget must use calendarHomeStyle (agenda)');
 assert.ok(pageRender.includes('data-cal-style="apple"'), 'Calendar page must use calendarPageStyle (apple)');
+
+calSandbox.CONFIG.covers = [{ name: 'Rolladen WC', entity: 'cover.wc' }];
+const coversHtml = calSandbox.coversCard();
+assert.ok(coversHtml.includes('<section class="card covers-card">'), 'coversCard must render .covers-card container');
 
 // 4. v3.5.0 Self-Test: Profile Popover Menu (Toggle, Action & Outside-Click / Escape)
 calSandbox.ui.profileMenuOpen = false;
