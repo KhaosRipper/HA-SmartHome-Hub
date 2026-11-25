@@ -133,7 +133,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .iconbtn.on{background:rgba(124,108,240,.2);border-color:rgba(124,108,240,.5)}
 .iconbtn:hover{background:rgba(255,255,255,.08)}
 /* Rolladen */
-.cover-row{display:grid;grid-template-columns:1.8fr 1fr 1.6fr 105px;align-items:center;gap:12px;padding:10px 6px;border-top:1px solid var(--line)}
+.covers-card{container-type:inline-size;overflow:hidden;min-width:0}
+.cover-row{display:grid;grid-template-columns:minmax(130px,1.8fr) minmax(96px,1fr) minmax(80px,1.6fr) 105px;align-items:center;gap:12px;padding:10px 6px;border-top:1px solid var(--line)}
+.cover-row>*{min-width:0}
+.cover-row .st{white-space:nowrap}
+.cover-row .dv small{display:block;white-space:nowrap}
 .cover-row.h{border-top:0;color:var(--mut);font-size:12px;padding-top:2px}
 .cover-bar{width:100%;height:12px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;position:relative;cursor:ew-resize;transition:background .15s;touch-action:none;user-select:none;-webkit-user-select:none}
 .cover-bar:hover{background:rgba(255,255,255,.14)}
@@ -143,6 +147,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .cover-btns{display:flex;gap:5px;justify-self:end}
 .cbtn{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--line);display:grid;place-items:center;color:#c4c7dc;transition:.15s}
 .cbtn:hover{background:var(--acc);color:#fff;border-color:transparent}
+@container (max-width: 520px){
+  .covers-card .cover-row.h{display:none}
+  .covers-card .cover-row.h+.cover-row{border-top:0;padding-top:2px}
+  .covers-card .cover-row{grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;padding:10px 4px}
+  .covers-card .cover-row>.dv{grid-column:1/3;grid-row:1}
+  .covers-card .cover-row>.cover-btns{grid-column:3;grid-row:1}
+  .covers-card .cover-row>.st{grid-column:1;grid-row:2;font-size:12px}
+  .covers-card .cover-row>.cover-bar{grid-column:2/4;grid-row:2}
+}
 /* Klima-Kachel */
 .gauge{position:relative;width:230px;height:175px;margin:0 auto}
 .gauge svg{width:100%;height:100%}
@@ -324,7 +337,6 @@ select option, .cfg-in option, .sheet select option{background-color:#12132a;col
   .app{grid-template-columns:1fr}.side{display:none}.main{padding:14px}.name{font-size:26px}.mtabs{display:flex}
   .hero-banner{min-height:360px;padding:18px 16px}
   .tr{grid-template-columns:2fr 1fr 56px}.tr>:nth-child(3),.tr>:nth-child(4),.tr>:nth-child(5){display:none}
-  .cover-row{grid-template-columns:1.8fr 1fr 105px}.cover-row>:nth-child(3){display:none}
   .home-agenda-weather{white-space:normal;text-align:right}
   .col > *, .col-part > * { width: 100% !important; }
   .grid.dash-grid-12 { grid-template-columns: 1fr !important; }
@@ -2777,6 +2789,11 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
 /* ==========================================================================
    v3.4.0: 6 Kalender-Optiken (List, Agenda, Google, Apple, Board, Month)
    ========================================================================== */
+.cal-card {
+  container-type: inline-size;
+  overflow: hidden;
+  min-width: 0;
+}
 .cal-hdr {
   display: flex;
   justify-content: space-between;
@@ -2818,12 +2835,14 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 .cal-month-lbl {
   font-size: 13.5px;
   font-weight: 700;
-  min-width: 120px;
+  min-width: 0;
+  flex: 1;
   text-align: center;
 }
 .cal-nav-btn {
@@ -2990,10 +3009,17 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+  min-width: 0;
+}
+@container (max-width: 560px) {
+  .cal-apple-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
 }
 @media (max-width: 680px) {
   .cal-apple-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .cal-apple-left {
@@ -3001,6 +3027,8 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 .cal-apple-grid {
   display: grid;
@@ -3061,12 +3089,14 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   border-radius: 14px;
   padding: 12px 14px;
   min-width: 0;
+  overflow: hidden;
 }
 .cal-detail-hdr {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   padding-bottom: 8px;
   margin-bottom: 10px;
   border-bottom: 1px solid var(--line);
@@ -3084,12 +3114,14 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border-left: 3px solid var(--ev-c, var(--acc2));
+  min-width: 0;
 }
 .cal-detail-time {
   font-size: 11px;
   font-weight: 700;
   color: var(--ev-c, var(--acc2));
   min-width: 82px;
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
 .cal-detail-body {
@@ -3099,12 +3131,23 @@ button.gsp-pill-btn, button.gsp-mini-btn { font: inherit; }
 .cal-detail-body b {
   display: block;
   font-size: 12.5px;
+  overflow-wrap: anywhere;
 }
 .cal-detail-body small {
   display: block;
   color: var(--mut);
   font-size: 11px;
   margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 340px) {
+  .cal-detail-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cal-detail-time {
+    min-width: 0;
+  }
 }
 
 /* 5. Wochen-Board (7 Spalten nebeneinander, responsiv scrollbar) */

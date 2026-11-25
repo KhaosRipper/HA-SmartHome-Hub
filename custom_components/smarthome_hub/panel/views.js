@@ -295,7 +295,7 @@ function coversCard(filterRoom = null, customTitle = null) {
   const titleTxt = tDefault(customTitle || t('dev.covers_title'));
   if (!list.length) {
     return ui.editMode
-      ? `<section class="card"><div class="ch"><b>${esc(titleTxt)}</b></div><div class="page-note">${tr('Keine Rolläden für diese Seite zugeordnet.', 'No covers assigned to this page.')}</div></section>`
+      ? `<section class="card covers-card"><div class="ch"><b>${esc(titleTxt)}</b></div><div class="page-note">${tr('Keine Rolläden für diese Seite zugeordnet.', 'No covers assigned to this page.')}</div></section>`
       : '';
   }
   const openCount = list.filter(c => devInfo(c).on).length;
@@ -315,7 +315,7 @@ function coversCard(filterRoom = null, customTitle = null) {
       </div>
     </div>`;
   }).join('');
-  return `<section class="card"><div class="ch"><div><b>${esc(titleTxt)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${t('hero.open_count', { n: openCount })}</span></div></div>
+  return `<section class="card covers-card"><div class="ch"><div><b>${esc(titleTxt)}</b> <span class="mut sm" style="color:var(--acc2)">&nbsp;${t('hero.open_count', { n: openCount })}</span></div></div>
     <div class="cover-row h"><div>${t('dev.covers_title')}</div><div>${t('dev.col_status')}</div><div>${t('dev.col_position')}</div><div style="text-align:right">${t('dev.col_control')}</div></div>
     ${rows}</section>`;
 }
