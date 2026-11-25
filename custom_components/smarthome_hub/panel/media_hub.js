@@ -904,71 +904,12 @@
         }
       }
     }
-
-    // 6. Queue button badge, drawer & auto-advance on track finish
-    refreshQueueUi(inst, mhCfg);
-
-    const selEnt = inst.selectedPlayer;
-    if (selEnt) {
-      const prevSt = inst.lastPlayerStates[selEnt];
-      inst.lastPlayerStates[selEnt] = stateStr;
-      if (
-        prevSt === 'playing' &&
-        (stateStr === 'idle' || stateStr === 'off') &&
-        (Date.now() - (inst.manualActionAt || 0)) > 3000
-      ) {
-        const q = getPlayerQueue(selEnt);
-        if (q.length) {
-          const nextItem = q[0];
-          removeQueueItem(selEnt, 0);
-          inst.manualActionAt = Date.now();
-          refreshQueueUi(inst, mhCfg);
-          playItemAndNotify(inst, nextItem);
-        }
-      }
-    }
-  }
-
-  function refreshQueueUi(inst, mhCfg) {
-    if (!inst || !inst.el) return;
-    const localQ = getPlayerQueue(inst.selectedPlayer);
-    const totalQ = localQ.length + (inst.remoteQueue ? inst.remoteQueue.length : 0);
-    const qBtn = inst.el.querySelector('[data-mh-role="queue-btn"]');
-    const qBadge = inst.el.querySelector('[data-mh-role="queue-badge"]');
-    if (qBtn) qBtn.classList.toggle('on', !!inst.queueOpen);
-    if (qBadge) {
-      qBadge.hidden = totalQ <= 0;
-      if (qBadge.textContent !== String(totalQ)) qBadge.textContent = String(totalQ);
-    }
-    const qSlot = inst.el.querySelector('[data-mh-role="queue-slot"]');
-    if (qSlot) {
-      if (!inst.queueOpen) {
-        if (qSlot.innerHTML !== '') qSlot.innerHTML = '';
-      } else {
-        qSlot.innerHTML = buildQueuePanelHtml(inst, mhCfg);
-      }
-    }
-  }
-
-  async function syncRemoteQueue(inst, mhCfg) {
-    if (!inst || !root.MediaHubAdapters || !root.MediaHubAdapters.fetchPlayerQueue) return;
-    inst.queueLoading = true;
-    refreshQueueUi(inst, mhCfg);
-    try {
-      const res = await root.MediaHubAdapters.fetchPlayerQueue(safeGetHass(), inst.selectedPlayer, mhCfg);
-      inst.remoteQueueSupported = !!(res && res.supported);
-      inst.remoteQueueSource = (res && res.source) || '';
-      inst.remoteQueue = (res && Array.isArray(res.items)) ? res.items : [];
-    } catch (_) {
-      inst.remoteQueue = [];
-    }
-    inst.queueLoading = false;
-    refreshQueueUi(inst, mhCfg);
   }
 
   async function executeSearch(inst) {
     const mhCfg = getMhConfig();
     const q = String(inst.searchQuery || '').trim();
+    const seq = (inst.searchSeq = (inst.searchSeq || 0) + 1);
     if (!q) {
       inst.hasSearched = false;
       inst.searchResults = [];
@@ -984,24 +925,38 @@
     refreshContentAndSearch(inst, mhCfg, true);
 
     const adapters = root.MediaHubAdapters;
-    if (!adapters) return;
+    if (!adapters) {
+      inst.searchLoading = false;
+      refreshContentAndSearch(inst, mhCfg, true);
+      return;
+    }
     const origTypes = (mhCfg.search && mhCfg.search.mediaTypes) || ['track', 'artist', 'album', 'radio'];
     const scopedCfg = Object.assign({}, mhCfg, {
       search: Object.assign({}, mhCfg.search || {}, {
         mediaTypes: inst.activeMediaTypes && inst.activeMediaTypes.length ? inst.activeMediaTypes : origTypes
       })
     });
-    const res = await adapters.search({
-      hass: safeGetHass(),
-      mhCfg: scopedCfg,
-      tabId: inst.activeTab,
-      query: q,
-      targetPlayer: inst.selectedPlayer
-    });
-    inst.searchLoading = false;
-    inst.searchResults = (res && res.items) || [];
-    inst.searchErrors = (res && res.errors) || [];
-    refreshContentAndSearch(inst, mhCfg, true);
+    try {
+      const res = await adapters.search({
+        hass: safeGetHass(),
+        mhCfg: scopedCfg,
+        tabId: inst.activeTab,
+        query: q,
+        targetPlayer: inst.selectedPlayer
+      });
+      if (seq !== inst.searchSeq) return;
+      inst.searchResults = (res && res.items) || [];
+      inst.searchErrors = (res && res.errors) || [];
+    } catch (err) {
+      if (seq !== inst.searchSeq) return;
+      inst.searchResults = [];
+      inst.searchErrors = [{ provider: inst.activeTab, reasonKey: 'mh.err_search_failed', detail: String(err && err.message || err) }];
+    } finally {
+      if (seq === inst.searchSeq) {
+        inst.searchLoading = false;
+        refreshContentAndSearch(inst, mhCfg, true);
+      }
+    }
   }
 
   async function playItemAndNotify(inst, item) {
@@ -1103,6 +1058,8 @@
         return;
       }
       if (act === 'runSearch') {
+        const inp = el.querySelector('[data-mh-role="search-input"]');
+        if (inp && typeof inp.value === 'string') inst.searchQuery = inp.value;
         await executeSearch(inst);
         return;
       }
