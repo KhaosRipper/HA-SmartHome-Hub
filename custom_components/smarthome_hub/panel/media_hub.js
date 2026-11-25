@@ -7,7 +7,87 @@
 
   const instances = new Map();
   const detachedRoots = new Map();
+  const QUEUE_STORAGE_KEY = 'smarthome_hub_mh_queue_v1';
   let pendingFocusState = null;
+
+  function loadAllQueues() {
+    try {
+      if (typeof localStorage === 'undefined') return {};
+      const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function getPlayerQueue(entityId) {
+    if (!entityId) return [];
+    const all = loadAllQueues();
+    return Array.isArray(all[entityId]) ? all[entityId] : [];
+  }
+
+  function savePlayerQueue(entityId, list) {
+    if (!entityId) return;
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const all = loadAllQueues();
+      all[entityId] = Array.isArray(list) ? list.slice(0, 100) : [];
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(all));
+    } catch (_) {}
+  }
+
+  function addToPlayerQueue(entityId, item) {
+    if (!entityId || !item) return [];
+    const list = getPlayerQueue(entityId).slice();
+    list.push({
+      id: item.id,
+      uri: item.uri,
+      title: item.title || item.name || item.id,
+      subtitle: item.subtitle || '',
+      type: item.type || 'track',
+      contentType: item.contentType || 'music',
+      thumb: item.thumb || '',
+      icon: item.icon || '🎵',
+      provider: item.provider || 'radio',
+      directStreamUrl: item.directStreamUrl || '',
+      artist: item.artist || '',
+      catalogFallback: !!item.catalogFallback
+    });
+    savePlayerQueue(entityId, list);
+    return list;
+  }
+
+  function moveQueueItem(entityId, idx, dir) {
+    const list = getPlayerQueue(entityId).slice();
+    const target = idx + dir;
+    if (idx < 0 || idx >= list.length || target < 0 || target >= list.length) return list;
+    const tmp = list[idx];
+    list[idx] = list[target];
+    list[target] = tmp;
+    savePlayerQueue(entityId, list);
+    return list;
+  }
+
+  function removeQueueItem(entityId, idx) {
+    const list = getPlayerQueue(entityId).slice();
+    if (idx >= 0 && idx < list.length) list.splice(idx, 1);
+    savePlayerQueue(entityId, list);
+    return list;
+  }
+
+  function clearPlayerQueue(entityId) {
+    savePlayerQueue(entityId, []);
+    return [];
+  }
+
+  function fmtMediaSec(sec) {
+    const s = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
+  }
 
   function safeGetHass() {
     if (typeof DEMO !== 'undefined' && DEMO) return null;
@@ -92,6 +172,16 @@
         searchErrors: [],
         hasSearched: false,
         multiroomOpen: false,
+        queueOpen: false,
+        remoteQueue: [],
+        remoteQueueSource: '',
+        remoteQueueSupported: false,
+        queueLoading: false,
+        browseCache: {},
+        radioGenre: 'favs',
+        archiveGenre: 'jazz',
+        lastPlayerStates: {},
+        manualActionAt: 0,
         activeMediaTypes: null,
         draggingVolEntity: null,
         volTimer: null
@@ -156,6 +246,89 @@
     </div>`;
   }
 
+  const RADIO_GENRES = [
+    ['favs', 'mh.radio_quick_favs'],
+    ['top_de', 'Top DE'],
+    ['pop', 'Pop'],
+    ['rock', 'Rock'],
+    ['chill', 'Chill'],
+    ['80s', '80s'],
+    ['news', 'News']
+  ];
+  const ARCHIVE_GENRES = [
+    ['jazz', 'Jazz'],
+    ['classical', 'Klassik'],
+    ['ambient', 'Ambient'],
+    ['live', 'Live'],
+    ['audiobook', 'Hörbücher']
+  ];
+
+  function getBrowseKey(inst) {
+    if (inst.activeTab === 'radio') return `radio:${inst.radioGenre || 'favs'}`;
+    if (inst.activeTab === 'archive') return `archive:${inst.archiveGenre || 'jazz'}`;
+    if (inst.activeTab === 'somafm' || inst.activeTab === 'audius') return `${inst.activeTab}:default`;
+    return '';
+  }
+
+  function ensureTabBrowseLoaded(inst, mhCfg) {
+    const key = getBrowseKey(inst);
+    if (!key || key === 'radio:favs') return;
+    const entry = inst.browseCache[key];
+    if (entry && (entry.loading || entry.loaded)) return;
+    const adapters = root.MediaHubAdapters;
+    if (!adapters) return;
+
+    inst.browseCache[key] = { loading: true, loaded: false, items: [] };
+    const hass = safeGetHass();
+    let promise = null;
+    if (inst.activeTab === 'radio') promise = adapters.browseRadioGenre(hass, inst.radioGenre);
+    else if (inst.activeTab === 'somafm') promise = adapters.searchSomaFm(hass, '');
+    else if (inst.activeTab === 'audius') promise = adapters.searchAudius(hass, '');
+    else if (inst.activeTab === 'archive') promise = adapters.searchArchive(hass, '', inst.archiveGenre);
+    if (!promise) return;
+
+    promise.then(res => {
+      inst.browseCache[key] = { loading: false, loaded: true, items: (res && res.items) || [] };
+      if (getBrowseKey(inst) === key && !inst.hasSearched) {
+        refreshContentAndSearch(inst, mhCfg, true);
+      }
+    }).catch(() => {
+      inst.browseCache[key] = { loading: false, loaded: true, items: [] };
+      if (getBrowseKey(inst) === key && !inst.hasSearched) {
+        refreshContentAndSearch(inst, mhCfg, true);
+      }
+    });
+  }
+
+  function renderResultRowsHtml(items, playAct, queueAct) {
+    const typeLabels = {
+      track: safeT('mh.type.track'),
+      artist: safeT('mh.type.artist'),
+      album: safeT('mh.type.album'),
+      radio: safeT('mh.type.radio'),
+      channel: safeT('mh.type.channel'),
+      archive: safeT('mh.type.archive'),
+      alexa_spotify: 'Alexa'
+    };
+    return `<div class="mh-results">
+      ${items.map((item, idx) => {
+        const thumb = safeImgUrl(item.thumb);
+        const tag = typeLabels[item.type] || item.type || item.provider;
+        return `<div class="mh-result-row">
+          <button type="button" class="mh-result-item" data-mh-act="${playAct}" data-mh-idx="${idx}">
+            <div class="mh-result-thumb">${thumb ? `<img src="${safeEsc(thumb)}" alt="" onerror="this.style.display='none'">` : safeEsc(item.icon || '🎵')}</div>
+            <div class="mh-result-meta">
+              <div class="mh-result-title">${safeEsc(item.title)}</div>
+              <div class="mh-result-sub">${safeEsc(item.subtitle || item.provider)}</div>
+            </div>
+            <span class="mh-result-tag">${safeEsc(tag)}</span>
+          </button>
+          <button type="button" class="mh-btn mh-icon-btn mh-q-add-btn" data-mh-act="${queueAct}" data-mh-idx="${idx}" title="${safeEsc(safeT('mh.queue_add'))}" aria-label="${safeEsc(safeT('mh.queue_add'))}">${safeIc('plus', 15)}</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   function buildContentHtml(inst, mhCfg) {
     const uiCfg = mhCfg.ui || {};
     const adapters = root.MediaHubAdapters;
@@ -176,47 +349,63 @@
 
     if (inst.hasSearched && !inst.searchLoading) {
       if (inst.searchResults && inst.searchResults.length) {
-        const typeLabels = {
-          track: safeT('mh.type.track'),
-          artist: safeT('mh.type.artist'),
-          album: safeT('mh.type.album'),
-          radio: safeT('mh.type.radio'),
-          alexa_spotify: 'Alexa'
-        };
-        body += `<div class="mh-results">
-          ${inst.searchResults.map((item, idx) => {
-            const thumb = safeImgUrl(item.thumb);
-            const tag = typeLabels[item.type] || item.type || item.provider;
-            return `<button type="button" class="mh-result-item" data-mh-act="playResult" data-mh-idx="${idx}">
-              <div class="mh-result-thumb">${thumb ? `<img src="${safeEsc(thumb)}" alt="" onerror="this.style.display='none'">` : safeEsc(item.icon || '🎵')}</div>
-              <div class="mh-result-meta">
-                <div class="mh-result-title">${safeEsc(item.title)}</div>
-                <div class="mh-result-sub">${safeEsc(item.subtitle || item.provider)}</div>
-              </div>
-              <span class="mh-result-tag">${safeEsc(tag)}</span>
-            </button>`;
-          }).join('')}
-        </div>`;
+        body += renderResultRowsHtml(inst.searchResults, 'playResult', 'queueResult');
       } else if (!inst.searchErrors || !inst.searchErrors.length) {
         body += `<div class="mh-hint">${safeEsc(safeT('mh.no_results'))}</div>`;
       }
+      return body;
     }
 
-    if (inst.activeTab === 'radio' && !inst.hasSearched) {
-      const favs = (mhCfg.radioFavorites || []).filter(f => f && (f.name || f.contentId));
-      if (favs.length) {
-        body += `<div class="mh-radio-grid" style="--mh-radio-cols:${radioCols}">
-          ${favs.map((f, idx) => `<button type="button" class="mh-radio-tile" data-mh-act="playRadioFav" data-mh-idx="${idx}">
-            <span class="mh-radio-icon">${safeEsc(f.icon || '📻')}</span>
-            <span class="mh-radio-name">${safeEsc(f.name || f.contentId)}</span>
-          </button>`).join('')}
-        </div>`;
+    if (inst.activeTab === 'radio') {
+      body += `<div class="mh-genre-chips">
+        ${RADIO_GENRES.map(([gk, lbl]) => {
+          const txt = lbl.startsWith('mh.') ? safeT(lbl) : lbl;
+          return `<button type="button" class="mh-genre-chip ${(inst.radioGenre || 'favs') === gk ? 'on' : ''}" data-mh-act="setRadioGenre" data-mh-genre="${safeEsc(gk)}">${safeEsc(txt)}</button>`;
+        }).join('')}
+      </div>`;
+
+      if ((inst.radioGenre || 'favs') === 'favs') {
+        const favs = (mhCfg.radioFavorites || []).filter(f => f && (f.name || f.contentId));
+        if (favs.length) {
+          body += `<div class="mh-radio-grid" style="--mh-radio-cols:${radioCols}">
+            ${favs.map((f, idx) => `<div class="mh-radio-cell">
+              <button type="button" class="mh-radio-tile" data-mh-act="playRadioFav" data-mh-idx="${idx}">
+                <span class="mh-radio-icon">${safeEsc(f.icon || '📻')}</span>
+                <span class="mh-radio-name">${safeEsc(f.name || f.contentId)}</span>
+              </button>
+              <button type="button" class="mh-btn mh-icon-btn mh-radio-q" data-mh-act="queueRadioFav" data-mh-idx="${idx}" title="${safeEsc(safeT('mh.queue_add'))}" aria-label="${safeEsc(safeT('mh.queue_add'))}">${safeIc('plus', 14)}</button>
+            </div>`).join('')}
+          </div>`;
+        } else {
+          body += `<div class="mh-hint">${safeEsc(safeT('mh.radio_favs_empty'))}</div>`;
+        }
       } else {
-        body += `<div class="mh-hint">${safeEsc(safeT('mh.radio_favs_empty'))}</div>`;
+        ensureTabBrowseLoaded(inst, mhCfg);
+        const cache = inst.browseCache[getBrowseKey(inst)] || {};
+        if (cache.loading) body += `<div class="mh-hint">${safeEsc(safeT('mh.browse_loading'))}</div>`;
+        else if (cache.items && cache.items.length) body += renderResultRowsHtml(cache.items, 'playBrowse', 'queueBrowse');
+        else body += `<div class="mh-hint">${safeEsc(safeT('mh.browse_empty'))}</div>`;
       }
-    } else if (inst.activeTab === 'direct_url' && !inst.hasSearched) {
+      return body;
+    }
+
+    if (inst.activeTab === 'somafm' || inst.activeTab === 'audius' || inst.activeTab === 'archive') {
+      if (inst.activeTab === 'archive') {
+        body += `<div class="mh-genre-chips">
+          ${ARCHIVE_GENRES.map(([gk, lbl]) => `<button type="button" class="mh-genre-chip ${(inst.archiveGenre || 'jazz') === gk ? 'on' : ''}" data-mh-act="setArchiveGenre" data-mh-genre="${safeEsc(gk)}">${safeEsc(lbl)}</button>`).join('')}
+        </div>`;
+      }
+      ensureTabBrowseLoaded(inst, mhCfg);
+      const cache = inst.browseCache[getBrowseKey(inst)] || {};
+      if (cache.loading) body += `<div class="mh-hint">${safeEsc(safeT('mh.browse_loading'))}</div>`;
+      else if (cache.items && cache.items.length) body += renderResultRowsHtml(cache.items, 'playBrowse', 'queueBrowse');
+      else body += `<div class="mh-hint">${safeEsc(safeT('mh.browse_empty'))}</div>`;
+      return body;
+    }
+
+    if (inst.activeTab === 'direct_url') {
       body += `<div class="mh-hint">${safeEsc(safeT('mh.direct_url_hint'))}</div>`;
-    } else if (!inst.hasSearched && inst.activeTab !== 'radio') {
+    } else {
       const avail = adapters ? adapters.checkProviderAvailability(hass, inst.activeTab, mhCfg, inst.selectedPlayer) : { available: true };
       if (!avail.available && avail.reasonKey) {
         body += `<div class="mh-hint warn">⚠️ ${safeEsc(safeT(avail.reasonKey))}</div>`;
@@ -226,6 +415,68 @@
     }
 
     return body;
+  }
+
+  function buildQueuePanelHtml(inst, mhCfg) {
+    if (!inst.queueOpen) return '';
+    const queue = getPlayerQueue(inst.selectedPlayer);
+    const st = safeState(inst.selectedPlayer);
+    const attrs = (st && st.attributes) || {};
+    const curTitle = attrs.media_title || safeT('mh.nothing_playing');
+    const curArtist = attrs.media_artist || attrs.media_album_name || '';
+    const sp = (mhCfg && mhCfg.providers && mhCfg.providers.spotify) || {};
+    const canSyncRemote = (sp.enabled && sp.entity) || (mhCfg && mhCfg.profile === 'music_assistant');
+
+    return `<div class="mh-queue-panel" data-mh-role="queue-panel">
+      <div class="mh-q-hdr">
+        <span>${safeIc('queue', 15)} ${safeEsc(safeT('mh.queue_title'))}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${canSyncRemote ? `<button type="button" class="mh-btn" data-mh-act="refreshRemoteQueue">${safeEsc(safeT('mh.queue_sync'))}</button>` : ''}
+          ${queue.length ? `<button type="button" class="mh-btn" data-mh-act="queueClear">${safeEsc(safeT('mh.queue_clear'))}</button>` : ''}
+          <button type="button" class="mh-btn mh-icon-btn" data-mh-act="toggleQueue" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="mh-q-now">
+        <span class="mh-q-sec">${safeEsc(safeT('mh.queue_now'))}</span>
+        <div class="mh-q-now-meta">
+          <b>${safeEsc(curTitle)}</b>
+          ${curArtist ? `<small>${safeEsc(curArtist)}</small>` : ''}
+        </div>
+      </div>
+      <div class="mh-q-sec">${safeEsc(safeT('mh.queue_next'))} (${queue.length})</div>
+      ${queue.length ? `<div class="mh-q-list">
+        ${queue.map((item, idx) => {
+          const thumb = safeImgUrl(item.thumb);
+          return `<div class="mh-q-row" data-mh-q-idx="${idx}">
+            <span class="mh-q-num">${idx + 1}</span>
+            <button type="button" class="mh-q-main" data-mh-act="queuePlay" data-mh-idx="${idx}">
+              <div class="mh-q-thumb">${thumb ? `<img src="${safeEsc(thumb)}" alt="" onerror="this.style.display='none'">` : safeEsc(item.icon || '🎵')}</div>
+              <div class="mh-q-meta">
+                <div class="mh-q-title">${safeEsc(item.title)}</div>
+                <div class="mh-q-sub">${safeEsc(item.subtitle || item.provider)}</div>
+              </div>
+            </button>
+            <div class="mh-q-actions">
+              <button type="button" class="mh-btn mh-icon-btn" data-mh-act="queueMove" data-mh-idx="${idx}" data-mh-dir="-1" ${idx === 0 ? 'disabled' : ''} aria-label="Up">↑</button>
+              <button type="button" class="mh-btn mh-icon-btn" data-mh-act="queueMove" data-mh-idx="${idx}" data-mh-dir="1" ${idx === queue.length - 1 ? 'disabled' : ''} aria-label="Down">↓</button>
+              <button type="button" class="mh-btn mh-icon-btn" data-mh-act="queueRemove" data-mh-idx="${idx}" aria-label="Remove">✕</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : `<div class="mh-hint">${safeEsc(safeT('mh.queue_empty'))}</div>`}
+      ${inst.queueLoading ? `<div class="mh-hint">${safeEsc(safeT('mh.searching'))}</div>` : ''}
+      ${(inst.remoteQueue && inst.remoteQueue.length) ? `
+        <div class="mh-q-sec">${safeEsc(safeT('mh.queue_remote'))} (${inst.remoteQueue.length})</div>
+        <div class="mh-q-list mh-q-remote-list">
+          ${inst.remoteQueue.slice(0, 10).map((it, idx) => `<div class="mh-q-row">
+            <span class="mh-q-num">${idx + 1}</span>
+            <div class="mh-q-meta">
+              <div class="mh-q-title">${safeEsc(it.title)}</div>
+              <div class="mh-q-sub">${safeEsc(it.subtitle || '')}</div>
+            </div>
+          </div>`).join('')}
+        </div>` : ''}
+    </div>`;
   }
 
   function buildMultiroomPanelHtml(inst, mhCfg) {
@@ -345,6 +596,7 @@
       ${searchPos === 'header' ? searchBarHtml : ''}
       ${playerSelHtml}
       <div class="mh-now-playing" data-mh-role="now-playing">
+        <div class="mh-np-bg" data-mh-role="np-bg"></div>
         <div class="mh-np-top">
           ${uiCfg.showCoverArt !== false ? `<div class="mh-cover" data-mh-role="cover">${safeIc('music', 24)}</div>` : ''}
           <div class="mh-np-meta">
@@ -356,10 +608,19 @@
             <button type="button" class="mh-btn mh-icon-btn" data-mh-act="transport" data-mh-svc="media_previous_track" title="${safeEsc(safeT('mh.prev'))}" aria-label="${safeEsc(safeT('mh.prev'))}">${safeIc('prev', 16)}</button>
             <button type="button" class="mh-btn mh-btn-pri mh-icon-btn" data-mh-act="transport" data-mh-svc="media_play_pause" data-mh-role="play-btn" title="${safeEsc(safeT('mh.play_pause'))}" aria-label="${safeEsc(safeT('mh.play_pause'))}">${safeIc('play', 16)}</button>
             <button type="button" class="mh-btn mh-icon-btn" data-mh-act="transport" data-mh-svc="media_next_track" title="${safeEsc(safeT('mh.next'))}" aria-label="${safeEsc(safeT('mh.next'))}">${safeIc('next', 16)}</button>
+            <button type="button" class="mh-btn mh-icon-btn mh-queue-btn ${inst.queueOpen ? 'on' : ''}" data-mh-act="toggleQueue" data-mh-role="queue-btn" title="${safeEsc(safeT('mh.queue'))}" aria-label="${safeEsc(safeT('mh.queue'))}">
+              ${safeIc('queue', 16)}
+              <span class="mh-q-dot" data-mh-role="queue-badge" hidden>0</span>
+            </button>
           </div>
+        </div>
+        <div class="mh-np-progress" data-mh-role="np-progress" hidden>
+          <div class="mh-prog-track"><div class="mh-prog-fill" data-mh-role="np-prog-fill" style="width:0%"></div></div>
+          <div class="mh-prog-times"><span data-mh-role="np-pos">0:00</span><span data-mh-role="np-dur">0:00</span></div>
         </div>
         ${volHtml}
       </div>
+      <div data-mh-role="queue-slot">${buildQueuePanelHtml(inst, mhCfg)}</div>
       <div data-mh-role="multiroom-slot">${buildMultiroomPanelHtml(inst, mhCfg)}</div>
       ${tabsHtml}
       ${searchPos === 'below_tabs' ? searchBarHtml : ''}
@@ -403,6 +664,7 @@
     const stateEl = inst.el.querySelector('[data-mh-role="np-state"]');
     const stateTxtEl = inst.el.querySelector('[data-mh-role="np-state-txt"]');
     const coverEl = inst.el.querySelector('[data-mh-role="cover"]');
+    const bgEl = inst.el.querySelector('[data-mh-role="np-bg"]');
     const playBtn = inst.el.querySelector('[data-mh-role="play-btn"]');
 
     const nextTitle = attrs.media_title || safeT('mh.nothing_playing');
@@ -417,11 +679,37 @@
       if (stateTxtEl.textContent !== lbl) stateTxtEl.textContent = lbl;
     }
 
+    const pic = safeImgUrl(attrs.entity_picture);
     if (coverEl) {
-      const pic = safeImgUrl(attrs.entity_picture);
       if (coverEl.dataset.pic !== pic) {
         coverEl.dataset.pic = pic;
         coverEl.innerHTML = pic ? `<img src="${safeEsc(pic)}" alt="">` : safeIc('music', 24);
+      }
+    }
+    if (bgEl && bgEl.dataset.pic !== pic) {
+      bgEl.dataset.pic = pic;
+      if (bgEl.style) bgEl.style.backgroundImage = pic ? `url("${pic.replace(/"/g, '%22')}")` : 'none';
+    }
+
+    const progWrap = inst.el.querySelector('[data-mh-role="np-progress"]');
+    const durSec = Number(attrs.media_duration);
+    if (progWrap) {
+      if (Number.isFinite(durSec) && durSec > 0) {
+        let posSec = Math.max(0, Number(attrs.media_position) || 0);
+        if (stateStr === 'playing' && attrs.media_position_updated_at) {
+          const updMs = Date.parse(attrs.media_position_updated_at);
+          if (Number.isFinite(updMs)) posSec += Math.max(0, (Date.now() - updMs) / 1000);
+        }
+        posSec = Math.min(durSec, posSec);
+        progWrap.hidden = false;
+        const fillEl = inst.el.querySelector('[data-mh-role="np-prog-fill"]');
+        const posEl = inst.el.querySelector('[data-mh-role="np-pos"]');
+        const durEl = inst.el.querySelector('[data-mh-role="np-dur"]');
+        if (fillEl && fillEl.style) fillEl.style.width = `${Math.min(100, (posSec / durSec) * 100).toFixed(1)}%`;
+        if (posEl) posEl.textContent = fmtMediaSec(posSec);
+        if (durEl) durEl.textContent = fmtMediaSec(durSec);
+      } else {
+        progWrap.hidden = true;
       }
     }
 
@@ -441,6 +729,7 @@
     const muteBtn = inst.el.querySelector('[data-mh-role="mute-btn"]');
     if (slider && inst.draggingVolEntity !== inst.selectedPlayer) {
       if (Number(slider.value) !== volPct) slider.value = String(volPct);
+      if (slider.style && typeof slider.style.setProperty === 'function') slider.style.setProperty('--mh-vol-pct', `${volPct}%`);
     }
     if (volVal && inst.draggingVolEntity !== inst.selectedPlayer) {
       const txt = `${volPct}%`;
@@ -511,6 +800,66 @@
         }
       }
     }
+
+    // 6. Queue button badge, drawer & auto-advance on track finish
+    refreshQueueUi(inst, mhCfg);
+
+    const selEnt = inst.selectedPlayer;
+    if (selEnt) {
+      const prevSt = inst.lastPlayerStates[selEnt];
+      inst.lastPlayerStates[selEnt] = stateStr;
+      if (
+        prevSt === 'playing' &&
+        (stateStr === 'idle' || stateStr === 'off') &&
+        (Date.now() - (inst.manualActionAt || 0)) > 3000
+      ) {
+        const q = getPlayerQueue(selEnt);
+        if (q.length) {
+          const nextItem = q[0];
+          removeQueueItem(selEnt, 0);
+          inst.manualActionAt = Date.now();
+          refreshQueueUi(inst, mhCfg);
+          playItemAndNotify(inst, nextItem);
+        }
+      }
+    }
+  }
+
+  function refreshQueueUi(inst, mhCfg) {
+    if (!inst || !inst.el) return;
+    const localQ = getPlayerQueue(inst.selectedPlayer);
+    const totalQ = localQ.length + (inst.remoteQueue ? inst.remoteQueue.length : 0);
+    const qBtn = inst.el.querySelector('[data-mh-role="queue-btn"]');
+    const qBadge = inst.el.querySelector('[data-mh-role="queue-badge"]');
+    if (qBtn) qBtn.classList.toggle('on', !!inst.queueOpen);
+    if (qBadge) {
+      qBadge.hidden = totalQ <= 0;
+      if (qBadge.textContent !== String(totalQ)) qBadge.textContent = String(totalQ);
+    }
+    const qSlot = inst.el.querySelector('[data-mh-role="queue-slot"]');
+    if (qSlot) {
+      if (!inst.queueOpen) {
+        if (qSlot.innerHTML !== '') qSlot.innerHTML = '';
+      } else {
+        qSlot.innerHTML = buildQueuePanelHtml(inst, mhCfg);
+      }
+    }
+  }
+
+  async function syncRemoteQueue(inst, mhCfg) {
+    if (!inst || !root.MediaHubAdapters || !root.MediaHubAdapters.fetchPlayerQueue) return;
+    inst.queueLoading = true;
+    refreshQueueUi(inst, mhCfg);
+    try {
+      const res = await root.MediaHubAdapters.fetchPlayerQueue(safeGetHass(), inst.selectedPlayer, mhCfg);
+      inst.remoteQueueSupported = !!(res && res.supported);
+      inst.remoteQueueSource = (res && res.source) || '';
+      inst.remoteQueue = (res && Array.isArray(res.items)) ? res.items : [];
+    } catch (_) {
+      inst.remoteQueue = [];
+    }
+    inst.queueLoading = false;
+    refreshQueueUi(inst, mhCfg);
   }
 
   function refreshContentAndSearch(inst, mhCfg, preserveInputFocus = true) {
@@ -555,6 +904,66 @@
         }
       }
     }
+
+    // 6. Queue button badge, drawer & auto-advance on track finish
+    refreshQueueUi(inst, mhCfg);
+
+    const selEnt = inst.selectedPlayer;
+    if (selEnt) {
+      const prevSt = inst.lastPlayerStates[selEnt];
+      inst.lastPlayerStates[selEnt] = stateStr;
+      if (
+        prevSt === 'playing' &&
+        (stateStr === 'idle' || stateStr === 'off') &&
+        (Date.now() - (inst.manualActionAt || 0)) > 3000
+      ) {
+        const q = getPlayerQueue(selEnt);
+        if (q.length) {
+          const nextItem = q[0];
+          removeQueueItem(selEnt, 0);
+          inst.manualActionAt = Date.now();
+          refreshQueueUi(inst, mhCfg);
+          playItemAndNotify(inst, nextItem);
+        }
+      }
+    }
+  }
+
+  function refreshQueueUi(inst, mhCfg) {
+    if (!inst || !inst.el) return;
+    const localQ = getPlayerQueue(inst.selectedPlayer);
+    const totalQ = localQ.length + (inst.remoteQueue ? inst.remoteQueue.length : 0);
+    const qBtn = inst.el.querySelector('[data-mh-role="queue-btn"]');
+    const qBadge = inst.el.querySelector('[data-mh-role="queue-badge"]');
+    if (qBtn) qBtn.classList.toggle('on', !!inst.queueOpen);
+    if (qBadge) {
+      qBadge.hidden = totalQ <= 0;
+      if (qBadge.textContent !== String(totalQ)) qBadge.textContent = String(totalQ);
+    }
+    const qSlot = inst.el.querySelector('[data-mh-role="queue-slot"]');
+    if (qSlot) {
+      if (!inst.queueOpen) {
+        if (qSlot.innerHTML !== '') qSlot.innerHTML = '';
+      } else {
+        qSlot.innerHTML = buildQueuePanelHtml(inst, mhCfg);
+      }
+    }
+  }
+
+  async function syncRemoteQueue(inst, mhCfg) {
+    if (!inst || !root.MediaHubAdapters || !root.MediaHubAdapters.fetchPlayerQueue) return;
+    inst.queueLoading = true;
+    refreshQueueUi(inst, mhCfg);
+    try {
+      const res = await root.MediaHubAdapters.fetchPlayerQueue(safeGetHass(), inst.selectedPlayer, mhCfg);
+      inst.remoteQueueSupported = !!(res && res.supported);
+      inst.remoteQueueSource = (res && res.source) || '';
+      inst.remoteQueue = (res && Array.isArray(res.items)) ? res.items : [];
+    } catch (_) {
+      inst.remoteQueue = [];
+    }
+    inst.queueLoading = false;
+    refreshQueueUi(inst, mhCfg);
   }
 
   async function executeSearch(inst) {
@@ -725,17 +1134,107 @@
       if (act === 'playRadioFav') {
         const fav = (mhCfg.radioFavorites || [])[Number(btn.dataset.mhIdx)];
         if (fav) {
-          await playItemAndNotify(inst, { id: fav.contentId, contentId: fav.contentId, title: fav.name, provider: 'radio' });
+          inst.manualActionAt = Date.now();
+          await playItemAndNotify(inst, { id: fav.contentId, contentId: fav.contentId, title: fav.name, icon: fav.icon || '📻', provider: 'radio' });
         }
         return;
       }
-      if (act === 'playResult') {
-        const item = (inst.searchResults || [])[Number(btn.dataset.mhIdx)];
-        if (item) await playItemAndNotify(inst, item);
+      if (act === 'queueRadioFav') {
+        const fav = (mhCfg.radioFavorites || [])[Number(btn.dataset.mhIdx)];
+        if (fav && inst.selectedPlayer) {
+          const item = { id: fav.contentId, uri: fav.contentId, contentId: fav.contentId, title: fav.name, subtitle: 'Radio', icon: fav.icon || '📻', type: 'radio', contentType: 'music', provider: 'radio' };
+          addToPlayerQueue(inst.selectedPlayer, item);
+          refreshQueueUi(inst, mhCfg);
+          if (typeof toast === 'function') toast(safeT('mh.queue_added', { title: item.title }));
+        }
+        return;
+      }
+      if (act === 'playResult' || act === 'playBrowse') {
+        const list = act === 'playResult' ? (inst.searchResults || []) : ((inst.browseCache[getBrowseKey(inst)] || {}).items || []);
+        const item = list[Number(btn.dataset.mhIdx)];
+        if (item) {
+          inst.manualActionAt = Date.now();
+          await playItemAndNotify(inst, item);
+        }
+        return;
+      }
+      if (act === 'queueResult' || act === 'queueBrowse') {
+        const list = act === 'queueResult' ? (inst.searchResults || []) : ((inst.browseCache[getBrowseKey(inst)] || {}).items || []);
+        const item = list[Number(btn.dataset.mhIdx)];
+        if (item) {
+          if (!inst.selectedPlayer) {
+            if (typeof toast === 'function') toast(safeT('mh.err_no_player'));
+            return;
+          }
+          addToPlayerQueue(inst.selectedPlayer, item);
+          if (adapters && typeof adapters.enqueueItem === 'function') {
+            adapters.enqueueItem(hass, inst.selectedPlayer, item, mhCfg).catch(() => {});
+          }
+          refreshQueueUi(inst, mhCfg);
+          if (typeof toast === 'function') toast(safeT('mh.queue_added', { title: item.title || item.name || '' }));
+        }
+        return;
+      }
+      if (act === 'setRadioGenre') {
+        inst.radioGenre = btn.dataset.mhGenre || 'favs';
+        refreshContentAndSearch(inst, mhCfg, false);
+        return;
+      }
+      if (act === 'setArchiveGenre') {
+        inst.archiveGenre = btn.dataset.mhGenre || 'jazz';
+        refreshContentAndSearch(inst, mhCfg, false);
+        return;
+      }
+      if (act === 'toggleQueue') {
+        inst.queueOpen = !inst.queueOpen;
+        refreshQueueUi(inst, mhCfg);
+        if (inst.queueOpen) syncRemoteQueue(inst, mhCfg);
+        return;
+      }
+      if (act === 'refreshRemoteQueue') {
+        await syncRemoteQueue(inst, mhCfg);
+        return;
+      }
+      if (act === 'queuePlay') {
+        const idx = Number(btn.dataset.mhIdx);
+        const q = getPlayerQueue(inst.selectedPlayer);
+        const item = q[idx];
+        if (item) {
+          removeQueueItem(inst.selectedPlayer, idx);
+          inst.manualActionAt = Date.now();
+          refreshQueueUi(inst, mhCfg);
+          await playItemAndNotify(inst, item);
+        }
+        return;
+      }
+      if (act === 'queueMove') {
+        moveQueueItem(inst.selectedPlayer, Number(btn.dataset.mhIdx), Number(btn.dataset.mhDir) || 0);
+        refreshQueueUi(inst, mhCfg);
+        return;
+      }
+      if (act === 'queueRemove') {
+        removeQueueItem(inst.selectedPlayer, Number(btn.dataset.mhIdx));
+        refreshQueueUi(inst, mhCfg);
+        return;
+      }
+      if (act === 'queueClear') {
+        clearPlayerQueue(inst.selectedPlayer);
+        refreshQueueUi(inst, mhCfg);
         return;
       }
       if (act === 'transport') {
         const svc = btn.dataset.mhSvc;
+        inst.manualActionAt = Date.now();
+        if (svc === 'media_next_track' && inst.selectedPlayer) {
+          const q = getPlayerQueue(inst.selectedPlayer);
+          if (q.length) {
+            const nextItem = q[0];
+            removeQueueItem(inst.selectedPlayer, 0);
+            refreshQueueUi(inst, mhCfg);
+            await playItemAndNotify(inst, nextItem);
+            return;
+          }
+        }
         if (svc && inst.selectedPlayer) {
           safeCall('media_player', svc, { entity_id: inst.selectedPlayer });
         }
@@ -819,6 +1318,7 @@
         if (!ent || !root.MediaHubAdapters) return;
         inst.draggingVolEntity = ent;
         const pct = Number(target.value) || 0;
+        if (target.style && typeof target.style.setProperty === 'function') target.style.setProperty('--mh-vol-pct', `${pct}%`);
         const row = target.closest('.mh-vol-row, .mh-mr-row');
         const valEl = row && row.querySelector('.mh-vol-val, [data-mh-role="mr-pct"]');
         if (valEl) valEl.textContent = `${pct}%`;

@@ -78,11 +78,17 @@
     if (profile === 'music_assistant') {
       active.push('music_assistant');
       if (p.radio && p.radio.enabled) active.push('radio');
+      if (p.somafm && p.somafm.enabled) active.push('somafm');
+      if (p.audius && p.audius.enabled) active.push('audius');
+      if (p.archive && p.archive.enabled) active.push('archive');
       if (p.direct_url && p.direct_url.enabled) active.push('direct_url');
       return active;
     }
 
     if (p.radio && p.radio.enabled !== false) active.push('radio');
+    if (!p.somafm || p.somafm.enabled !== false) active.push('somafm');
+    if (!p.audius || p.audius.enabled !== false) active.push('audius');
+    if (!p.archive || p.archive.enabled !== false) active.push('archive');
     if (p.ytube_free && p.ytube_free.enabled) active.push('ytube_free');
     if (p.local_library && p.local_library.enabled) active.push('local_library');
     if (p.direct_url && p.direct_url.enabled !== false) active.push('direct_url');
@@ -96,6 +102,9 @@
     const p = (mhCfg && mhCfg.providers) || {};
     switch (providerId) {
       case 'radio':
+      case 'somafm':
+      case 'audius':
+      case 'archive':
         return { available: true };
       case 'ytube_free': {
         const ent = p.ytube_free && p.ytube_free.entity;
@@ -185,6 +194,60 @@
   }
 
   /* ---------- 1. Webradio (Radio Browser + Favorites) ---------- */
+  function mapRadioBrowserStations(rbData, favByName = new Map()) {
+    const items = [];
+    const seenNames = new Set();
+    (Array.isArray(rbData) ? rbData : []).forEach(st => {
+      const name = String((st && st.name) || '').trim();
+      if (!name) return;
+      const normKey = name.toLowerCase();
+      const favicon = st.favicon ? String(st.favicon).trim() : '';
+      const matchingFav = favByName.get(normKey);
+      if (matchingFav) {
+        if (!matchingFav.thumb && favicon) matchingFav.thumb = favicon;
+        return;
+      }
+      if (seenNames.has(normKey)) return;
+      seenNames.add(normKey);
+      const tags = String(st.tags || '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 2).join(', ');
+      const br = st.bitrate ? `${st.bitrate} kbps` : '';
+      items.push({
+        id: st.stationuuid ? `media-source://radio_browser/${st.stationuuid}` : String(st.url_resolved || st.url || name),
+        uri: String(st.url_resolved || st.url || ''),
+        title: name,
+        subtitle: [st.countrycode, tags, br].filter(Boolean).join(' · ') || 'Radio Browser',
+        type: 'radio',
+        contentType: 'music',
+        thumb: favicon,
+        icon: '📻',
+        provider: 'radio'
+      });
+    });
+    return items;
+  }
+
+  async function browseRadioGenre(hass, genreKey) {
+    const g = String(genreKey || 'top_de').toLowerCase();
+    if (isDemoMode(hass)) {
+      const demo = [
+        { id: 'media-source://radio_browser/swr3', title: 'SWR3 Pop & Rock', subtitle: 'DE · Pop · 128 kbps', type: 'radio', contentType: 'music', icon: '📻', provider: 'radio' },
+        { id: 'media-source://radio_browser/radiobob', title: 'Radio Bob! Rock', subtitle: 'DE · Rock · 192 kbps', type: 'radio', contentType: 'music', icon: '🎸', provider: 'radio' },
+        { id: 'media-source://radio_browser/dlf', title: 'Deutschlandfunk', subtitle: 'DE · News · 128 kbps', type: 'radio', contentType: 'music', icon: '🗞️', provider: 'radio' },
+        { id: 'media-source://radio_browser/chill', title: 'Lofi Chill Radio', subtitle: 'Chill · Ambient · 128 kbps', type: 'radio', contentType: 'music', icon: '🌙', provider: 'radio' }
+      ];
+      return { items: demo, errors: [] };
+    }
+    const qs = 'limit=15&order=clickcount&reverse=true&hidebroken=true';
+    const path = g === 'top_de'
+      ? `bycountrycodeexact/DE?${qs}`
+      : `bytag/${encodeURIComponent(g)}?${qs}`;
+    let data = await fetchJsonWithTimeout(`https://de1.api.radio-browser.info/json/stations/${path}`);
+    if (!Array.isArray(data) || !data.length) {
+      data = await fetchJsonWithTimeout(`https://all.api.radio-browser.info/json/stations/${path}`);
+    }
+    return { items: mapRadioBrowserStations(data), errors: [] };
+  }
+
   async function searchRadio(hass, query, mhCfg) {
     const rawQ = String(query || '').trim();
     const q = rawQ.toLowerCase();
@@ -226,34 +289,7 @@
     }
 
     if (Array.isArray(rbData) && rbData.length) {
-      const liveItems = [];
-      const seenNames = new Set();
-      rbData.forEach(st => {
-        const name = String((st && st.name) || '').trim();
-        if (!name) return;
-        const normKey = name.toLowerCase();
-        const favicon = st.favicon ? String(st.favicon).trim() : '';
-        const matchingFav = favByName.get(normKey);
-        if (matchingFav) {
-          if (!matchingFav.thumb && favicon) matchingFav.thumb = favicon;
-          return;
-        }
-        if (seenNames.has(normKey)) return;
-        seenNames.add(normKey);
-        const tags = String(st.tags || '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 2).join(', ');
-        const br = st.bitrate ? `${st.bitrate} kbps` : '';
-        liveItems.push({
-          id: st.stationuuid ? `media-source://radio_browser/${st.stationuuid}` : String(st.url_resolved || st.url || name),
-          uri: String(st.url_resolved || st.url || ''),
-          title: name,
-          subtitle: [st.countrycode, tags, br].filter(Boolean).join(' · ') || 'Radio Browser',
-          type: 'radio',
-          contentType: 'music',
-          thumb: favicon,
-          icon: '📻',
-          provider: 'radio'
-        });
-      });
+      const liveItems = mapRadioBrowserStations(rbData, favByName);
       return { items: [...favItems, ...liveItems], errors: [] };
     }
 
@@ -333,6 +369,203 @@
       media_content_id: contentId,
       media_content_type: contentType,
       extra: { title: stationName || contentId }
+    });
+    return { ok: true };
+  }
+
+  /* ---------- 1b. SomaFM (50+ ad-free streams, no login) ---------- */
+  const _somaCache = { ts: 0, channels: [] };
+
+  async function searchSomaFm(hass, query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (isDemoMode(hass)) {
+      const demo = [
+        { id: 'somafm:groovesalad', uri: 'https://ice1.somafm.com/groovesalad-128-mp3', title: 'Groove Salad', subtitle: 'ambient · Tycho - The Disconnect', type: 'channel', contentType: 'audio/mpeg', thumb: '', icon: '🎧', provider: 'somafm' },
+        { id: 'somafm:defcon', uri: 'https://ice1.somafm.com/defcon-128-mp3', title: 'DEF CON Radio', subtitle: 'electronic · Live Mix', type: 'channel', contentType: 'audio/mpeg', thumb: '', icon: '🎧', provider: 'somafm' },
+        { id: 'somafm:secretagent', uri: 'https://ice1.somafm.com/secretagent-128-mp3', title: 'Secret Agent', subtitle: 'lounge · Downtown Spy', type: 'channel', contentType: 'audio/mpeg', thumb: '', icon: '🎧', provider: 'somafm' },
+        { id: 'somafm:spacestation', uri: 'https://ice1.somafm.com/spacestation-128-mp3', title: 'Space Station Soma', subtitle: 'ambient · Deep Space', type: 'channel', contentType: 'audio/mpeg', thumb: '', icon: '🎧', provider: 'somafm' }
+      ];
+      return { items: q ? demo.filter(c => c.title.toLowerCase().includes(q) || c.subtitle.toLowerCase().includes(q)) : demo, errors: [] };
+    }
+
+    let channels = _somaCache.channels;
+    if (!channels.length || (Date.now() - _somaCache.ts) > 5 * 60 * 1000) {
+      const data = await fetchJsonWithTimeout('https://api.somafm.com/channels.json');
+      if (data && Array.isArray(data.channels)) {
+        channels = data.channels.slice().sort((a, b) => Number(b.listeners || 0) - Number(a.listeners || 0));
+        _somaCache.channels = channels;
+        _somaCache.ts = Date.now();
+      }
+    }
+
+    const items = channels
+      .filter(ch => !q || String(ch.title || '').toLowerCase().includes(q) || String(ch.genre || '').toLowerCase().includes(q) || String(ch.description || '').toLowerCase().includes(q))
+      .slice(0, 24)
+      .map(ch => ({
+        id: `somafm:${ch.id}`,
+        uri: `https://ice1.somafm.com/${encodeURIComponent(ch.id)}-128-mp3`,
+        title: String(ch.title || ch.id),
+        subtitle: [ch.genre, ch.lastPlaying].filter(Boolean).join(' · ') || 'SomaFM',
+        type: 'channel',
+        contentType: 'audio/mpeg',
+        thumb: String(ch.image || ch.largeimage || ''),
+        icon: '🎧',
+        provider: 'somafm'
+      }));
+    return { items, errors: [] };
+  }
+
+  async function playSomaFm(hass, targetPlayer, item) {
+    if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+    const targetState = hass && hass.states && hass.states[targetPlayer];
+    if (isAlexaPlayer(targetState, targetPlayer)) {
+      await callService(hass, 'media_player', 'play_media', {
+        entity_id: targetPlayer,
+        media_content_id: `SomaFM ${item.title || ''}`.trim(),
+        media_content_type: 'TUNEIN'
+      });
+      return { ok: true };
+    }
+    await callService(hass, 'media_player', 'play_media', {
+      entity_id: targetPlayer,
+      media_content_id: item.uri,
+      media_content_type: 'audio/mpeg',
+      extra: { title: item.title || 'SomaFM', thumb: item.thumb || '' }
+    });
+    return { ok: true };
+  }
+
+  /* ---------- 1c. Audius (Free open music catalog, no login) ---------- */
+  function fmtSecDuration(sec) {
+    const s = Math.max(0, Math.round(Number(sec) || 0));
+    if (!s) return '';
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  async function searchAudius(hass, query) {
+    const q = String(query || '').trim();
+    if (isDemoMode(hass)) {
+      return {
+        items: [
+          { id: 'aud_1', uri: 'https://api.audius.co/v1/tracks/aud_1/stream?app_name=SmartHomeHub', title: q ? `${q} (Lofi Mix)` : 'Midnight Rooftop Beats', subtitle: 'Lofi Collective · 3:12', type: 'track', contentType: 'audio/mpeg', thumb: '', icon: '🌊', provider: 'audius' },
+          { id: 'aud_2', uri: 'https://api.audius.co/v1/tracks/aud_2/stream?app_name=SmartHomeHub', title: 'Sunset Horizon', subtitle: 'Indie Synth · 4:05', type: 'track', contentType: 'audio/mpeg', thumb: '', icon: '🌊', provider: 'audius' }
+        ],
+        errors: []
+      };
+    }
+
+    const endpoint = q
+      ? `https://api.audius.co/v1/tracks/search?query=${encodeURIComponent(q)}&app_name=SmartHomeHub&limit=18`
+      : 'https://api.audius.co/v1/tracks/trending?app_name=SmartHomeHub&limit=16';
+    const data = await fetchJsonWithTimeout(endpoint, 5500);
+    const rows = (data && Array.isArray(data.data)) ? data.data : [];
+    const items = rows
+      .filter(tr => tr && tr.id && tr.is_streamable !== false)
+      .map(tr => {
+        const art = (tr.artwork && (tr.artwork['150x150'] || tr.artwork['480x480'])) || '';
+        const artist = (tr.user && (tr.user.name || tr.user.handle)) || tr.genre || 'Audius';
+        const dur = fmtSecDuration(tr.duration);
+        return {
+          id: String(tr.id),
+          uri: `https://api.audius.co/v1/tracks/${encodeURIComponent(tr.id)}/stream?app_name=SmartHomeHub`,
+          title: String(tr.title || tr.id),
+          subtitle: [artist, dur].filter(Boolean).join(' · '),
+          type: 'track',
+          contentType: 'audio/mpeg',
+          thumb: String(art),
+          icon: '🌊',
+          provider: 'audius'
+        };
+      });
+    return { items, errors: [] };
+  }
+
+  async function playAudius(hass, targetPlayer, item) {
+    if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+    let streamUrl = item.uri;
+    const resolved = await fetchJsonWithTimeout(
+      `https://api.audius.co/v1/tracks/${encodeURIComponent(item.id)}/stream?app_name=SmartHomeHub&no_redirect=true`,
+      5000
+    );
+    if (resolved && typeof resolved.data === 'string' && /^https?:\/\//i.test(resolved.data)) {
+      streamUrl = resolved.data;
+    }
+    await callService(hass, 'media_player', 'play_media', {
+      entity_id: targetPlayer,
+      media_content_id: streamUrl,
+      media_content_type: 'audio/mpeg',
+      extra: { title: item.title || 'Audius', thumb: item.thumb || '' }
+    });
+    return { ok: true };
+  }
+
+  /* ---------- 1d. Internet Archive Audio (Live concerts, Jazz, Classical, free) ---------- */
+  const ARCHIVE_PRESET_TERMS = {
+    jazz: 'jazz',
+    classical: 'classical',
+    ambient: 'ambient',
+    live: 'collection:etree',
+    audiobook: 'collection:librivox'
+  };
+
+  async function searchArchive(hass, query, genrePreset = 'jazz') {
+    const q = String(query || '').trim();
+    if (isDemoMode(hass)) {
+      return {
+        items: [
+          { id: 'gd1977-05-08', uri: 'https://archive.org/details/gd1977-05-08', title: q ? `${q} Live Session` : 'Cornell 1977 Live Concert', subtitle: 'Internet Archive · Live', type: 'archive', contentType: 'audio/mpeg', thumb: '', icon: '🏛️', provider: 'archive' },
+          { id: 'jazz_classics_01', uri: 'https://archive.org/details/jazz_classics_01', title: 'Golden Era Jazz Quartet', subtitle: 'Public Domain Audio', type: 'archive', contentType: 'audio/mpeg', thumb: '', icon: '🏛️', provider: 'archive' }
+        ],
+        errors: []
+      };
+    }
+
+    const presetTerm = ARCHIVE_PRESET_TERMS[genrePreset] || 'jazz';
+    const baseScope = 'mediatype:audio AND (collection:etree OR collection:opensource_audio OR collection:netlabels OR collection:audio_music OR collection:librivox)';
+    const searchExpr = q
+      ? `${baseScope} AND (${q.replace(/[()"]/g, ' ')})`
+      : `${baseScope} AND ${presetTerm}`;
+    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(searchExpr)}&fl[]=identifier&fl[]=title&fl[]=creator&sort[]=downloads+desc&rows=16&output=json`;
+    const data = await fetchJsonWithTimeout(url, 6000);
+    const docs = (data && data.response && Array.isArray(data.response.docs)) ? data.response.docs : [];
+    const items = docs
+      .filter(d => d && d.identifier)
+      .map(d => ({
+        id: String(d.identifier),
+        uri: `https://archive.org/details/${encodeURIComponent(d.identifier)}`,
+        title: String(d.title || d.identifier),
+        subtitle: Array.isArray(d.creator) ? d.creator.join(', ') : String(d.creator || 'Internet Archive'),
+        type: 'archive',
+        contentType: 'audio/mpeg',
+        thumb: `https://archive.org/services/img/${encodeURIComponent(d.identifier)}`,
+        icon: '🏛️',
+        provider: 'archive'
+      }));
+    return { items, errors: [] };
+  }
+
+  async function playArchive(hass, targetPlayer, item) {
+    if (!targetPlayer) return { ok: false, reasonKey: 'mh.err_no_player' };
+    let streamUrl = item.directStreamUrl || '';
+    if (!streamUrl) {
+      const meta = await fetchJsonWithTimeout(
+        `https://archive.org/metadata/${encodeURIComponent(item.id)}/files`,
+        5500
+      );
+      const files = (meta && Array.isArray(meta.result)) ? meta.result : [];
+      const pick = files.find(f => f && f.name && /\.mp3$/i.test(f.name))
+        || files.find(f => f && f.name && /\.(ogg|flac|m4a)$/i.test(f.name));
+      if (pick) {
+        streamUrl = `https://archive.org/download/${encodeURIComponent(item.id)}/${encodeURIComponent(pick.name)}`;
+      }
+    }
+    if (!streamUrl) return { ok: false, reasonKey: 'mh.err_stream_resolve' };
+
+    await callService(hass, 'media_player', 'play_media', {
+      entity_id: targetPlayer,
+      media_content_id: streamUrl,
+      media_content_type: 'audio/mpeg',
+      extra: { title: item.title || 'Internet Archive', thumb: item.thumb || '' }
     });
     return { ok: true };
   }
@@ -922,6 +1155,9 @@
   async function searchProvider(hass, providerId, query, mediaTypes, mhCfg, targetPlayer) {
     switch (providerId) {
       case 'radio': return searchRadio(hass, query, mhCfg);
+      case 'somafm': return searchSomaFm(hass, query);
+      case 'audius': return searchAudius(hass, query);
+      case 'archive': return searchArchive(hass, query);
       case 'ytube_free': return searchYtube(hass, query, mhCfg);
       case 'local_library': return searchLocalLibrary(hass, query, mediaTypes, mhCfg);
       case 'direct_url':
@@ -986,13 +1222,64 @@
     const provider = item.provider || 'radio';
     switch (provider) {
       case 'radio': return playRadio(hass, targetPlayer, item);
+      case 'somafm': return playSomaFm(hass, targetPlayer, item);
+      case 'audius': return playAudius(hass, targetPlayer, item);
+      case 'archive': return playArchive(hass, targetPlayer, item);
       case 'ytube_free': return playYtube(hass, targetPlayer, item, mhCfg);
       case 'local_library': return playLocalLibrary(hass, targetPlayer, item);
-      case 'direct_url': return playDirectUrl(hass, targetPlayer, item.id || item.uri);
+      case 'direct_url': return playDirectUrl(hass, targetPlayer, isDirectUrl(item.uri) ? item.uri : (item.id || item.uri));
       case 'spotify': return playSpotify(hass, targetPlayer, item, mhCfg);
       case 'music_assistant': return playMusicAssistant(hass, targetPlayer, item);
       default: return { ok: false, reasonKey: 'mh.err_provider_unknown' };
     }
+  }
+
+  /* ---------- 7b. Player Queue Integration (SpotifyPlus / Music Assistant) ---------- */
+  async function fetchPlayerQueue(hass, targetPlayer, mhCfg) {
+    if (isDemoMode(hass)) return { supported: false, source: 'local', items: [] };
+    const sp = (mhCfg && mhCfg.providers && mhCfg.providers.spotify) || {};
+    if (sp.enabled && sp.entity && hasService(hass, 'spotifyplus', 'get_player_queue_info')) {
+      try {
+        const raw = await callServiceWithResponse(hass, 'spotifyplus', 'get_player_queue_info', { entity_id: sp.entity });
+        const res = extractWsResponse(raw, sp.entity);
+        const container = (res && res.result && typeof res.result === 'object') ? res.result : res;
+        const rows = Array.isArray(container.queue) ? container.queue : (Array.isArray(container.items) ? container.items : []);
+        const items = rows.map(r => normalizeItem(r, 'spotify', 'track')).filter(Boolean);
+        return { supported: true, source: 'spotifyplus', items };
+      } catch (_) {}
+    }
+    if (targetPlayer && hasService(hass, 'music_assistant', 'get_queue')) {
+      try {
+        const raw = await callServiceWithResponse(hass, 'music_assistant', 'get_queue', { entity_id: targetPlayer });
+        const res = extractWsResponse(raw, targetPlayer);
+        const rows = Array.isArray(res.items) ? res.items : (Array.isArray(res.queue) ? res.queue : []);
+        const items = rows.map(r => normalizeItem(r && (r.media_item || r), 'music_assistant', 'track')).filter(Boolean);
+        return { supported: true, source: 'music_assistant', items };
+      } catch (_) {}
+    }
+    return { supported: false, source: 'local', items: [] };
+  }
+
+  async function enqueueItem(hass, targetPlayer, item, mhCfg) {
+    if (!item || isDemoMode(hass)) return { ok: true, localOnly: true };
+    const sp = (mhCfg && mhCfg.providers && mhCfg.providers.spotify) || {};
+    if (item.provider === 'spotify' && sp.entity && hasService(hass, 'spotifyplus', 'player_media_add_to_queue') && !item.catalogFallback && item.uri) {
+      await callService(hass, 'spotifyplus', 'player_media_add_to_queue', {
+        entity_id: sp.entity,
+        uri: item.uri
+      });
+      return { ok: true, remote: 'spotifyplus' };
+    }
+    if (item.provider === 'music_assistant' && targetPlayer && hasService(hass, 'music_assistant', 'play_media')) {
+      await callService(hass, 'music_assistant', 'play_media', {
+        entity_id: targetPlayer,
+        media_id: item.uri || item.id,
+        media_type: item.type || 'track',
+        enqueue: 'next'
+      });
+      return { ok: true, remote: 'music_assistant' };
+    }
+    return { ok: true, localOnly: true };
   }
 
   /* ---------- 8. Multiroom Service Logic ---------- */
@@ -1078,7 +1365,14 @@
     checkProviderAvailability,
     getSpotifyConnectDevices,
     searchRadio,
+    browseRadioGenre,
     playRadio,
+    searchSomaFm,
+    playSomaFm,
+    searchAudius,
+    playAudius,
+    searchArchive,
+    playArchive,
     searchYtube,
     playYtube,
     searchLocalLibrary,
@@ -1088,6 +1382,8 @@
     playSpotify,
     searchMusicAssistant,
     playMusicAssistant,
+    fetchPlayerQueue,
+    enqueueItem,
     search,
     play,
     isPlayerGroupable,

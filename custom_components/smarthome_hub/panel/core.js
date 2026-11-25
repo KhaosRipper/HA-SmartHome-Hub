@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.7.7';
+const VERSION = '3.7.8';
 
 /* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
 const I18N = {
@@ -245,6 +245,13 @@ const I18N = {
     'bat.desc_idle': 'Reicht ca. {dur} (bei Ø {w} W Grundlast)',
     'bat.short_charging': 'Voll in ca. {dur}',
     'bat.short_discharging': 'Reicht ca. {dur}',
+    'bat.reserve_reached': 'Reserve erreicht',
+    'bat.usable': 'Nutzbar',
+    'bat.base_load': 'Grundlast',
+    'bat.charge_lbl': 'Ladung',
+    'bat.discharge_lbl': 'Entladung',
+    'bat.reserve_lbl': 'Reserve',
+    'bat.pv_lbl': 'PV',
     'sys.title': 'Server & Docker',
     'sys.empty': 'Keine System-Sensoren konfiguriert. Konfigurator → Geräte → System-Health.',
     'sys.cpu': 'CPU-Last',
@@ -469,12 +476,31 @@ const I18N = {
     'mh.type.artist': 'Interpret',
     'mh.type.album': 'Album',
     'mh.type.radio': 'Radio',
+    'mh.type.channel': 'Kanal',
+    'mh.type.archive': 'Archive',
     'mh.tab.radio': '📻 Radio',
+    'mh.tab.somafm': '🎧 SomaFM',
+    'mh.tab.audius': '🌊 Audius',
+    'mh.tab.archive': '🏛️ Archive',
     'mh.tab.ytube_free': '▶️ YT Music',
     'mh.tab.local_library': '💾 Lokal',
     'mh.tab.direct_url': '🔗 URL',
     'mh.tab.spotify': '🟢 Spotify',
     'mh.tab.music_assistant': '🎵 Music Assistant',
+    'mh.queue': 'Warteschlange',
+    'mh.queue_title': 'Warteschlange · Als Nächstes',
+    'mh.queue_now': 'Läuft gerade',
+    'mh.queue_next': 'Als Nächstes',
+    'mh.queue_empty': 'Noch nichts geplant. Tippe bei einem Titel auf +, um ihn einzureihen.',
+    'mh.queue_add': 'Als Nächstes einreihen',
+    'mh.queue_added': 'Eingereiht: {title}',
+    'mh.queue_clear': 'Leeren',
+    'mh.queue_remote': 'Player-Warteschlange',
+    'mh.queue_sync': 'Aktualisieren',
+    'mh.browse_loading': 'Lade kostenlose Musik…',
+    'mh.browse_empty': 'Keine Einträge geladen – nutze die Suche oben.',
+    'mh.err_stream_resolve': 'Audio-Stream konnte nicht geladen werden.',
+    'mh.radio_quick_favs': 'Favoriten',
     'mh.toast_playing': 'Wiedergabe gestartet: {title}',
     'mh.toast_preset': 'Gruppe aktiviert: {name}',
     'mh.swipe_hint': 'Wischen zum Wechseln',
@@ -493,7 +519,7 @@ const I18N = {
     'mh.err_nothing_selected': 'Kein Medienelement ausgewählt.',
     'mh.cfg_tab': '🎵 Media Hub / Audio',
     'mh.cfg_box_profile': '🎛️ Aktivierung, Betriebsprofil & Musik-Quellen',
-    'mh.cfg_box_profile_desc': 'Läuft standardmäßig 100 % ohne Abo (Radio Browser, ytube_music_player, Emby/Jellyfin/DLNA, Direkt-URL). Optional mit Spotify/SpotifyPlus oder Music Assistant.',
+    'mh.cfg_box_profile_desc': 'Läuft standardmäßig 100 % ohne Abo & ohne Anmeldung (Radio Browser, SomaFM, Audius, Internet Archive, ytube_music_player, Emby/Jellyfin/DLNA, Direkt-URL). Optional mit Spotify/SpotifyPlus oder Music Assistant.',
     'mh.cfg_title': 'Widget-Titel',
     'mh.cfg_profile': 'Betriebsprofil',
     'mh.cfg_profile_free': 'Free Direct (0 € / Ohne Abo)',
@@ -501,6 +527,9 @@ const I18N = {
     'mh.cfg_profile_ma': 'Music Assistant (All-in-One-Modus)',
     'mh.cfg_radio_enable': 'Webradio (Radio Browser) aktivieren',
     'mh.cfg_radio_live': 'Radio Browser Live-Suche aktivieren',
+    'mh.cfg_somafm_enable': 'SomaFM (50+ werbefreie Kanäle, ohne Anmeldung)',
+    'mh.cfg_audius_enable': 'Audius (Kostenloses Musik-Streaming, ohne Anmeldung)',
+    'mh.cfg_archive_enable': 'Internet Archive (Live-Konzerte, Klassik & Jazz, gratis)',
     'mh.cfg_ytube_enable': 'YouTube Music Free (ytube_music_player via HACS)',
     'mh.cfg_ytube_ent': 'ytube_music_player Entität',
     'mh.cfg_local_enable': 'Lokale Bibliothek / Medienserver (Emby, Jellyfin, DLNA)',
@@ -799,6 +828,13 @@ const I18N = {
     'bat.desc_idle': 'Lasts ~{dur} (at avg {w} W base load)',
     'bat.short_charging': 'Full in ~{dur}',
     'bat.short_discharging': 'Lasts ~{dur}',
+    'bat.reserve_reached': 'Reserve reached',
+    'bat.usable': 'Usable',
+    'bat.base_load': 'Base load',
+    'bat.charge_lbl': 'Charge',
+    'bat.discharge_lbl': 'Discharge',
+    'bat.reserve_lbl': 'Reserve',
+    'bat.pv_lbl': 'PV',
     'sys.title': 'Server & Docker',
     'sys.empty': 'No system sensors configured. Configurator → Devices → System Health.',
     'sys.cpu': 'CPU Load',
@@ -1023,12 +1059,31 @@ const I18N = {
     'mh.type.artist': 'Artist',
     'mh.type.album': 'Album',
     'mh.type.radio': 'Radio',
+    'mh.type.channel': 'Channel',
+    'mh.type.archive': 'Archive',
     'mh.tab.radio': '📻 Radio',
+    'mh.tab.somafm': '🎧 SomaFM',
+    'mh.tab.audius': '🌊 Audius',
+    'mh.tab.archive': '🏛️ Archive',
     'mh.tab.ytube_free': '▶️ YT Music',
     'mh.tab.local_library': '💾 Local',
     'mh.tab.direct_url': '🔗 URL',
     'mh.tab.spotify': '🟢 Spotify',
     'mh.tab.music_assistant': '🎵 Music Assistant',
+    'mh.queue': 'Queue',
+    'mh.queue_title': 'Queue · Up Next',
+    'mh.queue_now': 'Now playing',
+    'mh.queue_next': 'Up Next',
+    'mh.queue_empty': 'Queue is empty. Tap + on any track to add it to Up Next.',
+    'mh.queue_add': 'Add to queue',
+    'mh.queue_added': 'Queued: {title}',
+    'mh.queue_clear': 'Clear',
+    'mh.queue_remote': 'Player queue',
+    'mh.queue_sync': 'Refresh',
+    'mh.browse_loading': 'Loading free music…',
+    'mh.browse_empty': 'No items loaded – use search above.',
+    'mh.err_stream_resolve': 'Could not resolve audio stream.',
+    'mh.radio_quick_favs': 'Favorites',
     'mh.toast_playing': 'Playing: {title}',
     'mh.toast_preset': 'Group activated: {name}',
     'mh.swipe_hint': 'Swipe to switch',
@@ -1047,7 +1102,7 @@ const I18N = {
     'mh.err_nothing_selected': 'No media item selected.',
     'mh.cfg_tab': '🎵 Media Hub / Audio',
     'mh.cfg_box_profile': '🎛️ Activation, Provider Profile & Audio Sources',
-    'mh.cfg_box_profile_desc': 'Runs 100% subscription-free by default (Radio Browser, ytube_music_player, Emby/Jellyfin/DLNA, Direct URL). Optionally switch to Spotify/SpotifyPlus or Music Assistant.',
+    'mh.cfg_box_profile_desc': 'Runs 100% subscription-free & login-free by default (Radio Browser, SomaFM, Audius, Internet Archive, ytube_music_player, Emby/Jellyfin/DLNA, Direct URL). Optionally switch to Spotify/SpotifyPlus or Music Assistant.',
     'mh.cfg_title': 'Widget Title',
     'mh.cfg_profile': 'Operating Profile',
     'mh.cfg_profile_free': 'Free Direct (€0 / No Subscription)',
@@ -1055,6 +1110,9 @@ const I18N = {
     'mh.cfg_profile_ma': 'Music Assistant (All-in-One Mode)',
     'mh.cfg_radio_enable': 'Enable Webradio (Radio Browser)',
     'mh.cfg_radio_live': 'Enable Radio Browser live search',
+    'mh.cfg_somafm_enable': 'SomaFM (50+ ad-free channels, no login)',
+    'mh.cfg_audius_enable': 'Audius (Free music streaming, no login)',
+    'mh.cfg_archive_enable': 'Internet Archive (Live concerts, classical & jazz, free)',
     'mh.cfg_ytube_enable': 'YouTube Music Free (ytube_music_player via HACS)',
     'mh.cfg_ytube_ent': 'ytube_music_player Entity',
     'mh.cfg_local_enable': 'Local Library / Media Server (Emby, Jellyfin, DLNA)',
@@ -1302,7 +1360,9 @@ const ICONS = {
   music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   radio:'<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>',
   volume:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
-  volumeMute:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>'
+  volumeMute:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>',
+  queue:'<path d="M3 6h14M3 12h10M3 18h10"/><polygon points="17 12 22 15 17 18 17 12"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>'
 };
 const ic = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ICONS.plug}</svg>`;
 
@@ -1409,6 +1469,9 @@ function DEFAULT_MEDIA_HUB_CONFIG() {
     defaultPlayer: '',
     providers: {
       radio: { enabled: true, liveSearch: true },
+      somafm: { enabled: true },
+      audius: { enabled: true },
+      archive: { enabled: true },
       ytube_free: { enabled: false, entity: '' },
       local_library: { enabled: false, entity: '' },
       direct_url: { enabled: true },
@@ -1665,6 +1728,14 @@ function calcBatteryForecast() {
   const currentWh = (soc / 100) * totalWh;
   const usableWh = Math.max(0, ((soc - minSoC) / 100) * totalWh);
   const neededWh = Math.max(0, ((maxSoC - soc) / 100) * totalWh);
+  const sharedMeta = {
+    currentKwh: +(currentWh / 1000).toFixed(1),
+    usableKwh: +(usableWh / 1000).toFixed(1),
+    capacityKwh,
+    minSoC,
+    pvPowerW: pvPower,
+    isReserveReached: soc <= minSoC && chgPower < 40
+  };
 
   const now = new Date();
 
@@ -1681,6 +1752,7 @@ function calcBatteryForecast() {
     const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
     return {
+      ...sharedMeta,
       state: 'charging',
       soc,
       powerW: chgPower,
@@ -1706,6 +1778,7 @@ function calcBatteryForecast() {
     const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
     return {
+      ...sharedMeta,
       state: 'discharging',
       soc,
       powerW: disPower,
@@ -1731,6 +1804,7 @@ function calcBatteryForecast() {
   const etaFmt = isToday ? t('bat.eta_today', { time: etaStr }) : t('bat.eta_tomorrow', { time: etaStr });
 
   return {
+    ...sharedMeta,
     state: 'idle',
     soc,
     powerW: effectiveLoad,

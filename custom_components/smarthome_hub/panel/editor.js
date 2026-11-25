@@ -1766,6 +1766,11 @@ function renderCfgModal(preserveScroll = true) {
         <label><input type="checkbox" data-cbool="mediaHub.providers.radio.liveSearch" ${(mhProv.radio && mhProv.radio.liveSearch !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_radio_live'))}</label>
       </div>
       <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
+        <label><input type="checkbox" data-cbool="mediaHub.providers.somafm.enabled" ${(!mhProv.somafm || mhProv.somafm.enabled !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_somafm_enable'))}</label>
+        <label><input type="checkbox" data-cbool="mediaHub.providers.audius.enabled" ${(!mhProv.audius || mhProv.audius.enabled !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_audius_enable'))}</label>
+        <label><input type="checkbox" data-cbool="mediaHub.providers.archive.enabled" ${(!mhProv.archive || mhProv.archive.enabled !== false) ? 'checked' : ''}> ${esc(t('mh.cfg_archive_enable'))}</label>
+      </div>
+      <div class="cfg-row" style="background:rgba(255,255,255,.025);padding:10px;border-radius:10px;border:1px solid var(--line)">
         <label><input type="checkbox" data-cbool="mediaHub.providers.ytube_free.enabled" ${(mhProv.ytube_free && mhProv.ytube_free.enabled) ? 'checked' : ''}> ${esc(t('mh.cfg_ytube_enable'))}</label>
         ${fld(t('mh.cfg_ytube_ent'), `list="ha-entities-list" data-cpath="mediaHub.providers.ytube_free.entity" value="${esc((mhProv.ytube_free && mhProv.ytube_free.entity) || '')}"`)}
       </div>

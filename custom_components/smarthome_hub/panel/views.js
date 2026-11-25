@@ -986,54 +986,55 @@ function batteryForecastCard(customTitle, forceShow = false) {
   const title = tDefault(customTitle || t('bat.title'));
   const isChg = bf.state === 'charging';
   const isDis = bf.state === 'discharging';
-  const stLbl = isChg ? tr('Lädt', 'Charging') : (isDis ? tr('Entlädt', 'Discharging') : t('state.standby'));
-  const stateColor = isChg ? 'var(--ok)' : (isDis ? 'var(--cool)' : 'var(--mut)');
-  const stateIco = isChg ? ic('batteryCharge', 22) : (isDis ? ic('battery', 22) : ic('batteryClock', 22));
+  const isLow = !isChg && bf.soc <= (bf.minSoC + 5);
+  const badgeCls = isChg ? 'charging' : (bf.isReserveReached ? 'low' : (isDis ? 'discharging' : 'idle'));
+  const stLbl = isChg ? tr('Lädt', 'Charging') : (bf.isReserveReached ? t('bat.reserve_lbl') : (isDis ? tr('Entlädt', 'Discharging') : t('state.standby')));
+  const stateColor = isChg ? 'var(--ok)' : (isLow ? 'var(--warn)' : (isDis ? 'var(--cool)' : 'var(--acc2)'));
+  const stateIco = isChg ? ic('batteryCharge', 18) : (isDis ? ic('battery', 18) : ic('batteryClock', 18));
+
+  const mainEta = bf.isReserveReached ? t('bat.reserve_reached') : bf.targetTime;
+  const subTxt = bf.isReserveReached ? `Min ${bf.minSoC}%` : bf.shortDesc;
+  const flowLbl = isChg ? t('bat.charge_lbl') : (isDis ? t('bat.discharge_lbl') : t('bat.base_load'));
+  const flowVal = `${isChg ? '+' : (isDis ? '−' : 'Ø ')}${fmt(bf.powerW, 0)} W`;
+  const thirdLbl = bf.pvPowerW > 0 ? t('bat.pv_lbl') : t('bat.reserve_lbl');
+  const thirdVal = bf.pvPowerW > 0 ? `${fmt(bf.pvPowerW, 0)} W` : `${bf.minSoC}%`;
 
   return `<section class="card battery-forecast-card">
-    <div class="ch">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="color:${stateColor}">${stateIco}</span>
+    <div class="ch bf-hdr">
+      <div class="bf-title-wrap">
+        <span class="bf-ico" style="color:${stateColor}">${stateIco}</span>
         <b>${esc(title)}</b>
       </div>
-      <span class="pill on" style="font-size:11px;padding:3px 9px;border-color:${stateColor};color:#fff">${bf.soc}% · ${stLbl}</span>
+      <span class="bf-badge ${badgeCls}">${esc(stLbl)}</span>
     </div>
 
-    <div class="bf-hero ${bf.state}">
-      <div class="bf-hero-left">
-        <div class="bf-hero-headline">${esc(bf.shortDesc)}</div>
-        <div class="bf-hero-sub">${esc(bf.desc)}</div>
+    <div class="bf-main ${bf.state}">
+      <div class="bf-soc-col">
+        <div class="bf-soc-val">${Math.round(bf.soc)}<span>%</span></div>
+        <div class="bf-kwh-sub">${fmt(bf.currentKwh, 1)} / ${fmt(bf.capacityKwh, 1)} kWh</div>
       </div>
-      <div class="bf-hero-right">
-        <div class="bf-hero-eta">${bf.targetTime}</div>
-        <small class="mut">${isChg ? t('bat.full_at') : t('bat.empty_at')}</small>
+      <div class="bf-eta-col">
+        <div class="bf-eta-val">${esc(mainEta)}</div>
+        <div class="bf-eta-sub">${esc(subTxt)}</div>
       </div>
     </div>
 
-    <div class="bf-prog-wrap">
+    <div class="bf-bar-wrap">
       <div class="bf-prog-bar">
-        <div class="bf-prog-fill ${bf.state}" style="width:${clamp(bf.soc, 0, 100)}%"></div>
+        <div class="bf-prog-fill ${bf.state}${isLow ? ' low' : ''}" style="width:${clamp(bf.soc, 0, 100)}%"></div>
+        <span class="bf-bar-min" style="left:${clamp(bf.minSoC, 0, 95)}%" title="Min: ${bf.minSoC}%"></span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:4px">
+      <div class="bf-scale">
         <span>0%</span>
-        <span>Min: ${bfCfg.minSoC || 5}%</span>
-        <span>100% (${bfCfg.capacityKwh || 10} kWh)</span>
+        <span>Min ${bf.minSoC}%</span>
+        <span>100%</span>
       </div>
     </div>
 
-    <div class="bf-stats-row">
-      <div class="bf-stat-col">
-        <span class="mut sm">SoC</span>
-        <b>${bf.soc}%</b>
-      </div>
-      <div class="bf-stat-col">
-        <span class="mut sm">${t('dev.col_power')}</span>
-        <b style="color:${stateColor}">${fmt(bf.powerW, 0)} W</b>
-      </div>
-      <div class="bf-stat-col">
-        <span class="mut sm">${isChg ? t('bat.full_at') : t('bat.empty_at')}</span>
-        <b>${bf.etaStr}</b>
-      </div>
+    <div class="bf-meta-strip">
+      <div class="bf-meta-item"><span>${esc(flowLbl)}</span><b style="color:${stateColor}">${esc(flowVal)}</b></div>
+      <div class="bf-meta-item"><span>${esc(t('bat.usable'))}</span><b>${fmt(bf.usableKwh, 1)} kWh</b></div>
+      <div class="bf-meta-item"><span>${esc(thirdLbl)}</span><b>${esc(thirdVal)}</b></div>
     </div>
   </section>`;
 }
