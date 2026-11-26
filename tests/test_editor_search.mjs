@@ -203,12 +203,12 @@ const initPySrc = fs.readFileSync('custom_components/smarthome_hub/__init__.py',
 const gitignoreSrc = fs.readFileSync('.gitignore', 'utf8');
 
 // Version consistency across manifest.json, __init__.py, core.js, and index.html
-assert.equal(manifestObj.version, '3.7.8', 'manifest.json version must be 3.7.8');
-assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.8"/, '__init__.py VERSION must be 3.7.8');
-assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.8'/, 'core.js VERSION must be 3.7.8');
-assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[0-7])/, 'index.html must not contain old version query params');
-const vMatches = indexSrc.match(/\?v=3\.7\.8/g) || [];
-assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.8');
+assert.equal(manifestObj.version, '3.7.10', 'manifest.json version must be 3.7.10');
+assert.match(initPySrc, /VERSION\s*=\s*"3\.7\.10"/, '__init__.py VERSION must be 3.7.10');
+assert.match(coreSrc, /const VERSION\s*=\s*'3\.7\.10'/, 'core.js VERSION must be 3.7.10');
+assert.doesNotMatch(indexSrc, /\?v=(3\.[3456]\.|3\.7\.[0-9](?!\d))/, 'index.html must not contain old version query params');
+const vMatches = indexSrc.match(/\?v=3\.7\.10/g) || [];
+assert.equal(vMatches.length, 12, 'All 12 assets in index.html must use ?v=3.7.10');
 
 // Container-query & overflow invariants for side-by-side Calendar (Apple) and Rolläden cards
 assert.match(cssSrc, /\.cal-card\s*\{[^}]*container-type:\s*inline-size;[^}]*overflow:\s*hidden/s, '.cal-card must establish inline-size container and clip overflow');
@@ -278,7 +278,7 @@ const calSandbox = vm.createContext({
 vm.runInContext(
   configSrc + '\n' + coreSrc + '\n' + cameraSrc + '\n' + viewsSrc + '\n' +
   appSrc.replace(/\(async function init\(\)[\s\S]*$/, '') +
-  '\nthis.CONFIG = CONFIG; this.ui = ui; this.homeCalendarState = homeCalendarState; this._configDigest = _configDigest; this._syncSignedUploadUrls = _syncSignedUploadUrls; S = id => mockStates[id]; render = () => {};',
+  '\nthis.CONFIG = CONFIG; this.ui = ui; this.homeCalendarState = homeCalendarState; this._configDigest = _configDigest; this._syncSignedUploadUrls = _syncSignedUploadUrls; this.calcVisibleViewportRect = calcVisibleViewportRect; this.syncVisibleViewport = syncVisibleViewport; S = id => mockStates[id]; render = () => {};',
   calSandbox
 );
 calSandbox.mockStates = mockStates;
@@ -529,5 +529,30 @@ assert.ok(!enHeroHtml.includes('undefined'), 'English hero banner must not conta
 calSandbox.CONFIG.language = 'de';
 assert.equal(calSandbox.getLang(), 'de', 'Manual CONFIG.language="de" must activate German');
 assert.equal(calSandbox.t('cal.no_events'), 'Keine Termine');
+
+// 7. Visible-Viewport Popup Centering (Tall Lovelace Iframe & Scroll Container Clipping)
+assert.match(cssSrc, /\.modal\{[^}]*--vp-top[^}]*--vp-bottom/, '.modal must use --vp-top and --vp-bottom padding');
+assert.match(cssSrc, /\.sheet\{[^}]*--vp-h/, '.sheet must constrain max-height using --vp-h');
+assert.match(cssSrc, /\.cfg-sheet\{[^}]*--vp-w[^}]*--vp-h/, '.cfg-sheet must size using --vp-w and --vp-h');
+assert.match(cssSrc, /\.lb-topbar\s*\{[^}]*top:\s*var\(--vp-top,\s*0px\)/s, '.lb-topbar must anchor to --vp-top');
+assert.match(cssSrc, /#screensaver\s*\{[^}]*--vp-top[^}]*--vp-bottom/s, '#screensaver must pad to visible viewport');
+assert.match(cssSrc, /\.bell-popup-overlay\s*\{[^}]*--vp-top[^}]*--vp-bottom/s, '.bell-popup-overlay must pad to visible viewport');
+assert.match(cssSrc, /\.toast\{[^}]*--vp-left[^}]*--vp-bottom/, '.toast must position relative to --vp-left and --vp-bottom');
+
+const viewClip = [{ top: 56, bottom: 920, left: 0, right: 1920, clipY: true, clipX: true }];
+const vpTop = { ...calSandbox.calcVisibleViewportRect(1903, 1903, { left: 0, top: 56, right: 1903, bottom: 1959, width: 1903, height: 1903 }, 1920, 920, viewClip) };
+assert.deepEqual(vpTop, { top: 0, right: 0, bottom: 1039, left: 0, width: 1903, height: 864 }, 'Tall iframe at scroll top must anchor popup to visible top 864px');
+
+const vpMid = { ...calSandbox.calcVisibleViewportRect(1903, 1903, { left: 0, top: -444, right: 1903, bottom: 1459, width: 1903, height: 1903 }, 1920, 920, viewClip) };
+assert.deepEqual(vpMid, { top: 500, right: 0, bottom: 539, left: 0, width: 1903, height: 864 }, 'Tall iframe scrolled 500px must shift visible window to 500..1364');
+
+const vpBot = { ...calSandbox.calcVisibleViewportRect(1903, 1903, { left: 0, top: -983, right: 1903, bottom: 920, width: 1903, height: 1903 }, 1920, 920, viewClip) };
+assert.deepEqual(vpBot, { top: 1039, right: 0, bottom: 0, left: 0, width: 1903, height: 864 }, 'Tall iframe scrolled to bottom must anchor popup to visible bottom 864px');
+
+const vpPanel = { ...calSandbox.calcVisibleViewportRect(1920, 864, { left: 0, top: 56, right: 1920, bottom: 920, width: 1920, height: 864 }, 1920, 920, viewClip) };
+assert.deepEqual(vpPanel, { top: 0, right: 0, bottom: 0, left: 0, width: 1920, height: 864 }, 'Full-viewport panel_iframe must have zero insets');
+
+const vpFallback = { ...calSandbox.calcVisibleViewportRect(1280, 720, null, 0, 0, []) };
+assert.deepEqual(vpFallback, { top: 0, right: 0, bottom: 0, left: 0, width: 1280, height: 720 }, 'Null frameRect must fall back to full iframe dimensions');
 
 console.log('test_editor_search, v3.4.0, v3.5.0 & i18n self-tests: ALL PASSED');

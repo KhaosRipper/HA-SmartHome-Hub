@@ -758,6 +758,70 @@ assert.equal(qBadge.textContent, '1', 'Queue badge must decrement to 1 after pop
 await clickEv('queueRemove', { mhIdx: '0' });
 assert.equal(qBadge.hidden, true, 'Queue badge must hide when queue becomes empty');
 
+// UI Search & Tab-Switch end-to-end test (ensures refreshContentAndSearch never crashes or hangs in "Suche läuft")
+inst.activeTab = 'radio';
+const searchInp2 = inst.el.querySelector('[data-mh-role="search-input"]');
+searchInp2.value = 'SWR3';
+inst.searchQuery = 'SWR3';
+await clickEv('runSearch');
+assert.equal(inst.searchLoading, false, 'searchLoading must return to false after runSearch');
+assert.equal(inst.hasSearched, true, 'hasSearched must be true after runSearch');
+assert.ok(inst.searchResults.length > 0, 'runSearch must populate searchResults');
+const contentAfterSearch = inst.el.querySelector('[data-mh-role="content"]');
+assert.ok(contentAfterSearch.innerHTML.includes('SWR3'), 'Search results HTML must render matching station');
+assert.ok(!contentAfterSearch.innerHTML.includes('Suche läuft'), 'Loading indicator must clear after search finishes');
+
+// Tab switch & clear search must complete cleanly without throwing
+await clickEv('selectTab', { mhTab: 'somafm' });
+assert.equal(inst.activeTab, 'somafm');
+await clickEv('clearSearch');
+assert.equal(inst.hasSearched, false);
+assert.equal(inst.searchQuery, '');
+
+// callWsWithTimeout must reject cleanly instead of hanging forever on stalled WS
+const stalledHass = { callWS: () => new Promise(() => {}) };
+let wsTimedOut = false;
+try {
+  await adapters.callWsWithTimeout(stalledHass, { type: 'ping' }, 40);
+} catch (err) {
+  wsTimedOut = /timeout/i.test(String(err && err.message));
+}
+assert.equal(wsTimedOut, true, 'callWsWithTimeout must reject on stalled WS');
+
+// Unavailable Spotify entity + Alexa target must fall back immediately without hanging
+const unavailSpHass = {
+  ...echoHass,
+  states: {
+    ...echoHass.states,
+    'media_player.spotify_native': { state: 'unavailable', attributes: { supported_features: 2097152 } }
+  },
+  callWS: () => new Promise(() => {}) // would hang if called!
+};
+ctx.fetch = async () => ({ ok: false });
+const unavailSpRes = await adapters.searchSpotify(unavailSpHass, 'rammstein', ['track'], mhNativeSp, 'media_player.echo_dot_kuche_esszimmer');
+assert.ok(unavailSpRes.items.some(i => i.type === 'alexa_spotify' && i.title === 'rammstein'), 'Unavailable Spotify must still offer Alexa direct play immediately');
+delete ctx.fetch;
+
+// icon_only searchStyle: while searchLoading is true, idle hint must NOT show beneath "Suche läuft", and resolving clears loading
+ctx.CONFIG.mediaHub.ui.searchStyle = 'icon_only';
+ctx.MediaHubWidget.mountAll();
+await clickEv('toggleSearchOpen');
+assert.equal(inst.searchOpen, true);
+inst.activeTab = 'audius';
+const spSearchInp = inst.el.querySelector('[data-mh-role="search-input"]');
+spSearchInp.value = 'rammstein';
+let resolveSlowFetch;
+ctx.fetch = () => new Promise(res => { resolveSlowFetch = res; });
+const pendingRun = clickEv('runSearch');
+const contentWhileLoading = inst.el.querySelector('[data-mh-role="content"]');
+assert.ok(contentWhileLoading.innerHTML.includes('Suche läuft'), 'Loading hint must show while searching');
+assert.ok(!contentWhileLoading.innerHTML.includes('Gib einen Suchbegriff ein'), 'Idle hint must NOT render while searchLoading is true');
+assert.equal(typeof resolveSlowFetch, 'function', 'fetch must be invoked during search');
+resolveSlowFetch({ ok: false });
+await pendingRun;
+assert.equal(inst.searchLoading, false, 'searchLoading must reset to false after slow search settles');
+delete ctx.fetch;
+
 // 7. Test Configurator 'media' Tab Rendering in DE & EN
 vm.runInContext(editorSrc + '\nthis.renderCfgModal = renderCfgModal;', ctx);
 vm.runInContext('cfgDraft = ensureConfigDefaults(JSON.parse(JSON.stringify(CONFIG))); cfgTab = "media"; CONFIG.language = "de";', ctx);

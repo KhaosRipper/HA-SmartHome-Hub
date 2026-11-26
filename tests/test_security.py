@@ -110,12 +110,14 @@ import custom_components.smarthome_hub as hub  # noqa: E402
 class FakeStore:
     def __init__(self, initial: dict | None = None) -> None:
         self.data = dict(initial or {})
+        self.save_count = 0
 
     async def async_load(self) -> dict:
         return dict(self.data)
 
     async def async_save(self, data: dict) -> None:
         self.data = dict(data)
+        self.save_count += 1
 
 
 class FakeHass:
@@ -364,6 +366,146 @@ def test_config_strips_auth_sig_on_save_and_resigns_on_get() -> None:
     assert store.data["rooms"][0]["image"] == f"{hub.UPLOAD_API_URL}/abc_room.png"
 
 
+def test_legacy_uploads_migration_at_setup() -> None:
+    class FakeSetupHass:
+        def __init__(self, tmp_dir: str) -> None:
+            self.data: dict = {}
+            self.executor_calls: list = []
+            self.registered_views: list = []
+            self.bus = types.SimpleNamespace(async_fire=lambda *a, **kw: None)
+            self.http = types.SimpleNamespace(
+                register_static_path=lambda *a, **kw: None,
+                register_view=lambda view: self.registered_views.append(view),
+            )
+            self.config = types.SimpleNamespace(
+                path=lambda *parts: str(Path(tmp_dir).joinpath(*parts))
+            )
+
+        async def async_add_executor_job(self, func, *args):
+            self.executor_calls.append(func)
+            return func(*args)
+
+    living_png = b"\x89PNG\r\n\x1a\n" + b"living-bytes"
+    old_dup_jpg = b"\xff\xd8\xff" + b"old-dup"
+    new_dup_jpg = b"\xff\xd8\xff" + b"new-private"
+
+    store = FakeStore(
+        {
+            "_pinHash": "keep-hash",
+            "rooms": [
+                {
+                    "name": "Wohnzimmer",
+                    "image": f"{hub.LEGACY_UPLOAD_URL}/abc123_living.png",
+                },
+                {
+                    "name": "Küche",
+                    "image": f"{hub.LEGACY_UPLOAD_URL}/dup_kitchen.jpg?v=1",
+                },
+                {
+                    "name": "Garten",
+                    "image": "/local/custom/garden.png",
+                },
+                {
+                    "name": "Bad",
+                    "image": f"{hub.LEGACY_UPLOAD_URL}/../escape.png",
+                },
+            ],
+        }
+    )
+
+    orig_store = hub.Store
+    orig_register_panel = hub.frontend.async_register_built_in_panel
+    try:
+        hub.Store = lambda *a, **kw: store
+        hub.frontend.async_register_built_in_panel = lambda *a, **kw: None
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            legacy_dir = Path(tmp_dir, "www", hub.UPLOAD_SUBDIR)
+            upload_dir = Path(tmp_dir, hub.UPLOAD_SUBDIR)
+            legacy_dir.mkdir(parents=True)
+            upload_dir.mkdir(parents=True)
+            (legacy_dir / "abc123_living.png").write_bytes(living_png)
+            (legacy_dir / "dup_kitchen.jpg").write_bytes(old_dup_jpg)
+            (upload_dir / "dup_kitchen.jpg").write_bytes(new_dup_jpg)
+
+            hass = FakeSetupHass(tmp_dir)
+            asyncio.run(hub.async_setup_entry(hass, types.SimpleNamespace(title="Hub")))
+
+            assert hub._migrate_legacy_uploads in hass.executor_calls
+            assert (upload_dir / "abc123_living.png").read_bytes() == living_png
+            assert (upload_dir / "dup_kitchen.jpg").read_bytes() == new_dup_jpg
+            assert not legacy_dir.exists()
+            assert store.save_count == 1
+            assert store.data["_pinHash"] == "keep-hash"
+            assert (
+                store.data["rooms"][0]["image"]
+                == f"{hub.UPLOAD_API_URL}/abc123_living.png"
+            )
+            assert (
+                store.data["rooms"][1]["image"]
+                == f"{hub.UPLOAD_API_URL}/dup_kitchen.jpg"
+            )
+            assert store.data["rooms"][2]["image"] == "/local/custom/garden.png"
+            assert (
+                store.data["rooms"][3]["image"]
+                == f"{hub.LEGACY_UPLOAD_URL}/../escape.png"
+            )
+
+            conn = FakeConnection()
+            conn.refresh_token_id = "tok_mig"
+            asyncio.run(hub.ws_get_config(hass, conn, {"id": 1}))
+            fetched = conn.results[-1][1]["config"]
+            assert (
+                fetched["rooms"][0]["image"]
+                == f"{hub.UPLOAD_API_URL}/abc123_living.png?authSig=sig_tok_mig_3600"
+            )
+
+            view = hub.SmartHomeHubUploadView(hass)
+            resp = asyncio.run(view.get(object(), "abc123_living.png"))
+            assert resp.status == 200
+            assert resp.body == living_png
+
+            # Zweiter Setup-Lauf ist idempotent (kein erneutes Speichern)
+            asyncio.run(hub.async_setup_entry(hass, types.SimpleNamespace(title="Hub")))
+            assert store.save_count == 1
+
+            # ws_save_config normalisiert Legacy-URLs aus alten Backups/Tabs ebenfalls
+            asyncio.run(
+                hub.ws_save_config(
+                    hass,
+                    conn,
+                    {
+                        "id": 2,
+                        "config": {
+                            "rooms": [
+                                {"image": f"{hub.LEGACY_UPLOAD_URL}/abc123_living.png"}
+                            ]
+                        },
+                    },
+                )
+            )
+            assert (
+                store.data["rooms"][0]["image"]
+                == f"{hub.UPLOAD_API_URL}/abc123_living.png"
+            )
+
+            # Nicht-Bild-Dateien bleiben unberührt und der Ordner bleibt erhalten
+            mixed_legacy = Path(tmp_dir, "mixed_legacy")
+            mixed_target = Path(tmp_dir, "mixed_target")
+            mixed_legacy.mkdir()
+            (mixed_legacy / "notes.txt").write_text("keep", encoding="utf-8")
+            (mixed_legacy / "photo.png").write_bytes(living_png)
+            moved = hub._migrate_legacy_uploads(str(mixed_legacy), str(mixed_target))
+            assert moved == 1
+            assert (mixed_target / "photo.png").read_bytes() == living_png
+            assert not (mixed_legacy / "photo.png").exists()
+            assert (mixed_legacy / "notes.txt").is_file()
+            assert mixed_legacy.is_dir()
+    finally:
+        hub.Store = orig_store
+        hub.frontend.async_register_built_in_panel = orig_register_panel
+
+
 if __name__ == "__main__":
     test_require_admin_decorators()
     test_ws_save_and_verify_pin_preserves_hash_on_mask()
@@ -372,5 +514,6 @@ if __name__ == "__main__":
     test_assets_hash_computed_in_executor_and_cached()
     test_upload_view_auth_and_serving()
     test_config_strips_auth_sig_on_save_and_resigns_on_get()
-    print("7 passed")
+    test_legacy_uploads_migration_at_setup()
+    print("8 passed")
 
