@@ -2592,6 +2592,7 @@ function updateScreensaverContent() {
 
 /* ---------- Initialisierung ---------- */
 (async function init() {
+  if (typeof initVisibleViewportSync === 'function') initVisibleViewportSync();
   try {
     await loadConfigFromServer();
   } catch (e) {

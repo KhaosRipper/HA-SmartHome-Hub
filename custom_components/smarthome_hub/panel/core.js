@@ -3,7 +3,7 @@
    Icons, Helfer, State, HA-Bridge, Theme, Kiosk, PIN & Konfigurations-Speicher
    ========================================================================== */
 
-const VERSION = '3.7.9';
+const VERSION = '3.7.10';
 
 /* ---------- Mehrsprachigkeit (i18n: Deutsch & Englisch) ---------- */
 const I18N = {
@@ -2860,6 +2860,195 @@ function toast(msg) {
   t.classList.add('show');
   clearTimeout(toastT);
   toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- Sichtbarer Viewport-Sync (für große Lovelace-Iframes & Mobile-Viewports) ---------- */
+let _vpSyncInit = false;
+let _vpRaf = 0;
+let _vpBoundTargets = typeof WeakSet === 'function' ? new WeakSet() : null;
+let _lastVpCss = null;
+
+function calcVisibleViewportRect(iframeW, iframeH, frameRect, parentW, parentH, clipRects = []) {
+  const safeW = Math.max(0, Number(iframeW) || 0);
+  const safeH = Math.max(0, Number(iframeH) || 0);
+  const fallback = () => ({ top: 0, right: 0, bottom: 0, left: 0, width: Math.round(safeW), height: Math.round(safeH) });
+  if (!safeW || !safeH || !frameRect || !(Number(frameRect.width) > 0) || !(Number(frameRect.height) > 0)) {
+    return fallback();
+  }
+  const fLeft = Number(frameRect.left) || 0;
+  const fTop = Number(frameRect.top) || 0;
+  const fW = Number(frameRect.width);
+  const fH = Number(frameRect.height);
+  const fRight = frameRect.right != null ? Number(frameRect.right) : (fLeft + fW);
+  const fBottom = frameRect.bottom != null ? Number(frameRect.bottom) : (fTop + fH);
+  const pW = Number(parentW) > 0 ? Number(parentW) : fW;
+  const pH = Number(parentH) > 0 ? Number(parentH) : fH;
+
+  let visLeft = Math.max(fLeft, 0);
+  let visTop = Math.max(fTop, 0);
+  let visRight = Math.min(fRight, pW);
+  let visBottom = Math.min(fBottom, pH);
+
+  if (Array.isArray(clipRects)) {
+    for (const cr of clipRects) {
+      if (!cr) continue;
+      if (cr.clipY) {
+        if (cr.top != null) visTop = Math.max(visTop, Number(cr.top));
+        if (cr.bottom != null) visBottom = Math.min(visBottom, Number(cr.bottom));
+      }
+      if (cr.clipX) {
+        if (cr.left != null) visLeft = Math.max(visLeft, Number(cr.left));
+        if (cr.right != null) visRight = Math.min(visRight, Number(cr.right));
+      }
+    }
+  }
+
+  if (visRight - visLeft < 1 || visBottom - visTop < 1) return fallback();
+
+  const scaleX = safeW / fW;
+  const scaleY = safeH / fH;
+  const inLeft = Math.max(0, Math.min(safeW, (visLeft - fLeft) * scaleX));
+  const inTop = Math.max(0, Math.min(safeH, (visTop - fTop) * scaleY));
+  const inRight = Math.max(0, Math.min(safeW, (visRight - fLeft) * scaleX));
+  const inBottom = Math.max(0, Math.min(safeH, (visBottom - fTop) * scaleY));
+  const width = Math.round(inRight - inLeft);
+  const height = Math.round(inBottom - inTop);
+  if (width < 1 || height < 1) return fallback();
+
+  return {
+    top: Math.round(inTop),
+    right: Math.max(0, Math.round(safeW - inRight)),
+    bottom: Math.max(0, Math.round(safeH - inBottom)),
+    left: Math.round(inLeft),
+    width,
+    height
+  };
+}
+
+function _scheduleViewportSync() {
+  if (typeof requestAnimationFrame !== 'function') {
+    syncVisibleViewport();
+    return;
+  }
+  if (_vpRaf) return;
+  _vpRaf = requestAnimationFrame(() => {
+    _vpRaf = 0;
+    syncVisibleViewport();
+  });
+}
+
+function _bindViewportScrollTarget(target, withResize = false) {
+  if (!target || typeof target.addEventListener !== 'function') return;
+  if (_vpBoundTargets) {
+    if (_vpBoundTargets.has(target)) return;
+    _vpBoundTargets.add(target);
+  }
+  target.addEventListener('scroll', _scheduleViewportSync, { passive: true });
+  if (withResize) target.addEventListener('resize', _scheduleViewportSync, { passive: true });
+}
+
+function syncVisibleViewport() {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !document.documentElement) return;
+  const root = document.documentElement;
+  const iframeW = root.clientWidth || window.innerWidth || 0;
+  const iframeH = root.clientHeight || window.innerHeight || 0;
+  if (!iframeW || !iframeH) return;
+
+  let rect = { top: 0, right: 0, bottom: 0, left: 0, width: Math.round(iframeW), height: Math.round(iframeH) };
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const vLeft = Math.max(0, Math.round(vv.offsetLeft || 0));
+    const vTop = Math.max(0, Math.round(vv.offsetTop || 0));
+    const vW = Math.max(0, Math.round(Math.min(iframeW - vLeft, vv.width || iframeW)));
+    const vH = Math.max(0, Math.round(Math.min(iframeH - vTop, vv.height || iframeH)));
+    if (vW >= 1 && vH >= 1) {
+      rect = {
+        top: vTop,
+        right: Math.max(0, Math.round(iframeW - vLeft - vW)),
+        bottom: Math.max(0, Math.round(iframeH - vTop - vH)),
+        left: vLeft,
+        width: vW,
+        height: vH
+      };
+    }
+  }
+
+  try {
+    const parentWin = window.parent;
+    const frameEl = window.frameElement;
+    if (parentWin && parentWin !== window && frameEl && typeof frameEl.getBoundingClientRect === 'function') {
+      const pvv = parentWin.visualViewport;
+      const pOffLeft = pvv ? (pvv.offsetLeft || 0) : 0;
+      const pOffTop = pvv ? (pvv.offsetTop || 0) : 0;
+      const parentW = pvv ? pvv.width : (parentWin.innerWidth || (parentWin.document && parentWin.document.documentElement && parentWin.document.documentElement.clientWidth) || 0);
+      const parentH = pvv ? pvv.height : (parentWin.innerHeight || (parentWin.document && parentWin.document.documentElement && parentWin.document.documentElement.clientHeight) || 0);
+      const rawFrame = frameEl.getBoundingClientRect();
+      const frameRect = {
+        left: rawFrame.left - pOffLeft,
+        top: rawFrame.top - pOffTop,
+        right: rawFrame.right - pOffLeft,
+        bottom: rawFrame.bottom - pOffTop,
+        width: rawFrame.width,
+        height: rawFrame.height
+      };
+      const clipRects = [];
+      const parentDoc = parentWin.document;
+      let anc = frameEl.parentElement || (frameEl.getRootNode && frameEl.getRootNode().host) || null;
+      while (anc) {
+        _bindViewportScrollTarget(anc, false);
+        if (parentDoc && anc !== parentDoc.documentElement && anc !== parentDoc.body && typeof anc.getBoundingClientRect === 'function') {
+          const cs = typeof parentWin.getComputedStyle === 'function' ? parentWin.getComputedStyle(anc) : null;
+          const clipY = !!(cs && ['auto', 'scroll', 'hidden', 'clip'].includes(cs.overflowY));
+          const clipX = !!(cs && ['auto', 'scroll', 'hidden', 'clip'].includes(cs.overflowX));
+          if (clipY || clipX) {
+            const r = anc.getBoundingClientRect();
+            clipRects.push({
+              top: r.top - pOffTop,
+              bottom: r.bottom - pOffTop,
+              left: r.left - pOffLeft,
+              right: r.right - pOffLeft,
+              width: r.width,
+              height: r.height,
+              clipY,
+              clipX
+            });
+          }
+        }
+        anc = anc.parentElement || (anc.getRootNode && anc.getRootNode().host) || null;
+      }
+      _bindViewportScrollTarget(parentWin, true);
+      if (pvv) _bindViewportScrollTarget(pvv, true);
+      rect = calcVisibleViewportRect(iframeW, iframeH, frameRect, parentW, parentH, clipRects);
+    }
+  } catch (e) {}
+
+  if (!_lastVpCss || _lastVpCss.top !== rect.top) root.style.setProperty('--vp-top', rect.top + 'px');
+  if (!_lastVpCss || _lastVpCss.right !== rect.right) root.style.setProperty('--vp-right', rect.right + 'px');
+  if (!_lastVpCss || _lastVpCss.bottom !== rect.bottom) root.style.setProperty('--vp-bottom', rect.bottom + 'px');
+  if (!_lastVpCss || _lastVpCss.left !== rect.left) root.style.setProperty('--vp-left', rect.left + 'px');
+  if (!_lastVpCss || _lastVpCss.width !== rect.width) root.style.setProperty('--vp-w', rect.width + 'px');
+  if (!_lastVpCss || _lastVpCss.height !== rect.height) root.style.setProperty('--vp-h', rect.height + 'px');
+  _lastVpCss = rect;
+}
+
+function initVisibleViewportSync() {
+  if (_vpSyncInit) return;
+  _vpSyncInit = true;
+  syncVisibleViewport();
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('resize', _scheduleViewportSync, { passive: true });
+    if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+      window.visualViewport.addEventListener('resize', _scheduleViewportSync, { passive: true });
+      window.visualViewport.addEventListener('scroll', _scheduleViewportSync, { passive: true });
+    }
+  }
+  if (typeof MutationObserver === 'function' && typeof document !== 'undefined') {
+    const obs = new MutationObserver(() => syncVisibleViewport());
+    ['sm', 'pinmodal', 'cfgmodal', 'lb', 'bell-popup', 'screensaver', 'toast'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) obs.observe(el, { attributes: true, attributeFilter: ['class', 'style'] });
+    });
+  }
 }
 
 /* ---------- UI-Zustand ---------- */
